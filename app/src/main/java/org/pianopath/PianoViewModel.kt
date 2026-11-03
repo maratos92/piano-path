@@ -165,7 +165,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         } else beat.coerceIn(0.0,score.endBeat)
         if(current.listening)playbackSeek=target
         var next=current.copy(beat=target,transportBeat=target,reviewBeat=target,review=false)
-        if(before.running) {
+        if(!current.listening) {
+            // After any stopped/graded seek, Practice should start where the cursor is.
             val a=target.coerceAtMost((score.endBeat-.25).coerceAtLeast(0.0))
             val from=score.measures.last {it.start<=a+.0001}
             val oldEnd=bounds(before).second
