@@ -145,6 +145,10 @@ class AppSmokeTest {
             val p=vm.ui.value
             val actualStart=p.score!!.measures[p.startMeasure-1].start+p.startOffset
             assertEquals(2.0,actualStart,0.01)
+            vm.seek(1.0)
+            val moved=vm.ui.value
+            assertEquals(1.0,moved.transportBeat,0.01)
+            assertEquals(1.0,moved.score!!.measures[moved.startMeasure-1].start+moved.startOffset,0.01)
         }
     }
     @Test fun listeningAcceptsTouchKeysWithoutSimulatorAndReleasesAfterStop() {
