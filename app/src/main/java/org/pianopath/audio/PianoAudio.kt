@@ -19,16 +19,21 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
     private val bright by lazy { PianoSynth(tone=SynthTone.BRIGHT) }
     @Volatile private var sound=PianoSound.GRAND
     fun selectSound(next: PianoSound) {if(sound!=next){silence();sound=next}}
-    private fun render(buffer: FloatArray) = when(sound) {
-        PianoSound.GRAND->grand.render(buffer)
-        PianoSound.MELLOW->mellow.render(buffer)
-        PianoSound.BRIGHT->bright.render(buffer)
+    private fun render(buffer: FloatArray) {
+        when(sound) {
+            PianoSound.GRAND->grand.render(buffer)
+            PianoSound.MELLOW->mellow.render(buffer)
+            PianoSound.BRIGHT->bright.render(buffer)
+        }
+        clicker.mix(buffer)
     }
     private fun voices()=when(sound) {
         PianoSound.GRAND->grand.activeVoiceCount
         PianoSound.MELLOW->mellow.activeVoiceCount
         PianoSound.BRIGHT->bright.activeVoiceCount
     }
+    private val clicker=MetronomeClick()
+    fun metronomeClick(downbeat: Boolean) {if(start())clicker.trigger(downbeat)}
     private val handler=Handler(Looper.getMainLooper())
     private data class Output(val track: AudioTrack,val alive: AtomicBoolean,val thread: Thread)
     private var output: Output?=null
@@ -60,10 +65,10 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
                     var idleFrames=0
                     while(alive.get()) {
                         render(buffer)
-                        idleFrames=if(voices()==0)idleFrames+buffer.size else 0
+                        idleFrames=if(voices()==0 && !clicker.active)idleFrames+buffer.size else 0
                         if(idleFrames>=44100*2) {
                             idleFrames=0
-                            handler.post {if(output?.track===track && voices()==0)stop()}
+                            handler.post {if(output?.track===track && voices()==0 && !clicker.active)stop()}
                         }
                         var offset=0
                         while(offset<buffer.size&&alive.get()) {
@@ -96,10 +101,13 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
         PianoSound.MELLOW->mellow.releaseChannel(channel)
         PianoSound.BRIGHT->bright.releaseChannel(channel)
     } }}
-    fun silence()=when(sound) {
-        PianoSound.GRAND->grand.silence()
-        PianoSound.MELLOW->mellow.silence()
-        PianoSound.BRIGHT->bright.silence()
+    fun silence() {
+        clicker.silence()
+        when(sound) {
+            PianoSound.GRAND->grand.silence()
+            PianoSound.MELLOW->mellow.silence()
+            PianoSound.BRIGHT->bright.silence()
+        }
     }
     fun stop() {
         val previous=output;output=null
