@@ -21,7 +21,7 @@ import kotlin.math.pow
 
 /** Compact, live two-staff notation: held MIDI pitches appear as noteheads, never text labels. */
 @Composable fun LiveNotes(midi: MidiStatus,modifier: Modifier=Modifier) {
-    val held=midi.held.keys.sorted().take(16)
+    val held=midi.held.keys.sorted().take(16).ifEmpty { midi.lastNote?.let {listOf(it)} ?: emptyList() }
     Canvas(modifier.fillMaxWidth().height(126.dp).semantics {
         contentDescription=if(held.isEmpty())"No keys held" else "Playing "+held.joinToString {noteName(it)}
     }) {
@@ -64,10 +64,7 @@ import kotlin.math.pow
     Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
         PageTitle("See what you play","Live note monitor",midi.status)
         LiveNotes(midi)
-        midi.lastNote?.let { n ->
-            Text(noteName(n),fontSize=64.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.primary)
-            Text("MIDI $n · ${"%.1f".format(440*2.0.pow((n-69)/12.0))} Hz · velocity ${midi.lastVelocity}")
-        }
+        midi.lastNote?.let { n ->Text("Last: MIDI $n · velocity ${midi.lastVelocity} · channel ${midi.lastChannel+1}",fontSize=12.sp) }
         Text("Sustain ${if(midi.sustain)"down" else "up"} · ${midi.sounding.size} sounding notes")
         Text("MIDI tells us pitch, velocity and channel. Finger choice and physical hand cannot be measured.",fontSize=13.sp)
         TextButton(onClick={vm.screen.value="Diagnostics"}){Text("Detailed MIDI events")}
