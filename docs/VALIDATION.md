@@ -1,46 +1,26 @@
-# Validation and feature limits — 0.2.0
+# Validation and feature limits — 0.3.0
 
-## Verified in this workspace
+## Evidence
 
-- Full debug APK build and unsigned release APK build with Kotlin 2.0.21, Gradle 8.9, AGP 8.7.3, full JDK 21 and Android SDK 35.
-- Debug and release Android lint: no errors. Remaining warnings concern dependency updates, the version-specific manifest flag, backup policy and kapt migration; these are not suppressed using a baseline.
-- **66 JUnit tests passed, zero failures**: MIDI running status/fragmentation/realtime/SysEx/zero velocity, repeated notes, sustain/channel separation/panic; chords, arpeggiation, onset/release/latency math, missing/extra notes, hand filtering, pauses, loop boundaries, tempo scaling; MusicXML voices/chords/dots/fingerings/ties/transposition/MXL/security; scale pitches/minor descent/fingering, sight-reading determinism/measure boundaries and complete MusicXML-to-MIDI performance replays; all 88 touch hit regions, roll/key alignment through zoom/pan, bar onset/release/selection, playback event ordering/clipping, and synthesized PCM pitch/velocity/polyphony/sustain/release/panic behaviour.
-- All 50 original score assets parse in the JVM engine and have CC0 attribution metadata.
-- All 50 score assets engrave in the **actual vendored OSMD 1.9.2** in headless Chromium. Cursor movement/backward reset, played-note green colouring, missed-note colouring, range dimming and zoom/layout changes are exercised. No page errors or warnings were reported. This is desktop renderer verification, not proof of Android WebView compatibility on every phone.
-- APK signature checked using Android `apksigner`; APK Signature Scheme v2 verifies. Manifest minimum API is 26, target API 35; no Internet permission. ARM64, ARMv7, x86 and x86_64 native graphics libraries are present.
+Local release-candidate checks: **77 JVM tests passed, zero failures**; debug and instrumentation APKs built; unsigned release APK/AAB built; debug/release lint passed; static 64-bit ELF/APK 16 KB alignment passed. All 50 notation renders passed in Chromium. The debug certificate matches the preceding preview. Production signing, Android runtime reports and physical MIDI checks are separate.
 
-Commands and reproducible procedures are in the README. JUnit XML/HTML, lint and signature reports are included with delivery artifacts. Build tasks and test sources are committed to Git.
+- JVM tests cover MIDI parsing/running status/zero velocity/repeated notes/sustain/channel separation; MusicXML/MXL/security; polyphonic pitch/onset/release/latency matching; loops, tempo, scales, fingering and sight reading; full keyboard and roll geometry; playback and additive/sampled PCM; recorded extra/correct note events, physical releases, repeated strikes, velocity and loop reset. See the current test reports and GitHub Actions for exact counts.
+- Desktop Chromium renders all 50 scores with the vendored OSMD engine offline. Tests verify matched/missing colours, actual note overlays, held-duration traces, continuous movement between notes, adjustable horizontal margin, dark notation and staff identity. This does not establish Android WebView behaviour by itself.
+- Android instrumentation covers navigation, Android XML parsing, local WebView notation, simulated Wait practice, all-88-key/falling-note discovery, unscored listening, private visual-take round trips and expandable landscape navigation. CI includes an API 36 phone and API 35 tablet emulator job. Consult successful workflow reports before describing these as passed.
+- The user reports testing on a Google Pixel with a Roland FP-10. Exact device/software versions and per-feature hardware results have not been supplied. No physical tablet, USB or other-instrument test is claimed. Emulator MIDI cannot verify BLE radios, instrument firmware, pedals or acoustic latency.
 
-## Android runtime tests
+## Implemented and remaining limits
 
-Instrumentation sources cover dashboard/library navigation, Android's own XML parser across all assets and generated exercises, local notation rendering in Android WebView, a simulated complete Wait-mode session, full-keyboard/falling-view discovery, and listening without an accuracy result. They compile into a separate test APK. The CI workflow runs them on API 35; no remote workflow run is claimed until the project is pushed to a GitHub repository.
-
-For 0.1, local emulator instrumentation could not be completed: this workspace has no KVM device; software-emulated API 35 hit the disk limit, and an API 28 fallback did not complete its Android storage/boot sequence reliably. The instrumentation APK compiles, but its tests are **not claimed as passed** without a successful device report. No APK installation/launch or Android WebView runtime verification is claimed locally. Emulated MIDI cannot verify BLE radio or FP-10 firmware behaviour.
-
-## Not verified
-
-**Real Roland FP-10 + physical Android phone:** no hardware was available. Discovery, connection, reconnection, pedal/controller behaviour, end-to-end input latency, timestamp jitter and real piano performance scoring remain hardware acceptance tasks. Follow [FP10_TESTING.md](FP10_TESTING.md). Code implementation and unit tests must not be described as hardware verification.
-
-A production signing identity was not supplied; the release build is deliberately unsigned. The provided debug APK is development-signed and installable. Owner-controlled signing is documented in [RELEASE.md](RELEASE.md).
-
-## Significant scope limits
-
-|Area|Implemented|Limit|
+|Area|Implemented|Limits|
 |---|---|---|
-|MIDI|Native BLE MIDI, polyphony, velocity, release, CC64, resets, reconnection|Hardware validation pending; keep app visible|
-|Import|Single piano-part MusicXML/MXL, grand staff/voices/ties and offline engraving|No PDF/MIDI/MSCZ or multi-instrument assessment; 12 MB cap|
-|Following|Bounded current/next onset matcher; expressive pauses preserve position|No arbitrary jumps, repeat unfolding, Da Capo or learned alignment|
-|Rhythm|Fixed practice BPM, onset/release errors, tolerance/latency and metronome|No tempo-map/ornament assessment; phone tone scheduling is not an audio sample clock|
-|Hands|Per-staff pitch completion|Physical hands/fingers and ambiguous unisons cannot be identified from MIDI|
-|Loops|Measures + quarter-beat offsets, saved passages, results/count-in/tempo progression|Numeric controls rather than drag-selecting the engraving|
-|Playback and bars|Offline piano-like synthesis, unscored Listen, aligned falling bars, full 88-key fit/zoom/pan|No sampled acoustic grand, tempo-map/repeat/pedal-mark playback, or measured physical-device audio latency|
-|Technique|All tonics and six exercise families, one/two octaves, two directions|Major triad arpeggios only; fingering curated for common keys, others explicitly blank|
-|Sight reading|Fresh seeded exercises, four complexities, keys/time/hands/preview|Heuristic training levels, not independently graded exam standards|
-|Library|50 original CC0 miniatures with full metadata|Requested curated historical repertoire remains incomplete; both Chopin waltzes import-only|
-|History|Room aggregate results/category, passages and imports|Current note-level details are not archived; no cloud synchronization/export|
+|Input|BLE MIDI discovery/native ports/reconnect, USB MIDI input selection/attach/detach, polyphonic parser, channel pedal and panic|Other instruments and USB require physical testing; class-compliant MIDI 1.0 only; identical USB devices require explicit selection|
+|Notation|Local OSMD grand staff, MusicXML/MXL import, zoom/layout/margins, continuous cursor, input overlays|One assessed piano part; no PDF/image/MS CZ import; required clef/key/time spacing remains|
+|Assessment|Separate pitch/rhythm, missing/extras/chord completion, onsets/releases, tolerance/latency, staff-based hands|Bounded next-onset follower; no arbitrary jump recovery, unfolded repeats, grace-note grading, expressive tempo maps or physical-finger/hand measurement|
+|Visual review|Performed pitches, coloured errors, physical key-hold traces, score scrubber, private history reopening|Diagnostic overlay, not quantised transcription or MusicXML export; MIDI extra-note spelling/staff placement inferred; no independent finger measurement|
+|Practice|Modes/hands, measure/beat selection, looping/count-in/metronome, saved passages, progressive BPM|Phone metronome is best-effort; calibrate device/audio path; restart after large score jumps|
+|Sound|Bundled acoustic piano, 128 voices, velocity gain, sustain/channel/repeated notes, unscored Listen, audio focus|One dynamic layer, 24 kHz mono/ten-second samples; no resonance modelling or score pedal/tempo-map interpretation; physical latency and audio quality need listening tests|
+|Training|Scales/arpeggios, curated common-key fingerings, four sight-reading levels, local progress|Uncurated fingerings remain blank; major arpeggios only; not independently teacher-validated|
+|Library|50 original CC0 studies with full provenance|A curated historical repertoire collection remains incomplete; import legally obtained editions|
+|Release|Debug APK, source, tests, Actions, signed APK/AAB procedure, API 36 target|Production signing/account/disclosures/testing/store approval are still required; no ads; external voluntary Ko-fi support without digital rewards|
 
-Wrong-pitch inputs are counted as extra events and the unplayed expected pitch remains missing. These are not two independent wrong-note detections. Pitch scoring uses `matched / (expected + extra)`. Chord completion requires every expected note in the group. Wait mode deliberately has no rhythm score. Free Play does not produce a scored session.
-
-Version 0.2 adds an offline synthesized audio engine and falling-note view; physical speaker/headphone output and touch latency still require real-device testing. JVM PCM tests verify generated samples, rather than claiming an audible phone test.
-
-The 0.2 local API 28 emulator retry again failed in Android storage encryption before PackageManager started. No on-device audible output, screenshot or instrumentation pass is claimed. The six instrumentation tests compile and remain available to run on a normal emulator/phone or in CI.
+Android only. No background service; practice stops on app backgrounding or input loss. Physical key-up is graded independently of pedal-sustained sound. Old Room history is migrated in place; visual takes are available for newly recorded sessions.

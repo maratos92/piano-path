@@ -20,15 +20,32 @@ with sync_playwright() as p:
  assert page.locator('svg').count()>0
  count=page.evaluate('entries.length')
  assert count>20,count
+ assert page.evaluate('[...new Set(entries.map(e=>e.staff))]')==[1,2]
  values=page.evaluate('entries.filter(e=>e.pitch>=0).slice(0,8).map(e=>({beat:e.beat,pitch:e.pitch}))')
  page.evaluate('progress(2,[[0,60]],[],0,8,1,false)')
  page.evaluate('progress(0,[],[],0,8,0.85,true)')
  page.evaluate('progress(4,[[0,60]],[[1,62]],0,8,1,false)')
  page.wait_for_timeout(300)
  page.evaluate('progress(4,[[0,60]],[[1,62]],0,8,1,false)')
- assert abs(page.evaluate('osmd.cursor.Iterator.currentTimeStamp.RealValue*4')-4)<0.001
+ assert page.evaluate('lastBeat')==4
+ assert page.locator('#playhead').count()==1
  assert page.locator('svg [fill="#16836d"]').count()>0,'Matched notes must turn green'
+ # Exercise actual-pitch overlays, early/late positioning, a continuous cursor, held durations and dark horizontal layout.
+ expected=[dict(id=0,beat=0,midi=60,staff=1)]
+ take=[dict(id=0,pitch=60,beat=.2,duration=1.2,expectedId=0,onsetMs=200),dict(id=1,pitch=66,beat=1.5,duration=.4,expectedId=None,onsetMs=None)]
+ page.evaluate('(args)=>progress(...args)',[1.5,[[0,60]],[[1,62]],0,8,1,False,take,expected,180,4,False,60])
+ assert page.locator('[data-take-id]').count()==2
+ assert page.locator('[data-hold-id]').count()>=2
+ x1=page.locator('#playhead').evaluate('(e)=>parseFloat(e.style.left)')
+ page.evaluate('(args)=>progress(...args)',[1.7,[[0,60]],[[1,62]],0,8,1,False,take,expected,180,4,False,60])
+ assert page.locator('#playhead').evaluate('(e)=>parseFloat(e.style.left)')>x1,'Cursor must move between notes'
  page.screenshot(path=str(ROOT/'docs/notation-preview.png'),full_page=True)
+ page.evaluate('(args)=>progress(...args)',[2,[],[],0,8,.85,True,take,expected,180,0,True,60])
+ assert page.evaluate('osmd.EngravingRules.PageLeftMargin')==0
+ assert page.evaluate('getComputedStyle(document.body).backgroundColor')=='rgb(20, 36, 33)'
+ assert page.evaluate('getComputedStyle(document.documentElement).backgroundColor')=='rgb(20, 36, 33)'
+ assert page.locator('[data-take-id]').count()==2
+ page.screenshot(path=str(ROOT/'docs/notation-dark-horizontal.png'),full_page=True)
  assert not failures,failures
  rendered=[]
  for file in sorted((ASSETS/'scores').glob('*.musicxml')):

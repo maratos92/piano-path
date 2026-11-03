@@ -25,10 +25,11 @@ import org.pianopath.*
 import org.pianopath.core.*
 import kotlin.math.*
 
-@Composable fun Practice(vm: PianoViewModel) {
+@Composable fun Practice(vm: PianoViewModel,openMenu: ()->Unit = {}) {
     val p by vm.ui.collectAsStateWithLifecycle()
     val midi by vm.midi.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    var monitor by androidx.compose.runtime.saveable.rememberSaveable {mutableStateOf(false)}
     var controls by remember {mutableStateOf(false)}
     var result by remember {mutableStateOf(false)}
     var keyZoom by androidx.compose.runtime.saveable.rememberSaveable {mutableFloatStateOf(1f)}
@@ -38,7 +39,7 @@ import kotlin.math.*
     if(score==null) {Column(Modifier.padding(24.dp)){PageTitle("Your practice space","Choose your music.");Button(onClick={vm.screen.value="Library"}){Text("Open library")}};return}
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(if(landscape)44.dp else 54.dp).padding(horizontal=6.dp),verticalAlignment=Alignment.CenterVertically) {
-            IconButton(onClick={vm.screen.value="Library"}){Icon(Icons.Outlined.ArrowBack,"Library")}
+            IconButton(onClick=openMenu){Icon(Icons.Outlined.Menu,"Open navigation menu")}
             Column(Modifier.weight(1f)) {
                 Text(score.title,fontFamily=FontFamily.Serif,fontSize=if(landscape)18.sp else 22.sp,maxLines=1)
                 Text("${p.bpm.toInt()} BPM · ${handName(p.hand)} · m. ${p.startMeasure}–${p.endMeasure} · ${if(midi.connected) "MIDI connected" else if(settings.simulator) "Touch" else "No MIDI"}",fontSize=11.sp,maxLines=1)
@@ -52,15 +53,25 @@ import kotlin.math.*
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             FilterChip(p.view==ScoreView.SHEET,{vm.setView(ScoreView.SHEET)},label={Text("Sheet",fontSize=12.sp)})
             FilterChip(p.view==ScoreView.FALLING,{vm.setView(ScoreView.FALLING)},label={Text("Falling notes",fontSize=12.sp)})
+            FilterChip(monitor,{monitor=!monitor},label={Text("Notes",fontSize=12.sp)})
             Spacer(Modifier.weight(1f))
             TextButton(onClick={if(settings.simulator)vm.setSettings{it.copy(simulator=false)} else vm.enableTouch()},contentPadding=PaddingValues(horizontal=6.dp)) {
                 Text(if(settings.simulator)"Touch piano ✓" else "Touch piano",fontSize=12.sp)
             }
         }
+        if(monitor)LiveNotes(midi,Modifier.fillMaxWidth().padding(horizontal=12.dp))
+        if(p.review && !p.running && !p.listening) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                Text("Visual review",fontSize=11.sp)
+                Slider(p.reviewBeat.toFloat(),{vm.seekReview(it.toDouble())},Modifier.weight(1f),valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f))
+                TextButton(onClick={vm.edit{it.copy(review=false)}}){Text("Close",fontSize=11.sp)}
+            }
+        }
+        if(p.view==ScoreView.SHEET && (p.running || p.review))Text("● correct   ● early/late   ● extra   ○ missing · traces show key holds",fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
         KeyboardControls(keyZoom,keyPan,{keyZoom=it},{keyPan=it})
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
-                if(p.view==ScoreView.SHEET)Notation(p,Modifier.fillMaxSize()){vm.message.value="Notation: $it"}
+                if(p.view==ScoreView.SHEET)Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}
                 else FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())
                 if(p.hidden)Box(Modifier.matchParentSize().background(Color(0xfffffefb))) {
                     Text("Score hidden · press Practice to begin",Modifier.align(Alignment.Center),color=Ink)
@@ -75,7 +86,7 @@ import kotlin.math.*
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(p.feedback,fontSize=12.sp,maxLines=1)
-                if(!landscape)Text(if(midi.connected)"BLE MIDI connected" else if(settings.simulator)"Touch keys play sound · no piano needed" else "Use Listen, Touch piano, or connect MIDI",fontSize=10.sp,maxLines=1)
+                if(!landscape)Text(if(midi.connected)"MIDI connected" else if(settings.simulator)"Touch keys play sound · no piano needed" else "Use Listen, Touch piano, or connect MIDI",fontSize=10.sp,maxLines=1)
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.listening)Icons.Outlined.Stop else Icons.Outlined.VolumeUp,null,Modifier.size(18.dp))
@@ -87,6 +98,8 @@ import kotlin.math.*
             }
         }
         if(p.result!=null)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+            TextButton(onClick={vm.review()},contentPadding=PaddingValues(0.dp)){Text("Review on score",fontSize=11.sp)}
+            Spacer(Modifier.width(12.dp))
             TextButton(onClick={result=true},contentPadding=PaddingValues(0.dp)){Text(if(p.running)"Loop ${p.loops.size} · ${p.result!!.overall.toInt()}%" else "View results · ${p.result!!.overall.toInt()}%",fontSize=11.sp)}
         }
     }
@@ -121,6 +134,8 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             Toggle("Metronome",p.metronome,{v->vm.edit{it.copy(metronome=v)}},!(p.running || p.listening))
             Toggle("Raise tempo by 4 BPM after 90%",p.autoTempo,{v->vm.edit{it.copy(autoTempo=v)}},!(p.running || p.listening))
             Toggle("Horizontal score layout",p.horizontal,{v->vm.edit{it.copy(horizontal=v)}},!(p.running || p.listening))
+            Text("Score side margin · ${p.sheetMargin} px",fontSize=12.sp)
+            Slider(p.sheetMargin.toFloat(),{v->vm.edit{it.copy(sheetMargin=v.toInt())}},valueRange=0f..32f,enabled=!(p.running || p.listening))
             OutlinedTextField(sectionName,{sectionName=it},label={Text("Passage name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!(p.running || p.listening))
             OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkAdd,null);Spacer(Modifier.width(8.dp));Text("Save passage")}
             p.sections.forEach { s->TextButton(onClick={vm.useSection(s)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkBorder,null);Spacer(Modifier.width(8.dp));Text("${s.name} · ${s.bpm.toInt()} BPM")} }

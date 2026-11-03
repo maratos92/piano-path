@@ -4,16 +4,21 @@ plugins {
     kotlin("plugin.compose")
     kotlin("kapt")
 }
+val supportUrl = providers.environmentVariable("PIANO_SUPPORT_URL").orNull?.trim()?.takeIf { it.isNotBlank() } ?: "https://ko-fi.com/maratbatkaev"
+require(supportUrl.isEmpty() || supportUrl.matches(Regex("https://ko-fi[.]com/[A-Za-z0-9_-]+"))) {
+    "PIANO_SUPPORT_URL must be a public https://ko-fi.com/profile URL"
+}
 android {
     namespace = "org.pianopath"
-    compileSdk = 35
-    buildToolsVersion = "35.0.0"
+    compileSdk = 36
+    buildToolsVersion = "36.0.0"
     defaultConfig {
         applicationId = "org.pianopath"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        targetSdk = 36
+        versionCode = 3
+        versionName = "0.3.0"
+        buildConfigField("String", "SUPPORT_URL", "\"$supportUrl\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

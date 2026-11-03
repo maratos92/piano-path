@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0
+
+- Full-width landscape practice with a closed navigation drawer, compact score margins and system/light/dark appearance.
+- Live pitch/velocity/channel monitor in practice and a dedicated screen.
+- Continuous Rhythm-mode cursor and same-score performed-note/hold overlays; saved visual takes reopen from History. Room history migrates in place.
+- Offline Salamander acoustic piano samples by Alexander Holm (CC BY 3.0), 128 voices and independent channel/sustain/repeated-strike handling.
+- Native class-compliant USB MIDI selection, attachment/removal handling and bounded reconnection alongside general BLE MIDI support.
+- Optional voluntary Ko-fi support at the owner-supplied public link; external browser payment, no feature unlocks or ads.
+- API 36 target, release APK/AAB workflow, static 16 KB checks, phone/tablet CI jobs, store/testing/privacy drafts.
+- 77 passing JVM tests and offline OSMD checks across all 50 studies. Android instrumentation sources include visual take storage, landscape navigation and the voluntary-support explanation; runtime reports are tracked separately.
+
+Physical USB, additional piano models and tablets still require acceptance testing. Google Play approval, personal developer verification, production signing and the required closed test are not supplied by a debug APK.
+
 ## 0.2.0
 
 - Added offline, polyphonic piano-like sound for touch playing, including velocity response, sustain and release envelopes.

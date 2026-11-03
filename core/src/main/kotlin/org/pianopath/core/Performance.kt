@@ -7,10 +7,13 @@ data class PracticeConfig(val mode: PracticeMode = PracticeMode.FOLLOW, val hand
     val latencyMs: Double = 0.0, val startBeat: Double = 0.0, val endBeat: Double = Double.MAX_VALUE)
 data class NoteResult(val note: ScoreNote, var onsetMs: Double? = null, var durationErrorMs: Double? = null,
     var missing: Boolean = false, var channel: Int = -1)
+/** Physical key presses, including extras. Sustained sound is deliberately separate from key duration. */
+data class PlayedNote(val id: Int, val pitch: Int, val velocity: Int, val channel: Int,
+    val beat: Double, val duration: Double? = null, val expectedId: Int? = null, val onsetMs: Double? = null)
 data class SessionResult(val expected: Int, val correct: Int, val missing: Int, val extra: Int,
     val pitch: Double, val rhythm: Double?, val overall: Double, val meanOnsetMs: Double?,
     val meanDurationMs: Double?, val early: Int, val late: Int, val completeChords: Int, val totalChords: Int,
-    val leftPitch: Double?, val rightPitch: Double?, val tempoConsistency: Double?, val details: List<NoteResult>)
+    val leftPitch: Double?, val rightPitch: Double?, val tempoConsistency: Double?, val details: List<NoteResult>, val take: List<PlayedNote> = emptyList())
 
 /** Bounded, polyphonic onset matcher. One note-on consumes at most one score note.
  * FOLLOW adjusts its phase only after finishing the current onset group. It never searches beyond
@@ -38,7 +41,30 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     private fun elapsedMs(now: Long) = (now - origin) / 1e6 - config.latencyMs
     private fun expectedMs(note: ScoreNote) = (note.beat - config.startBeat) * 60000.0 / config.bpm + phaseMs
     fun clockBeat(now: Long) = config.startBeat + (elapsedMs(now) - phaseMs) * config.bpm / 60000.0
+    private val recorded = mutableListOf<PlayedNote>()
+    private val recordingActive = mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<Pair<Int,Long>>>()
+    val take: List<PlayedNote> get() = recorded.toList()
     fun accept(e: MidiEvent) {
+        if(!started || config.mode == PracticeMode.FREE)return
+        val before=matchedIds
+        val clockBefore=if(config.mode==PracticeMode.WAIT || !anchored)currentBeat else clockBeat(e.timestamp)
+        val releaseIsExtra=e is MidiEvent.Off && recordingActive[e.channel to e.pitch]?.peekFirst()?.first?.let{recorded[it].expectedId==null}==true
+        if(!releaseIsExtra)acceptScored(e)
+        when(e) {
+            is MidiEvent.On -> if(recorded.size<20000) {
+                val match=results.firstOrNull {it.note.id !in before && it.onsetMs!=null}
+                val beat=match?.let {it.note.beat + if(config.mode==PracticeMode.WAIT)0.0 else (it.onsetMs ?: 0.0)*config.bpm/60000.0} ?: clockBefore
+                val index=recorded.size
+                recorded.add(PlayedNote(index,e.pitch,e.velocity,e.channel,beat,expectedId=match?.note?.id,onsetMs=if(config.mode==PracticeMode.WAIT)null else match?.onsetMs))
+                recordingActive.getOrPut(e.channel to e.pitch){java.util.ArrayDeque()}.add(index to e.timestamp)
+            }
+            is MidiEvent.Off -> recordingActive[e.channel to e.pitch]?.pollFirst()?.let { (index,time) ->
+                recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0))
+            }
+            is MidiEvent.Control -> if(e.controller in listOf(120,123))recordingActive.keys.filter{it.first==e.channel}.forEach{recordingActive.remove(it)}
+        }
+    }
+    private fun acceptScored(e: MidiEvent) {
         if(!started || config.mode == PracticeMode.FREE) return
         // A driver may deliver buffered timestamps out of order across packets. Do not move time backwards.
         lastNanos = max(lastNanos,e.timestamp)
@@ -142,6 +168,6 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         return SessionResult(results.size,correct,missing,extra,pitch,rhythm,if(rhythm == null) pitch else pitch*0.6+rhythm*0.4,
             onsets.takeIf { it.isNotEmpty() }?.map { abs(it) }?.average(),durations.takeIf { it.isNotEmpty() }?.map { abs(it) }?.average(),
             onsets.count { it < -config.toleranceMs },onsets.count { it > config.toleranceMs },
-            chords.count { chord -> chord.all { it.onsetMs != null } },chords.size,hand(Hand.LEFT),hand(Hand.RIGHT),sd,results.map { it.copy() })
+            chords.count { chord -> chord.all { it.onsetMs != null } },chords.size,hand(Hand.LEFT),hand(Hand.RIGHT),sd,results.map { it.copy() },take)
     }
 }

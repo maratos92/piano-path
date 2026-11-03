@@ -14,8 +14,10 @@ import org.pianopath.core.*
 import java.util.UUID
 
 data class PianoDevice(val address: String, val name: String)
+data class UsbPiano(val id: Int,val port: Int,val name: String,val portName: String)
 data class MidiStatus(val status: String = "Not connected", val connected: Boolean = false, val scanning: Boolean = false,
     val devices: List<PianoDevice> = emptyList(), val held: Map<Int,Int> = emptyMap(), val sounding: Set<Int> = emptySet(),
+    val usbDevices: List<UsbPiano> = emptyList(), val lastNote: Int? = null, val lastVelocity: Int = 0, val lastChannel: Int = 0,
     val sustain: Boolean = false, val events: List<String> = emptyList())
 
 class BleMidi(private val context: Context) {
@@ -28,6 +30,8 @@ class BleMidi(private val context: Context) {
     private var device: MidiDevice? = null
     private var port: MidiOutputPort? = null
     private var target: BluetoothDevice? = null
+    private var usbTarget: String? = null
+    private var usbPort = 0
     private var reconnect = true
     private var attempt = 0
     @Volatile private var generation = 0
@@ -42,11 +46,13 @@ class BleMidi(private val context: Context) {
         override fun onFlush() { handler.post { clearKeys() } }
     }
     private val callback = object: MidiManager.DeviceCallback() {
+        override fun onDeviceAdded(info: MidiDeviceInfo) { refreshUsb(); retryUsb() }
         override fun onDeviceRemoved(info: MidiDeviceInfo) {
+            refreshUsb()
             if(device?.info?.id == info.id) {
                 generation++; release(); clearKeys(); onDisconnect?.invoke()
                 mutable.value = mutable.value.copy(connected=false,status="Connection lost · retrying")
-                scheduleReconnect()
+                if(usbTarget!=null)mutable.value=mutable.value.copy(status="USB disconnected · reconnect cable to resume") else scheduleReconnect()
             }
         }
     }
@@ -63,7 +69,45 @@ class BleMidi(private val context: Context) {
         }
         override fun onScanFailed(errorCode: Int) { mutable.value = mutable.value.copy(scanning=false,status="Scan failed ($errorCode). Toggle Bluetooth and retry.") }
     }
-    init { manager?.registerDeviceCallback(callback,handler) }
+    init { manager?.registerDeviceCallback(callback,handler); refreshUsb() }
+    @Suppress("DEPRECATION")
+    private fun usbInfos() = manager?.devices?.filter {it.type==MidiDeviceInfo.TYPE_USB} ?: emptyList()
+    private fun usbName(info: MidiDeviceInfo) = info.properties.getString(MidiDeviceInfo.PROPERTY_NAME)
+        ?: info.properties.getString(MidiDeviceInfo.PROPERTY_PRODUCT) ?: "USB MIDI piano"
+    private fun fingerprint(info: MidiDeviceInfo) = listOf(info.properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER),
+        info.properties.getString(MidiDeviceInfo.PROPERTY_PRODUCT),usbName(info)).joinToString("|")
+    fun refreshUsb() {
+        mutable.value=mutable.value.copy(usbDevices=usbInfos().flatMap {info -> info.ports.filter{it.type==MidiDeviceInfo.PortInfo.TYPE_OUTPUT}.map{
+            UsbPiano(info.id,it.portNumber,usbName(info),it.name.ifBlank{"MIDI input ${it.portNumber+1}"})
+        }})
+    }
+    private fun retryUsb() {
+        if(!reconnect || device!=null || usbTarget==null)return
+        val candidates=usbInfos().filter{fingerprint(it)==usbTarget}
+        if(candidates.size==1)openUsb(candidates.single(),usbPort,generation)
+        else if(candidates.size>1)mutable.value=mutable.value.copy(status="Multiple matching USB devices · select the input again")
+    }
+    fun connectUsb(id: Int,portNumber: Int) {
+        val info=usbInfos().firstOrNull{it.id==id} ?: run{refreshUsb();return}
+        reconnect=true;generation++;openEpoch++;stopScan();release();clearKeys();onDisconnect?.invoke()
+        target=null;usbTarget=fingerprint(info);usbPort=portNumber
+        openUsb(info,portNumber,generation)
+    }
+    private fun openUsb(info: MidiDeviceInfo,portNumber: Int,token: Int) {
+        val epoch=++openEpoch
+        mutable.value=mutable.value.copy(connected=false,status="Opening USB MIDI…")
+        handler.postDelayed({if(token==generation && epoch==openEpoch && device==null){openEpoch++;mutable.value=mutable.value.copy(status="USB open timed out · tap Refresh and reconnect")}},10000)
+        try {
+            manager?.openDevice(info,{opened ->
+                if(token!=generation || epoch!=openEpoch || !reconnect){opened?.close();return@openDevice}
+                if(opened==null){mutable.value=mutable.value.copy(status="USB input busy or unavailable · reconnect or select again");return@openDevice}
+                device=opened;port=opened.openOutputPort(portNumber)
+                if(port==null){release();mutable.value=mutable.value.copy(status="USB MIDI port unavailable");return@openDevice}
+                port?.connect(receiver)
+                mutable.value=mutable.value.copy(connected=true,status="${usbName(info)} · USB connected")
+            },handler)
+        }catch(e: Exception){release();mutable.value=mutable.value.copy(connected=false,status="USB connection error: ${e.message}")}
+    }
     fun hasPermissions(): Boolean = requiredPermissions().all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
     fun requiredPermissions(): Array<String> = if(Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION)
     @SuppressLint("MissingPermission") // hasPermissions checks version-specific grants; SecurityException is caught.
@@ -85,7 +129,7 @@ class BleMidi(private val context: Context) {
     }
     fun connect(address: String) {
         try {
-            reconnect = true; attempt = 0; generation++
+            reconnect = true; usbTarget=null; attempt = 0; generation++
             release(); clearKeys(); onDisconnect?.invoke()
             target = adapter?.getRemoteDevice(address)
             open(generation)
@@ -122,7 +166,7 @@ class BleMidi(private val context: Context) {
         handler.postDelayed({ if(token == generation && reconnect && device == null) open(token) },delay)
     }
     fun disconnect() {
-        reconnect=false; generation++; target=null; stopScan(); release(); clearKeys(); onDisconnect?.invoke()
+        reconnect=false; generation++; target=null; usbTarget=null; stopScan(); release(); clearKeys(); onDisconnect?.invoke()
         mutable.value = mutable.value.copy(connected=false,status="Not connected")
     }
     private fun release() { try { port?.disconnect(receiver); port?.close(); device?.close() } catch(_: Exception) { }; port=null; device=null; parser.reset() }
@@ -131,7 +175,7 @@ class BleMidi(private val context: Context) {
     private fun deliver(e: MidiEvent) {
         keyboard.accept(e)
         val message = when(e) { is MidiEvent.On -> "ON  ${noteName(e.pitch)}  velocity ${e.velocity}"; is MidiEvent.Off -> "OFF ${noteName(e.pitch)}"; is MidiEvent.Control -> "CC ${e.controller} = ${e.value}" }
-        mutable.value = mutable.value.copy(held=keyboard.held.entries.groupBy { it.key.second }.mapValues { it.value.maxOf { v -> v.value } },
+        mutable.value = mutable.value.copy(lastNote=if(e is MidiEvent.On)e.pitch else mutable.value.lastNote,lastVelocity=if(e is MidiEvent.On)e.velocity else mutable.value.lastVelocity,lastChannel=if(e is MidiEvent.On)e.channel else mutable.value.lastChannel,held=keyboard.held.entries.groupBy { it.key.second }.mapValues { it.value.maxOf { v -> v.value } },
             sounding=keyboard.sounding.map { it.second }.toSet(),sustain=keyboard.sustain.isNotEmpty(),events=(listOf("${e.timestamp/1_000_000} ms · ch ${e.channel+1} · $message")+mutable.value.events).take(120))
         onEvent?.invoke(e)
     }

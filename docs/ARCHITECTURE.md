@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart LR
-  FP[FP-10 BLE MIDI] --> OS[Android MIDI service]
+  FP[BLE or USB MIDI instrument] --> OS[Android MIDI service]
   OS --> Parser[Stateful byte decoder]
   Parser --> Keys[Held / sustained state]
   Parser --> VM[Practice coordinator]
@@ -53,8 +53,12 @@ Imported XML is stored in app-private files, with small Room metadata rows. This
 
 `PlaybackPlan` derives note-on/off events from the selected score range, clips releases at its end, orders releases before retriggers, and reserves MIDI channels 1–15 for demonstration playback. Touch notes use channel 0. `PianoViewModel.listen` schedules that plan on a monotonic timeline, updates a separate playback playhead/held-key set, and never calls the assessment engine or stores a practice session. Practice and Listen are mutually exclusive; touch playing can accompany an unscored demonstration. A playback generation prevents cancellation of an old coroutine from releasing notes in a newly started demonstration.
 
-`PianoSynth` in the JVM core synthesizes bounded mono PCM from additive, mildly inharmonic partials with a short attack, pitch-dependent decay, velocity response, release envelope, channel-aware pedal and a 64-voice cap. Tests inspect frequency content, amplitude, finite/bounded samples, releases, sustain, repeated notes, channel isolation and panic. The sound is piano-like, not a licensed sample recording. `PianoAudio` streams 44.1 kHz float PCM through Android AudioTrack on an audio-priority thread, requests transient media audio focus, and stops on focus loss/background. Idle output releases focus after its envelopes have died away. No audio assets, extra permissions or network calls are needed.
+`SampledPiano` renders an offline 30-sample acoustic piano bank with linear resampling, velocity gain, per-channel sustain, FIFO repeated-note release, a 128-voice bound and release envelopes. The original additive synth remains a tested core utility but is not used for app sound. `PianoAudio` streams float PCM with audio focus/background cleanup. Samples and their licence/provenance are bundled; there is no runtime download.
 
-`PianoLayout` defines the 88 physical keys (21–108), 52 white-key coordinate units and black-key precedence. It supplies the same coordinate transforms to both hit testing and the Compose piano roll. Default zoom fits the whole instrument; enlargement uses an explicit range slider, so horizontal scrolling does not compete with multi-touch key gestures. Pointer cancellation/zoom changes release active touch keys. `PianoRoll` indexes score onsets and keeps long tied notes visible until their release, with a four-second look-ahead mapped onto the current practice/listening BPM. Bars meet a strike line directly above the keyboard. Duration, staff and result colours come from the actual score model; they are not a decorative animation.
+## Recorded performance and visual review
 
-Rhythm mode uses its clock; Wait freezes on the current group; Follow uses the follower phase/clock. Free Play does not automatically advance the score. Listening is the autonomous visual/audio demonstration. The native output buffer and phone audio route can add latency; physical audio/visual synchronization has not been measured.
+`PerformanceEngine` retains physical `PlayedNote` on/off events, including extras, velocities, channels and expected-note associations. Recorded duration is independent of sustain and follower phase corrections. Each loop creates a new engine. `Notation` passes these events into the local OSMD SVG view: score timing is mapped to engraved onset anchors, performed heads and key-hold traces are overlaid, and a continuous cursor interpolates between note positions. It is a diagnostic overlay rather than an engraving/export engine. MIDI-only extra pitches receive approximate sharp spellings and an inferred staff; physical hand is not measured.
+
+`TakeArchive` stores the score, settings, detailed evaluation and actual events together in private JSON files. Room v2 adds the optional review filename through an explicit v1 migration; old history remains readable. History can reopen these takes without requiring the original import file.
+
+USB uses the same parser/evaluator as BLE, via `MidiManager.openDevice` and instrument-output ports. Device callbacks refresh the USB list, clear held notes and stop practice on disconnect. A single matching USB device can reconnect; identical devices require explicit reselection. BLE permissions do not gate USB.

@@ -1,0 +1,190 @@
+{
+  "author": "Alexander Holm",
+  "title": "Salamander Grand Piano",
+  "license": "CC-BY-3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+  "sourceCommit": "869b6f8d9cddb47d966238c012041480b1ce517a",
+  "modifications": "MP3 decoded to 24 kHz mono 16-bit PCM WAV; capped at ten seconds with a final 300 ms fade. One dynamic layer; velocity scales amplitude.",
+  "files": [
+    {
+      "midi": 21,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A0.mp3",
+      "sourceSha256": "f62d50bd977679e1316063866ece754604b8c214d73b7e3033372c75d9064c03",
+      "assetSha256": "86bdd541bbdc04d6df15a9a33ce5d8ea935d86a95a192e001381c2f16f690aa6"
+    },
+    {
+      "midi": 24,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C1.mp3",
+      "sourceSha256": "caba05f0be4d9f6030adcc033208b49ac54e47d58edc57b743085b095b4ea395",
+      "assetSha256": "5ce01e1da3a596b82414a9c1196a5c691fbb0bfc93d58fb8c79ebf5c415f4d89"
+    },
+    {
+      "midi": 27,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds1.mp3",
+      "sourceSha256": "1c02b816b85d2fa938815fdf04d7d327ff20068f1aadc3c97052144c735afa0c",
+      "assetSha256": "953d749cfd530aca0eae86074a7e857eff24027a02a4c30c2187113e51a9c86e"
+    },
+    {
+      "midi": 30,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs1.mp3",
+      "sourceSha256": "5cbb51d2a0a55a9ef3656671ca72e336856813949055bb6c189cf990655335cf",
+      "assetSha256": "e52e7f804172934673fd8f902b743ca170d5c17bc9196ed760e5cacfdc428622"
+    },
+    {
+      "midi": 33,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A1.mp3",
+      "sourceSha256": "17fa1e363f9fad67c3357be54a6defc4fca5a5c2aada21de84b30254f9cb2f5b",
+      "assetSha256": "4d962f76af64739cacda6ade4e3234c974c166f166e5e2b6ab64e396158e8a1f"
+    },
+    {
+      "midi": 36,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C2.mp3",
+      "sourceSha256": "7029a9e84f748433bc33d067ee13d37d0b866768f09ae6c7dac8e2e98e1e53ca",
+      "assetSha256": "1901125caab4e0b3d7eaf85e8dc6973f48d0f0b6ffe62b4bb961a7ee6eb4ec61"
+    },
+    {
+      "midi": 39,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds2.mp3",
+      "sourceSha256": "a106cdec93aa4e767e36809fc9cdaa6b92453fb9f18d5fc28ac4eb0f9f239ecd",
+      "assetSha256": "04255438aae6af153b3b80b12895ce099308ad7841d3f96823b815686894fcc2"
+    },
+    {
+      "midi": 42,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs2.mp3",
+      "sourceSha256": "dd34c708274eeba35da1fd99fc31ef904e390ff02f6864aefe8a13261f8a8327",
+      "assetSha256": "9eb657af450e2ff265eec984d4157bdb6d6b126b82c74e6e14bc8ecbe6aa5795"
+    },
+    {
+      "midi": 45,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A2.mp3",
+      "sourceSha256": "20601d890f44a3c22499c7b61f52e571795df1fe5a01fac553dded7b6379e1d4",
+      "assetSha256": "baf273f9f14cd0f8e2529a0bdb78b51352d0abc4c729519f5db9621949dae6de"
+    },
+    {
+      "midi": 48,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C3.mp3",
+      "sourceSha256": "bb70dd921d81b3dda561c19b5c029292ae5a6fba1947e364bf274218ce19a9d1",
+      "assetSha256": "6e85ab3665d4b7a69ff84f4aabc84fcd5a218cac1fc9a075305f527d20887841"
+    },
+    {
+      "midi": 51,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds3.mp3",
+      "sourceSha256": "4fe73ea3f2c59a1dbfb35cff1d9d8a9e38cb12ef39a91a13083729544cdafed5",
+      "assetSha256": "aa43307c2206245e03b4f242c7003cf2e535e3840be9c5d6229ad5225c17fd96"
+    },
+    {
+      "midi": 54,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs3.mp3",
+      "sourceSha256": "960fefd90f56608b7edf958dadfeca893cff5744ab9034d61e419401fe45ce9c",
+      "assetSha256": "4e2d8d68310db81b55b80ec11898cbee03bcdd603a411efde1bb2ca1b85d28e2"
+    },
+    {
+      "midi": 57,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A3.mp3",
+      "sourceSha256": "8e108fe228e34e32f6b4e61efff732eec53058a9e6f05a8d8e719598b132c4f9",
+      "assetSha256": "89e3410f2a43462f5a51c35b508b8dbdb203ed9ed2694d8496caa44ab8e7c56e"
+    },
+    {
+      "midi": 60,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C4.mp3",
+      "sourceSha256": "689eaa4c2fd7f29a2cc0e386eec462156d523a87d701269e5e2458e66056f4f6",
+      "assetSha256": "f99437028940ca93b809ca3e95fc82f0318df603103305935d006009e5d15ee5"
+    },
+    {
+      "midi": 63,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds4.mp3",
+      "sourceSha256": "663e8bb3e2d0fa23a30526dcd7ab0e42609c193c07025647ef46badcf81ec211",
+      "assetSha256": "89aba57dd8da98decf9e5854c8620af30b72600960432da3df401b457c494f3e"
+    },
+    {
+      "midi": 66,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs4.mp3",
+      "sourceSha256": "613652f5c96e35736ce6a46bc4ddb6ba1076d1fb16a35a4c22c14e67efdde57c",
+      "assetSha256": "c15bbba22dcf861a893948b7267a05dc85fd0b797852c2af38732bd140a30fbf"
+    },
+    {
+      "midi": 69,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A4.mp3",
+      "sourceSha256": "a62df24a2c84cea8d18c1fa8aca7c18c877ba2b76a00a591256fa74d3ce54ac3",
+      "assetSha256": "b4642909f02b371f28e04c4e3e5037fbb227781afb6a64e6f2f34467cd595f6d"
+    },
+    {
+      "midi": 72,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C5.mp3",
+      "sourceSha256": "2f5b0f7422063010fb379e684bfdf2daa3911dcd2251413d79fa2a53029fdc30",
+      "assetSha256": "f3c78856c76d992ce468232eb9b07fc0378a867ae58e21a216e053c3627d281a"
+    },
+    {
+      "midi": 75,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds5.mp3",
+      "sourceSha256": "bf71096e653ab7ceca3914b9fd44d8c27fe83c162564c5db34bd06b94eb14b8c",
+      "assetSha256": "47fbd2aedf8277b9c851e5604d1f0acf9832057356bae87e1d9985d7438aabe7"
+    },
+    {
+      "midi": 78,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs5.mp3",
+      "sourceSha256": "ed2fdf543274ea72ddd4eb634a16356531a5f4040b2a60d34fb12a5c72cbf22f",
+      "assetSha256": "0e150a09f0763043def29342655f1c4a1769ec8b21a8fbcdb286d64057710293"
+    },
+    {
+      "midi": 81,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A5.mp3",
+      "sourceSha256": "9e5cee1fe9cf68b7193623d46a27c8956e572c1ff234ca0e11599b556050dec6",
+      "assetSha256": "a6e318529a9752083604c972b8634296cbfe64a68f187bfd3ade71e276112c94"
+    },
+    {
+      "midi": 84,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C6.mp3",
+      "sourceSha256": "0d3232edd13ba69fd5caf4a295060ae0fd533b8a1433ae0a038644d70715c907",
+      "assetSha256": "aec26afa4d9010d338ac52710d2a1cdd672e0ef2f50deb702196724057af19f0"
+    },
+    {
+      "midi": 87,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds6.mp3",
+      "sourceSha256": "eb643014d9f926f1a5f9f51fc4a1ed8c07c6da36ce164d5b221d7b878a53f142",
+      "assetSha256": "6e5761511c7a45e7ff3ad32dc6a82f7de331dc342bce405f3f1b8c92f1710cf3"
+    },
+    {
+      "midi": 90,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs6.mp3",
+      "sourceSha256": "c584d2b4e96a37b12c920ed3212d149abedf25342389bfdc557b2fac847ab11c",
+      "assetSha256": "c1c01c21982c75a64aee4ca883a2ffa0019e91692187b35d419adc030d7e0bd4"
+    },
+    {
+      "midi": 93,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A6.mp3",
+      "sourceSha256": "b6064a657592c63c03561d2ce1092607c14e1d8091445d50065d0ec819ff6fbc",
+      "assetSha256": "2edf3c3dfc31e9813c5e07655d61d2028b35866145d168ccbf9cf0057bf76766"
+    },
+    {
+      "midi": 96,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C7.mp3",
+      "sourceSha256": "694b512fac99ba7f7290c045d9c18e94724a7ebcc319b937baabc62125814283",
+      "assetSha256": "965868d68bcc181b7f3b7ff754ea7c9063ab88e52dd93977408bad6dad06d599"
+    },
+    {
+      "midi": 99,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Ds7.mp3",
+      "sourceSha256": "d51f4c51bed719f51e75ad22d5b9ac4b4d1a4749d02ef31ea03696de46fa5e77",
+      "assetSha256": "adc7203f993499857095dd93b0a56a8d2ef17797620b066fac70767499e1cd08"
+    },
+    {
+      "midi": 102,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/Fs7.mp3",
+      "sourceSha256": "e9ce71e0f7dc39c1d0033d656cf57e3aa8b303127147f194cc92b04e2b648a9f",
+      "assetSha256": "442e4bfc4b68a22506e8b6f3ba3743c76e27f988a545b72407381145534a59e4"
+    },
+    {
+      "midi": 105,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/A7.mp3",
+      "sourceSha256": "751c0a0acd00bad6e52749063dac56a0def9870242b053c68ab45cbe8d083fc1",
+      "assetSha256": "107474e6423c6039a7058ff220b57113bf250d880e0e4d62357a48b92311577c"
+    },
+    {
+      "midi": 108,
+      "url": "https://raw.githubusercontent.com/Tonejs/audio/869b6f8d9cddb47d966238c012041480b1ce517a/salamander/C8.mp3",
+      "sourceSha256": "b4b5f321751b544ee7f0d6d3e3f1ef52873dd4a6aee91ba41e6c8e61e17a084c",
+      "assetSha256": "a81338490c64fb847000727f06ae7001d19e999f7d3d21cd386cc9b4ee88cfee"
+    }
+  ]
+}

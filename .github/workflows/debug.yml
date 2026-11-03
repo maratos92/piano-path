@@ -4,6 +4,11 @@ on:
     branches: ['**']
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PIANO_SUPPORT_URL: ${{ vars.PIANO_SUPPORT_URL }}
 permissions:
   contents: read
 jobs:
@@ -17,7 +22,7 @@ jobs:
           java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify original library is reproducible
@@ -26,6 +31,10 @@ jobs:
           git diff --exit-code -- app/src/main/assets/scores docs/CATALOG.md
       - name: Unit tests, lint and debug APK
         run: ./gradlew :core:test :app:lintDebug :app:assembleDebug
+      - name: Check 16 KB native and APK alignment
+        run: |
+          python3 scripts/check_native_alignment.py app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: piano-path-debug-apk
@@ -39,6 +48,16 @@ jobs:
             app/build/reports/lint-results-debug.*
   emulator:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 36
+            profile: pixel_2
+            name: phone
+          - api: 35
+            profile: pixel_c
+            name: tablet
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -53,14 +72,14 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: default
-          profile: pixel_2
+          profile: ${{ matrix.profile }}
           disable-animations: true
           script: ./gradlew :app:connectedDebugAndroidTest
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-device-test-reports
+          name: android-device-test-reports-${{ matrix.name }}
           path: app/build/reports/androidTests/

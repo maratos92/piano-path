@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** PCM output is independent from assessment. Listening never feeds generated notes into the scorer. */
 class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
     private val manager=context.getSystemService(AudioManager::class.java)
-    private val synth=PianoSynth()
+    private val synth by lazy { SampledPiano((21..108 step 3).map { pitch -> PianoSample.read(pitch,context.assets.open("piano/$pitch.wav")) }) }
     private val handler=Handler(Looper.getMainLooper())
     private data class Output(val track: AudioTrack,val alive: AtomicBoolean,val thread: Thread)
     private var output: Output?=null

@@ -41,7 +41,7 @@ class AppSmokeTest {
             return null
         }
         repeat(30){
-            compose.runOnUiThread{find(compose.activity.window.decorView)?.evaluateJavascript("Boolean(typeof ready !== 'undefined' && ready && document.querySelector('svg'))"){value->if(value=="true"){rendered=true;ready.countDown()}}}
+            compose.runOnUiThread{find(compose.activity.window.decorView)?.evaluateJavascript("Boolean(document.querySelector('svg .vf-notehead') && !document.querySelector('#error').textContent)"){value->if(value=="true"){rendered=true;ready.countDown()}}}
             if(ready.await(1,TimeUnit.SECONDS))return@repeat
         }
         assertTrue("Local MusicXML must render in Android WebView",rendered)
@@ -70,6 +70,7 @@ class AppSmokeTest {
     }
     @Test fun fullKeyboardAndFallingNotesAreDiscoverable() {
         compose.onNodeWithText("Open practice  →").performClick()
+        compose.waitUntil(20_000){compose.onAllNodesWithText("Falling notes").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Falling notes").assertIsDisplayed()
         compose.onNodeWithContentDescription("88-key piano, A0 to C8").assertIsDisplayed()
         compose.onNodeWithContentDescription("Falling notes aligned to the 88-key piano").assertIsDisplayed()
@@ -84,4 +85,42 @@ class AppSmokeTest {
         compose.waitUntil(5_000){!vm.ui.value.listening}
         assertNull(vm.ui.value.result);assertTrue(vm.ui.value.loops.isEmpty());assertFalse(vm.ui.value.running)
     }
+    @Test fun recordedTakeRoundTripsWithItsScoreAndPhysicalRelease() {
+        val xml=Exercises.scale(octaves=1,hand=Hand.RIGHT).xml
+        val score=MusicXml.parse(xml)
+        val engine=PerformanceEngine(score,PracticeConfig(PracticeMode.RHYTHM,bpm=60.0,endBeat=4.0))
+        val start=1_000_000_000L;engine.start(start)
+        engine.accept(MidiEvent.On(score.notes.first{!it.rest}.midi,92,start))
+        engine.accept(MidiEvent.Off(score.notes.first{!it.rest}.midi,0,start+250_000_000))
+        engine.accept(MidiEvent.On(61,35,start+300_000_000))
+        val result=engine.finish(start+4_000_000_000)
+        val practice=PracticeUi(score=score,xml=xml,bpm=60.0,endOffset=4.0)
+        val filename=org.pianopath.data.TakeArchive.save(compose.activity,practice,result)
+        try {
+            val session=org.pianopath.data.SessionEntity(title=score.title,date=0,pitch=result.pitch,rhythm=result.rhythm,overall=result.overall,
+                correct=result.correct,expected=result.expected,extra=result.extra,missing=result.missing,onsetMs=result.meanOnsetMs,durationMs=result.meanDurationMs,
+                mode="RHYTHM",bpm=60.0,category="Scales",simulated=true,reviewFile=filename)
+            val loaded=org.pianopath.data.TakeArchive.load(compose.activity,session)
+            assertEquals(xml,loaded.xml);assertEquals(result.take,loaded.take);assertTrue(loaded.review)
+            assertEquals(.25,loaded.take.first().duration!!,.001);assertEquals(92,loaded.take.first().velocity)
+            assertEquals(result.missing,loaded.result!!.missing)
+        } finally {java.io.File(compose.activity.filesDir,"takes/$filename").delete()}
+    }
+    @Test fun landscapePracticeUsesExpandableNavigation() {
+        compose.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        compose.runOnUiThread {ViewModelProvider(compose.activity)[PianoViewModel::class.java].open(ViewModelProvider(compose.activity)[PianoViewModel::class.java].library.first())}
+        compose.waitUntil(20_000){compose.onAllNodesWithContentDescription("Open navigation menu").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Note monitor").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Live note monitor").assertIsDisplayed()
+    }
+
+    @Test fun voluntarySupportExplainsTheExternalProviderWithoutLaunchingPayment() {
+        assertTrue(BuildConfig.SUPPORT_URL.startsWith("https://ko-fi.com/"))
+        compose.onNodeWithContentDescription("Settings",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("Support Piano Path").performScrollTo().performClick()
+        compose.onNodeWithText("Open Ko-fi").assertIsDisplayed()
+        compose.onNodeWithText("Maybe later").assertIsDisplayed().performClick()
+    }
+
 }

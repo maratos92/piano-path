@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +31,7 @@ import org.pianopath.*
 import org.pianopath.core.*
 import org.pianopath.data.*
 import org.pianopath.midi.MidiStatus
+import android.net.Uri
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -58,11 +60,21 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grant -> if(grant.values.all { it })vm.midi.scan() else vm.message.value="Bluetooth access is required for MIDI discovery. You can still import scores and use the simulator." }
     val importer=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.import(it) } }
     val requestScan: ()->Unit={ if(vm.midi.hasPermissions())vm.midi.scan() else permission.launch(vm.midi.requiredPermissions()) }
-    MaterialTheme(colorScheme=if(settings.dark)Dark else Light,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontSize=16.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=FontFamily.Serif,fontSize=28.sp))) {
+    val drawer=rememberDrawerState(DrawerValue.Closed)
+    val scope=rememberCoroutineScope()
+    val dark=settings.theme==ThemeMode.DARK || settings.theme==ThemeMode.SYSTEM && isSystemInDarkTheme()
+    MaterialTheme(colorScheme=if(dark)Dark else Light,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontSize=16.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=FontFamily.Serif,fontSize=28.sp))) {
         LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.message.value=null } }
-        Surface(Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(drawerState=drawer,gesturesEnabled=screen=="Practice",drawerContent={
+            ModalDrawerSheet(Modifier.width(280.dp)) {
+                Text("Piano Path",Modifier.padding(24.dp),fontSize=26.sp,fontFamily=FontFamily.Serif)
+                listOf("Home","Library","Scales","Sight reading","Connect","Note monitor","History","Settings").forEach { name ->
+                    NavigationDrawerItem(label={Text(name)},selected=screen==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
+                }
+            }
+        }) { Surface(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                if(wide || compactLandscape) NavigationRail(containerColor=MaterialTheme.colorScheme.surface) {
+                if(screen!="Practice" && (wide || compactLandscape)) NavigationRail(containerColor=MaterialTheme.colorScheme.surface) {
                     Text("P",Modifier.padding(16.dp),fontFamily=FontFamily.Serif,fontSize=30.sp,color=MaterialTheme.colorScheme.primary)
                     (if(config.screenHeightDp<500) listOf("Home" to Icons.Outlined.Home,"Library" to Icons.Outlined.LibraryMusic,"History" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings) else listOf("Home" to Icons.Outlined.Home,"Library" to Icons.Outlined.LibraryMusic,"Scales" to Icons.Outlined.Piano,"Sight reading" to Icons.Outlined.Visibility,"History" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)).forEach { (name,icon) ->
                         NavigationRailItem(selected=screen==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Sight reading")"Read" else name)},alwaysShowLabel=config.screenHeightDp>=600)
@@ -80,7 +92,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         "Home" -> Home(vm)
                         "Library" -> Library(vm) { importer.launch(arrayOf("*/*")) }
                         "Connect" -> Connection(vm,midi,requestScan) { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
-                        "Practice" -> Practice(vm)
+                        "Practice" -> Practice(vm){scope.launch{drawer.open()}}
+                        "Note monitor" -> NoteMonitorPage(vm,midi)
                         "Scales" -> ScaleSetup(vm)
                         "Sight reading" -> SightSetup(vm)
                         "History" -> History(vm)
@@ -89,7 +102,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     } }
                 }
             }
-        }
+        } }
     }
 }
 @Composable fun PageTitle(eyebrow: String,title: String,subtitle: String="") {
@@ -124,7 +137,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             FocusCard("Technique","Scales & arpeggios",Icons.Outlined.Piano,Modifier.weight(1f)){vm.screen.value="Scales"}
             FocusCard("Read ahead","Fresh sight reading",Icons.Outlined.Visibility,Modifier.weight(1f)){vm.screen.value="Sight reading"}
         } }
-        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.Bluetooth,null);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text("Made for your Roland FP-10",fontWeight=FontWeight.SemiBold);Text("Direct MIDI. Every chord, release and velocity.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)} }; TextButton(onClick={vm.screen.value="Connect"}){Text("Set up piano connection  →")} } }
+        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.Bluetooth,null);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text("Connect your digital piano",fontWeight=FontWeight.SemiBold);Text("Direct MIDI. Every chord, release and velocity.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)} }; TextButton(onClick={vm.screen.value="Connect"}){Text("Set up piano connection  →")} } }
         item { TextButton(onClick={vm.screen.value="History"}) { Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("View practice history") } }
     }
 }
@@ -146,7 +159,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
         item { Text("${visible.size} ORIGINAL STUDIES",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
         items(visible,key={it.key}) { piece -> ScoreRow(piece.title,piece.composer,piece.difficulty,{vm.open(piece)}) {info=piece} }
-        item { Panel { Text("Bring your Chopin editions",fontFamily=FontFamily.Serif,fontSize=23.sp);Text("Waltz in A minor, B.150 and Waltz in C-sharp minor, Op. 64 No. 2 are supported through MusicXML import. Their engravings are not bundled because edition-specific redistribution rights have not been verified.",fontSize=14.sp);TextButton(onClick=onImport){Text("Import a legally obtained edition")} } }
+
     }
     info?.let { piece -> AlertDialog(onDismissRequest={info=null},confirmButton={TextButton(onClick={info=null}){Text("Close")}},title={Text(piece.title)},text={Text("${piece.composer}\n${piece.difficulty}\n\n${piece.license}\n${piece.attribution}\n\nSource: ${piece.source}")}) }
 }
@@ -162,11 +175,18 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable private fun Connection(vm: PianoViewModel,midi: MidiStatus,scan: ()->Unit,bluetoothSettings: ()->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item { PageTitle("A direct connection","Meet your piano.","BLE MIDI carries each note directly from the FP-10. No microphone is used.") }
+        item { PageTitle("A direct connection","Meet your piano.","Connect a compatible instrument by Bluetooth LE MIDI or USB MIDI. No microphone is used.") }
         item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(if(midi.connected)Icons.Outlined.CheckCircle else Icons.Outlined.Bluetooth,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(12.dp));Text(midi.status,fontWeight=FontWeight.Medium) };if(midi.scanning)LinearProgressIndicator(Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick=scan,enabled=!midi.scanning){Text("Find piano")};if(midi.connected)OutlinedButton(onClick={vm.midi.disconnect()}){Text("Disconnect")}} } }
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("USB MIDI",fontFamily=FontFamily.Serif,fontSize=24.sp)
+            Text("Connect the piano’s USB-to-host port to your phone using a data cable and USB-C host/OTG adapter. Switch the piano to standard/class-compliant MIDI mode if available. Bluetooth permission is not needed.")
+            OutlinedButton(onClick={vm.midi.refreshUsb()}) {Text("Refresh USB devices")}
+            if(midi.usbDevices.isEmpty())Text("No USB MIDI input detected",fontSize=12.sp)
+            midi.usbDevices.forEach { d -> TextButton(onClick={vm.midi.connectUsb(d.id,d.port)}) {Text("Connect ${d.name} · ${d.portName}")} }
+        } }
         items(midi.devices,key={it.address}){ d -> Surface(onClick={vm.midi.connect(d.address)},shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh) { Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Piano,null);Column(Modifier.weight(1f).padding(horizontal=14.dp)){Text(d.name,fontWeight=FontWeight.SemiBold);Text(d.address,fontSize=12.sp)};Text("Connect",color=MaterialTheme.colorScheme.primary)} } }
-        item { Panel { Text("FP-10 setup",fontFamily=FontFamily.Serif,fontSize=24.sp);Text("1. Power on the piano and enable its Bluetooth MIDI function.\n\n2. Close other apps that may be connected to the FP-10.\n\n3. Tap Find piano and allow Bluetooth access. Select FP-10 from the results.\n\nOn Android 8–11, Android also requires Location permission and the system Location switch for BLE scans.");Text("Connect inside this app. A separate Bluetooth audio pairing does not provide MIDI.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant);TextButton(onClick=bluetoothSettings){Text("Open Android Bluetooth settings")};TextButton(onClick={vm.screen.value="Diagnostics"}){Text("Open MIDI diagnostics  →")} } }
-        item { Text("Hardware status: real FP-10 testing is still required. The app never claims a simulated connection is a hardware connection.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Panel { Text("Bluetooth MIDI setup",fontFamily=FontFamily.Serif,fontSize=24.sp);Text("1. Power on the piano and enable its Bluetooth MIDI function.\n\n2. Close other apps that may be connected to your piano.\n\n3. Tap Find piano and allow Bluetooth access. Select your instrument from the results.\n\nOn Android 8–11, Android also requires Location permission and the system Location switch for BLE scans.");Text("Connect inside this app. A separate Bluetooth audio pairing does not provide MIDI.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant);TextButton(onClick=bluetoothSettings){Text("Open Android Bluetooth settings")};TextButton(onClick={vm.screen.value="Diagnostics"}){Text("Open MIDI diagnostics  →")} } }
+        item { Text("Compatibility: you reported successful Pixel / Roland FP-10 testing. USB, other piano models and physical tablets still need testing. MIDI support depends on the instrument and Android device.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 @Composable private fun History(vm: PianoViewModel) {
@@ -178,12 +198,28 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         items(all.filter{category=="All"||it.category==category},key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
             Text(s.title,fontWeight=FontWeight.SemiBold);Text(SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(s.date))+" · ${s.bpm.toInt()} BPM · ${s.mode}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)){Metric("${s.pitch.toInt()}%","pitch",Modifier.weight(1f));Metric(s.rhythm?.let{"${it.toInt()}%"}?:"—","rhythm",Modifier.weight(1f));Metric("${s.overall.toInt()}%","overall",Modifier.weight(1f))}
+            if(s.reviewFile!=null)TextButton(onClick={vm.openReview(s)}){Text("Review on score")}
             Text("${s.correct}/${s.expected} notes · ${s.extra} extra · ${s.missing} missing${if(s.simulated)" · TOUCH / TEST INPUT" else ""}",fontSize=12.sp)
         } }
     }
 }
 @Composable private fun SettingsScreen(vm: PianoViewModel) {
     val s by vm.settings.collectAsStateWithLifecycle();val calibrating by vm.calibrating.collectAsStateWithLifecycle()
+    var notices by remember{mutableStateOf(false)}
+    var support by remember{mutableStateOf(false)}
+    val context=LocalContext.current
+    if(support)AlertDialog(onDismissRequest={support=false},title={Text("Support Piano Path")},text={
+        Text("If Piano Path helps your practice, you can leave a voluntary tip. Every app feature stays free. No subscription or digital reward is required. Ko-fi opens in your browser and handles payment under its own privacy terms.")
+    },confirmButton={TextButton(onClick={
+        support=false
+        runCatching{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.SUPPORT_URL)))}.onFailure{vm.message.value="No browser is available to open the support page"}
+    }){Text("Open Ko-fi")}},dismissButton={TextButton(onClick={support=false}){Text("Maybe later")}})
+    if(notices)AlertDialog(onDismissRequest={notices=false},confirmButton={TextButton(onClick={notices=false}){Text("Close")}},title={Text("Sound attribution and licence")},text={
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text("Salamander Grand Piano · Alexander Holm\nCC BY 3.0\nhttps://creativecommons.org/licenses/by/3.0/\nSource: https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander\nAdapted to 24 kHz mono PCM, trimmed to ten seconds with a fade. One sampled dynamic layer; velocity controls amplitude.\n\n")
+            Text(remember{context.assets.open("piano/LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
+        }
+    })
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Make it yours","Practice settings")
         Panel(Modifier.fillMaxWidth()) {
@@ -196,13 +232,23 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             OutlinedButton(onClick={vm.calibrate()},enabled=!calibrating){Text(if(calibrating)"Tap with each click…" else "Calibrate with MIDI taps")}
         }
         Panel(Modifier.fillMaxWidth()) {
-            Toggle("Dark interface",s.dark,{v->vm.setSettings{it.copy(dark=v)}})
+            Text("Appearance",fontWeight=FontWeight.SemiBold)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { ThemeMode.entries.forEach { mode ->
+                FilterChip(s.theme==mode,{vm.setSettings{it.copy(theme=mode)}},label={Text(mode.name.lowercase().replaceFirstChar{it.uppercase()})})
+            } }
             Toggle("Touch piano with sound",s.simulator,{v->vm.setSettings{it.copy(simulator=v)}})
-            Text("Play on the phone without an instrument. Listen plays scores aloud; touch keys use a built-in synthesized piano tone. Touch practice is marked in history.",fontSize=13.sp)
+            Text("Play on the phone without an instrument. Listen plays scores aloud; touch keys use a offline sampled grand piano. Touch practice is marked in history.",fontSize=13.sp)
+            TextButton(onClick={notices=true}){Text("Sound attribution and licence")}
+            TextButton(onClick={vm.screen.value="Note monitor"}){Text("Live note monitor")}
             TextButton(onClick={vm.screen.value="Diagnostics"}){Text("MIDI diagnostics")}
             TextButton(onClick={vm.screen.value="History"}){Text("Practice history")}
         }
-        Text("Piano Path 0.2.0 · Open source under MIT\nOriginal study scores: CC0-1.0\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)\nOffline by design. No account, analytics, or network permission.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        if(BuildConfig.SUPPORT_URL.isNotBlank())Panel(Modifier.fillMaxWidth()) {
+            Text("Help keep music accessible",fontWeight=FontWeight.SemiBold)
+            Text("Piano Path is free and has no ads. Voluntary support helps its continued development.",fontSize=13.sp)
+            OutlinedButton(onClick={support=true}){Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")}
+        }
+        Text("Piano Path 0.3.0 · Open source under MIT\nOriginal study scores: CC0-1.0\nPiano samples: Alexander Holm, Salamander Grand Piano (CC BY 3.0), adapted from Tone.js/audio\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)\nOffline by design. No account, analytics, or network permission.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 @Composable fun Toggle(label: String,checked: Boolean,onChange: (Boolean)->Unit,enabled: Boolean=true) { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(label,Modifier.weight(1f));Switch(checked,onChange,enabled=enabled)} }

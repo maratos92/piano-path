@@ -1,8 +1,10 @@
-name: Signed release APK
+name: Signed release APK and Play bundle
 on:
   workflow_dispatch:
   push:
     tags: ['v*']
+env:
+  PIANO_SUPPORT_URL: ${{ vars.PIANO_SUPPORT_URL }}
 permissions:
   contents: read
 jobs:
@@ -22,7 +24,7 @@ jobs:
           java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - name: Restore private signing key
@@ -33,10 +35,10 @@ jobs:
           printf '%s' "$PIANO_KEYSTORE_BASE64" | base64 --decode > "$PIANO_KEYSTORE"
           chmod 600 "$PIANO_KEYSTORE"
       - name: Verify and build signed release
-        run: ./gradlew :core:test :app:lintRelease :app:assembleRelease
+        run: ./gradlew :core:test :app:lintRelease :app:assembleRelease :app:bundleRelease
       - name: Verify APK signature
         run: |
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
           sha256sum app/build/outputs/apk/release/app-release.apk > app/build/outputs/apk/release/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
@@ -44,6 +46,7 @@ jobs:
           path: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/SHA256SUMS
+            app/build/outputs/bundle/release/app-release.aab
       - name: Remove private signing key
         if: always()
         run: rm -f "$PIANO_KEYSTORE"
