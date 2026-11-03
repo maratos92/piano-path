@@ -86,6 +86,45 @@ class AppSmokeTest {
         compose.onNodeWithText("Fit all 88").assertIsDisplayed()
         compose.onNodeWithText("Listen").assertIsDisplayed()
     }
+    @Test fun cursorSeekEndsScoredTakeAndMovesNextPracticeStart() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {
+            vm.edit {it.copy(countIn=false,loop=false)}
+            vm.start()
+            assertTrue(vm.ui.value.running)
+            vm.seek(2.0)
+            assertFalse("Dragging a score cursor must end the graded take",vm.ui.value.running)
+            assertEquals(2.0,vm.ui.value.transportBeat,0.01)
+            val p=vm.ui.value
+            val actualStart=p.score!!.measures[p.startMeasure-1].start+p.startOffset
+            assertEquals(2.0,actualStart,0.01)
+        }
+    }
+    @Test fun listeningAcceptsTouchKeysWithoutSimulatorAndReleasesAfterStop() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {
+            vm.setSettings{it.copy(simulator=false)}
+            vm.edit{it.copy(loop=false,bpm=70.0,endMeasure=1,endOffset=4.0)}
+            vm.listen()
+            assertTrue(vm.ui.value.listening)
+            vm.key(60,true)
+            assertTrue("Touch key must be held during Listen",60 in vm.midi.state.value.held)
+            vm.stopListening()
+            vm.key(60,false)
+            assertTrue("Key-up after Listen stops must still reach the keyboard",vm.midi.state.value.held.isEmpty())
+            assertNull(vm.ui.value.result)
+        }
+    }
     @Test fun listeningNeverProducesAnAccuracyResult() {
         lateinit var vm: PianoViewModel
         compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}
