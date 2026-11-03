@@ -2,6 +2,8 @@
 
 ## Evidence
 
+Remote verification: [GitHub Actions run 41671948737](https://github.com/maratos92/piano-path/actions/runs/41671948737) passed the debug build/unit/lint job and **9/9 Android tests on API 36 Pixel 2** plus **9/9 on API 35 Pixel C** emulators. Tests include native WebView sheet rendering, visual-take round trips, landscape navigation and the external-support explanation. These are emulator results, not physical piano/tablet certification.
+
 Local release-candidate checks: **77 JVM tests passed, zero failures**; debug and instrumentation APKs built; unsigned release APK/AAB built; debug/release lint passed; static 64-bit ELF/APK 16 KB alignment passed. All 50 notation renders passed in Chromium. The debug certificate matches the preceding preview. Production signing, Android runtime reports and physical MIDI checks are separate.
 
 - JVM tests cover MIDI parsing/running status/zero velocity/repeated notes/sustain/channel separation; MusicXML/MXL/security; polyphonic pitch/onset/release/latency matching; loops, tempo, scales, fingering and sight reading; full keyboard and roll geometry; playback and additive/sampled PCM; recorded extra/correct note events, physical releases, repeated strikes, velocity and loop reset. See the current test reports and GitHub Actions for exact counts.

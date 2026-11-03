@@ -1,13 +1,17 @@
-Piano Path 0.2.0 is an installable Android preview for Android 8.0/API 26 and newer.
+# Piano Path 0.3.0 — Android preview
 
-Download **piano-path-0.2.0-debug.apk** below. It is the same development-signed build delivered from the development workspace, preserving its update certificate. This is an evaluation build, not a production-signed release.
+Install `piano-path-0.3.0-debug.apk`. It retains the previous preview's development certificate for an in-place update.
 
-- Offline **Listen** playback and audible **Touch piano** keys, without a physical instrument.
-- Full **88-key A0–C8** keyboard, Fit all 88, zoom, C4 centring and a range slider.
-- **Falling notes / Sheet** views, with bars aligned to their keys.
-- Native Android BLE MIDI targeting the Roland FP-10, MusicXML/MXL import, pitch/rhythm feedback, passages/loops, scales, sight-reading and local history.
-- 50 original CC0 studies. Both requested Chopin waltzes are user-import only because edition redistribution rights have not been verified.
+- Full-width landscape practice, expandable navigation, compact adjustable score margins and system/light/dark themes.
+- Acoustic grand-piano samples, 128 voices, sustain and unscored Listen. No piano is required for touch playing or listening.
+- Live note names, velocity/channel monitor and a dedicated Note monitor screen.
+- Continuous Rhythm cursor, performed-note/error/hold overlays on the score and saved visual reviews in History.
+- Class-compliant USB MIDI input selection and reconnection alongside general BLE MIDI support.
+- Voluntary support through the owner's Ko-fi page, opened externally. Every feature remains free. No ads.
+- Android 16/API 36 target; signed APK/AAB workflow, tester guide and store-readiness documentation.
 
-Validation before publication: **66 JVM tests passed**, debug/release builds and lint passed, and the APK v2 signature verified. Android runtime and real FP-10/audio hardware testing are not claimed from those checks. See the repository's Actions tab for subsequent emulator results and docs/VALIDATION.md for limitations. The sound is synthesized piano-like PCM, not a sampled acoustic grand. Score playback follows written order at the chosen BPM.
+77 JVM tests passed; all 50 scores rendered in Chromium; debug/instrumentation APKs and unsigned release APK/AAB built; debug/release lint and static 16 KB alignment checks passed. All 9 instrumentation tests passed on the API 36 phone emulator and all 9 on the API 35 tablet emulator: https://github.com/maratos92/piano-path/actions/runs/41671948737. The owner reports Pixel/FP-10 use; USB, other instruments and physical tablets still need acceptance testing. No Bluetooth hardware certification or Google Play approval is claimed.
 
-The source ZIP below excludes distribution binaries. Source, CI workflows, build instructions and owner-controlled release signing instructions are also in the repository.
+The library contains 50 original CC0 studies. Import legally obtained MusicXML/MXL editions for other repertoire. Visual review is a diagnostic overlay, not a transcription exporter. The acoustic bank uses one dynamic layer. Follow the Google Play closed-testing and release-signing procedures before production publication.
+
+Piano samples: Alexander Holm, Salamander Grand Piano, CC BY 3.0, adapted to compact mono PCM. Full attribution/licence/provenance are bundled and available in Settings.

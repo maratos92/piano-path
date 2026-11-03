@@ -21,17 +21,17 @@ jobs:
       - name: Restore and verify the original debug APK
         run: |
           mkdir -p release-assets
-          cat dist/apk-parts/part-*.bin > release-assets/piano-path-0.2.0-debug.apk
+          cat dist/apk-parts/part-*.bin > release-assets/piano-path-0.3.0-debug.apk
           (cd release-assets && sha256sum --check ../dist/SHA256SUMS)
           cp dist/SHA256SUMS dist/APK-SIGNATURE.txt release-assets/
-          git archive --format=zip --prefix=piano-path/ -o release-assets/piano-path-0.2.0-source.zip HEAD app core docs gradle scripts .github .gitignore gradlew gradlew.bat gradle.properties build.gradle.kts settings.gradle.kts LICENSE README.md CHANGELOG.md
+          git archive --format=zip --prefix=piano-path/ -o release-assets/piano-path-0.3.0-source.zip HEAD app core docs gradle scripts licenses .github .gitignore gradlew gradlew.bat gradle.properties build.gradle.kts settings.gradle.kts LICENSE README.md CHANGELOG.md
       - name: Publish the downloadable preview
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v0.2.0-preview --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit v0.2.0-preview --repo "$GITHUB_REPOSITORY" --title 'Piano Path 0.2.0 — Android preview' --notes-file dist/RELEASE_NOTES.md --prerelease
+          if gh release view v0.3.0-preview --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit v0.3.0-preview --repo "$GITHUB_REPOSITORY" --title 'Piano Path 0.3.0 — Android preview' --notes-file dist/RELEASE_NOTES.md --prerelease
           else
-            gh release create v0.2.0-preview --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Piano Path 0.2.0 — Android preview' --notes-file dist/RELEASE_NOTES.md --prerelease
+            gh release create v0.3.0-preview --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Piano Path 0.3.0 — Android preview' --notes-file dist/RELEASE_NOTES.md --prerelease
           fi
-          gh release upload v0.2.0-preview release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload v0.3.0-preview release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
