@@ -18,8 +18,8 @@ class AppSmokeTest {
     @Test fun aboutPanelShowsTheActualInstalledVersion() {
         compose.onNodeWithContentDescription("Settings",useUnmergedTree=true).performClick()
         compose.onNodeWithText("About Piano Path").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}").assertIsDisplayed()
-        compose.onNodeWithText("Revision ${BuildConfig.BUILD_REVISION}").assertIsDisplayed()
+        compose.onNodeWithText("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Revision ${BuildConfig.BUILD_REVISION}").performScrollTo().assertIsDisplayed()
     }
     @Test fun dashboardAndLibraryOpenOffline() {
         compose.onNodeWithText("Make room for music.").assertIsDisplayed()
