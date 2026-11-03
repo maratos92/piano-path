@@ -6,20 +6,20 @@
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**Current feature branch: 0.4.0-dev.1 (code 4).** In the app, open **Settings → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+**Current feature branch: 0.4.0-dev.2 (code 5).** In the app, open **Settings → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
 
 > **Update/signature note:** CI debug builds can use different signing keys, so Android may refuse an in-place update. Uninstalling the old app may delete its locally stored scores and practice history; back up anything important first.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The current development app is version 0.4.0-dev.1: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The current development app is version 0.4.0-dev.2: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
-1. Download `piano-path-debug.apk` from the delivery, or the `piano-path-debug-apk` artifact under GitHub Actions → Build and test Android. Unzip the Actions artifact first.
+1. Download the `latest-debug` APK linked at the top of this README (or unzip `app-debug.apk` from a successful Actions build).
 2. Open the APK on your Android phone and allow installation from your browser/file manager when Android prompts. This build is signed with a development key; use it for evaluation.
 3. Open **Connect piano → Find piano**, grant Bluetooth access, and select your instrument. On Android 8–11 also enable system Location for BLE discovery. Enable Bluetooth MIDI on the piano, and close other apps using its connection.
-4. Open the **Library**. Choose an offline study, or **Import MusicXML / MXL** to copy a score into private local storage.
+4. Open **Library → Import MusicXML / MXL** to add your own score, or use **Scales** / **Sight reading** to generate an exercise.
 5. Open the tune icon in the score reader. Choose mode, hands, tempo and passage measures. Optional quarter-beat offsets allow finer boundaries. Enable looping/count-in and save a named passage.
 6. Tap **Practice**. Complete a repetition or tap **Finish** for separate pitch/rhythm results and note-level timing details. Open History for saved repetitions.
 
@@ -27,9 +27,11 @@ The current development app is version 0.4.0-dev.1: a working initial implementa
 
 **Listen to music:** open any score and tap **Listen**. The selected passage plays aloud at the chosen BPM, with separate left/right/both-hand filtering and the passage loop setting. **Stop music** stops playback. Listening never feeds generated notes into assessment and never awards a practice accuracy result. Turn up Android's media volume. Touch keys use a fixed velocity; MIDI diagnostics still report the instrument’s actual velocity. Sound uses Alexander Holm’s Salamander Grand Piano samples (CC BY 3.0), with 128 voices, sustain and velocity-controlled amplitude. The compact bank has one dynamic layer, rather than a full multi-layer piano instrument; no download is required.
 
-**Falling bars:** choose **Falling notes** beside **Sheet** in the reader (falling notes is the default). Each note falls onto its matching key; bar length represents notated duration. Blue = left staff, green = right staff; played/missed notes change colour during assessment. Listen animates the bars automatically; Practice uses the selected practice mode. In Wait mode bars wait for the correct pitches. In Follow mode they follow the performance. Free Play has no enforced score transport, so use Listen to watch a demonstration.
+**Falling bars:** choose **Falling** beside **Sheet** in the reader (falling notes is the default). Each note falls onto its matching key; bar length represents notated duration. Blue = left staff, green = right staff; played/missed notes change colour during assessment. Listen animates the bars automatically; Practice uses the selected practice mode. In Wait mode bars wait for the correct pitches. In Follow mode they follow the performance. Free Play has no enforced score transport, so use Listen to watch a demonstration.
 
 **Whole keyboard:** all 88 keys, **A0–C8**, fit on screen initially in both orientations. Tap **Fit all 88** to restore this view. For playable-size touch keys, tap **+**, use **C4** to centre middle C, and move the **A0–C8 range slider** to reach lower or higher notes. The falling bars use the identical zoom and position, so they stay aligned. Fitting 88 keys on a narrow phone necessarily makes each key small; landscape or zoom is recommended for touch performance.
+
+**Score cursor:** touch a note on the score or drag the blue cursor handle to move through the piece. This also works while listening. Seeking during scored Practice ends the current take first and sets the next practice start to that beat, so timing results remain valid.
 
 **Visual review:** choose Sheet, then Practice. Rhythm mode (the default) starts the cursor after count-in; Follow starts on the first expected pitch, and Wait advances on chord completion. Green markers show matched input, amber early/late input, red extras and dashed rings missed notes. Hold traces show physical key-down duration; they are not pedal sustain. After Finish select Review on score, scrub the score, or reopen a take in History. This is a diagnostic overlay, not a quantised MusicXML transcription/export. Wrong pitches use a conventional sharp spelling; MIDI does not carry enharmonic spelling or physical-hand identity.
 
@@ -55,9 +57,7 @@ The current development app is version 0.4.0-dev.1: a working initial implementa
 
 ## Score library
 
-The APK contains **50 original CC0 pedagogical miniatures**, ten in each approximate difficulty band. These are original studies, not a curated historical repertoire collection; difficulty has not been independently graded. [Full catalogue](docs/CATALOG.md) and [edition licensing](docs/SCORE_LICENSING.md).
-
-Obtain a legally reusable MusicXML/MXL edition yourself, or export your own piano engraving from MuseScore, then import it. PDF, image scores, MIDI files and `.mscz` are not accepted. Select the piano part before exporting multi-instrument scores.
+**No sample scores are bundled.** Library lists only your imported MusicXML/MXL pieces. The separate Scales and Sight reading pages still generate exercises offline. PDF, image scores, MIDI files and `.mscz` cannot be imported. [Score licensing](docs/SCORE_LICENSING.md).
 
 ## Build
 
@@ -76,7 +76,6 @@ The first build needs network access for dependencies. The installed app works o
 ```sh
 ./gradlew :app:assembleDebugAndroidTest
 ./gradlew :app:connectedDebugAndroidTest # running emulator/device required
-python3 scripts/generate_library.py     # reproduce the original score library
 # Optional desktop rendering check: Python playwright + Chromium required
 python3 scripts/test_notation.py
 ```
@@ -90,8 +89,8 @@ GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone a
 - Only one MusicXML piano part is assessed. Hand attribution uses staff number, so cross-staff passages and unison pitches require care. Staff membership is not a measurement of the physical hand. Indistinguishable unison duplicates across voices may be undercounted.
 - Release timing measures physical note-off against notated duration, including merged ties. Pedal extends sounding display, not expected finger duration. Legato articulation and half-pedal artistry are not graded. Metronome is a best-effort phone tone, not an audio-clock sequencer; calibrate your device and audio path.
 - Sampled playback uses written order and the selected BPM; it does not unfold repeats, implement expressive tempo maps or interpret score pedal markings. Touch sustain and incoming MIDI CC64 are handled separately. Speaker/headphone audio latency has not been measured on a physical phone.
-- No background service: keep the app visible while practicing. Do not treat initial scores as validated pedagogical or examination material. Fingering for black-key scales and chromatic exercises is not yet curated. Arpeggios currently use major triads.
+- No background service: keep the app visible while practising. Generated exercise difficulty is approximate; MIDI does not detect physical fingering.
 
 ## Licence
 
-App source: [MIT](LICENSE). Original generated score files: [CC0-1.0](app/src/main/assets/scores/CC0-1.0.txt). Piano samples: Alexander Holm, Salamander Grand Piano, [CC BY 3.0](licenses/CC-BY-3.0.txt), adapted from [Tone.js/audio](https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander); see the bundled provenance and [notices](docs/DEPENDENCIES.md). OSMD: BSD-3-Clause plus upstream notices. Imported scores remain private and are never uploaded by the app.
+App source: [MIT](LICENSE). Piano sound samples: Alexander Holm, Salamander Grand Piano, [CC BY 3.0](licenses/CC-BY-3.0.txt), adapted from [Tone.js/audio](https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander); see the bundled provenance and [notices](docs/DEPENDENCIES.md). OSMD: BSD-3-Clause plus upstream notices. Imported scores remain private and are never uploaded by the app.
