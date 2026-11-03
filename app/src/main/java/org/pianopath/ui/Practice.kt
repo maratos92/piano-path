@@ -85,7 +85,7 @@ import kotlin.math.*
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
-                    ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}
+                    ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}
                     ScoreView.FALLING -> FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
                         Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}}
@@ -100,13 +100,13 @@ import kotlin.math.*
                     Text(p.counting.toString(),fontSize=48.sp,color=Color.White,modifier=Modifier.padding(horizontal=30.dp,vertical=8.dp))
                 }
             }
-            KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,settings.simulator,vm::key,
+            KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,settings.simulator || p.listening,vm::key,
                 if(landscape)64 else 100,keyZoom,keyPan,p.playbackHeld)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(p.feedback,fontSize=12.sp,maxLines=1)
-                if(!landscape)Text(if(midi.connected)"MIDI connected" else if(settings.simulator)"Touch keys play sound · no piano needed" else "Use Listen, Touch piano, or connect MIDI",fontSize=10.sp,maxLines=1)
+                if(!landscape)Text(if(p.listening)"Tap keys to play along" else if(midi.connected)"MIDI connected" else if(settings.simulator)"Touch piano ready" else "Connect a piano or tap Touch piano",fontSize=10.sp,maxLines=1)
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.listening)Icons.Outlined.Stop else Icons.Outlined.VolumeUp,null,Modifier.size(18.dp))
@@ -137,7 +137,7 @@ import kotlin.math.*
                     Text("Score · floating view",Modifier.weight(1f).padding(start=16.dp),fontWeight=FontWeight.SemiBold)
                     IconButton(onClick={scorePopup=false}){Icon(Icons.Outlined.Close,"Close floating score")}
                 }
-                Notation(p,Modifier.weight(1f).fillMaxWidth(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}
+                Notation(p,Modifier.weight(1f).fillMaxWidth(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}
             }
         }
     }
