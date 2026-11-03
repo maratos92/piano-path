@@ -82,4 +82,7 @@ jobs:
         if: always()
         with:
           name: android-device-test-reports-${{ matrix.name }}
-          path: app/build/reports/androidTests/
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            app/build/outputs/connected_android_test_additional_output/

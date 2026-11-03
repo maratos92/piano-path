@@ -34,17 +34,17 @@ class AppSmokeTest {
         compose.onNodeWithText("Open practice  →").performClick()
         compose.waitUntil(20_000){compose.onAllNodesWithText("First Light").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Sheet").performClick()
-        val ready=CountDownLatch(1);var rendered=false
+        val ready=CountDownLatch(1);var rendered=false;var diagnostic="WebView not found"
         fun find(view: android.view.View): WebView? {
             if(view is WebView)return view
             if(view is android.view.ViewGroup)for(i in 0 until view.childCount){val result=find(view.getChildAt(i));if(result!=null)return result}
             return null
         }
         repeat(30){
-            compose.runOnUiThread{find(compose.activity.window.decorView)?.evaluateJavascript("Boolean(document.querySelector('svg .vf-notehead') && !document.querySelector('#error').textContent)"){value->if(value=="true"){rendered=true;ready.countDown()}}}
+            compose.runOnUiThread{find(compose.activity.window.decorView)?.evaluateJavascript("JSON.stringify({url:location.href,svg:!!document.querySelector('svg .vf-notehead'),error:document.getElementById('error')?.textContent,loading:document.getElementById('loading')?.textContent,engine:typeof opensheetmusicdisplay,html:document.body?.innerText?.slice(0,600)})"){value->diagnostic=value;val state=runCatching{org.json.JSONObject(org.json.JSONTokener(value).nextValue() as String)}.getOrNull();if(state?.let{it.optBoolean("svg") && it.optString("error").isBlank()}==true){rendered=true;ready.countDown()}}}
             if(ready.await(1,TimeUnit.SECONDS))return@repeat
         }
-        assertTrue("Local MusicXML must render in Android WebView",rendered)
+        assertTrue("Local MusicXML must render in Android WebView. Package=${WebView.getCurrentWebViewPackage()?.versionName}. State=$diagnostic",rendered)
     }
     @Test fun simulatedWaitSessionCompletesWithoutHardware() {
         lateinit var vm: PianoViewModel
