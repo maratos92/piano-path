@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.pianopath.*
 import org.pianopath.core.*
+import org.pianopath.audio.PianoSound
 import kotlin.math.*
 
 @Composable fun Practice(vm: PianoViewModel,openMenu: ()->Unit = {}) {
@@ -67,7 +68,7 @@ import kotlin.math.*
         if(monitor)LiveNotes(midi,Modifier.fillMaxWidth().padding(horizontal=12.dp))
         if(p.view==ScoreView.COMBINED)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("Score height",fontSize=11.sp)
-            Slider(scoreFraction,{scoreFraction=it},Modifier.weight(1f).padding(horizontal=10.dp),valueRange=.25f.. .75f)
+            Slider(scoreFraction,{scoreFraction=it},Modifier.weight(1f).padding(horizontal=10.dp),valueRange=.25f..0.75f)
         }
         if(p.review && !p.running && !p.listening) {
             Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -144,6 +145,7 @@ fun modeName(m: PracticeMode)=when(m){PracticeMode.FREE->"Free play";PracticeMod
 fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Hand.BOTH->"Both hands"}
 @Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,close: ()->Unit) {
     val score=p.score ?: return
+    val settings by vm.settings.collectAsStateWithLifecycle()
     var sectionName by remember{mutableStateOf("")}
     ModalBottomSheet(onDismissRequest=close) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -155,6 +157,11 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { Hand.entries.forEach { h-> FilterChip(p.hand==h,{vm.edit{it.copy(hand=h)}},enabled=!(p.running || p.listening),label={Text(handName(h))}) } }
             Text("Tempo · ${p.bpm.toInt()} BPM",fontWeight=FontWeight.SemiBold)
             Slider(p.bpm.toFloat(),{v->vm.edit{it.copy(bpm=v.toDouble())}},valueRange=30f..240f,steps=209,enabled=!(p.running || p.listening))
+            Text("Piano sound",fontWeight=FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                PianoSound.entries.forEach { sound -> FilterChip(settings.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),enabled=!(p.running || p.listening),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
+            }
+            Text("Grand uses acoustic samples; mellow and bright are offline synthesized alternatives. All are polyphonic.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
             Text("Passage · drag handles to select a loop",fontWeight=FontWeight.SemiBold)
             val from=score.measures[p.startMeasure-1].start+p.startOffset
