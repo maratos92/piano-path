@@ -298,7 +298,17 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Text("Piano Path is free and has no ads. Voluntary support helps its continued development.",fontSize=13.sp)
             OutlinedButton(onClick={support=true}){Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")}
         }
-        Text("Piano Path 0.3.0 · Open source under MIT\nOriginal study scores: CC0-1.0\nPiano samples: Alexander Holm, Salamander Grand Piano (CC BY 3.0), adapted from Tone.js/audio\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)\nOffline by design. No account, analytics, or network permission.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Panel(Modifier.fillMaxWidth()) {
+            Text("About Piano Path",fontWeight=FontWeight.SemiBold)
+            Text("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",fontWeight=FontWeight.SemiBold)
+            Text(if(BuildConfig.DEBUG)"Development / debug APK" else "Release APK",
+                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Open source under MIT · Offline by design. No account, analytics, or network permission.",
+                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Original study scores: CC0-1.0\nPiano samples: Alexander Holm, Salamander Grand Piano (CC BY 3.0), adapted from Tone.js/audio\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)",
+                fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 @Composable fun Toggle(label: String,checked: Boolean,onChange: (Boolean)->Unit,enabled: Boolean=true) { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(label,Modifier.weight(1f));Switch(checked,onChange,enabled=enabled)} }
