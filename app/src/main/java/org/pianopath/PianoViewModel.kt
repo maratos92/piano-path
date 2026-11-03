@@ -150,11 +150,13 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             ui.value=p.copy(paused=true,playbackHeld=emptySet(),feedback="Paused")
         }
     }
-    /** Whole-piece timeline. Seeking a running assessment would invalidate its results, so it is blocked. */
+    /** Whole-score scrubbing; a running scored take cannot be arbitrarily re-timed. */
     fun seek(beat: Double) {
         val p=ui.value; val score=p.score ?: return
-        if(p.running)return
-        val target=beat.coerceIn(0.0,score.endBeat)
+        if(!beat.isFinite() || p.running)return
+        val target=if(p.listening) {
+            val(a,b)=bounds(p);beat.coerceIn(a,b-.001)
+        } else beat.coerceIn(0.0,score.endBeat)
         if(p.listening) playbackSeek=target
         ui.value=p.copy(beat=target,transportBeat=target,reviewBeat=target)
     }
@@ -376,8 +378,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun key(pitch: Int, down: Boolean) {
-        if(!settings.value.simulator || down && !audio.start()) return
-        simulationUsed=true; ui.value=ui.value.copy(simulated=true)
+        if(!(settings.value.simulator || ui.value.listening) || down && !audio.start()) return
+        if(!ui.value.listening) { simulationUsed=true; ui.value=ui.value.copy(simulated=true) }
         touchEvent(if(down) MidiEvent.On(pitch,80,System.nanoTime()) else MidiEvent.Off(pitch,0,System.nanoTime()))
     }
     private fun touchEvent(event: MidiEvent) {audio.accept(event);midi.simulate(event)}
@@ -388,19 +390,21 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         val(a,b)=bounds(p)
         if(a>=b){message.value="End of passage must follow its start";return}
         if(!audio.start())return
+        // A stopped score may be scrubbed before pressing Listen. Honor that playhead.
+        val fromBeat=p.transportBeat.coerceIn(a,b-.001)
         val plan=PlaybackPlan.create(score,a,b,p.hand)
         val tempoScale=p.bpm/score.tempo
         if(plan.isEmpty()){message.value="No notes for this hand in the passage";return}
         playbackSeek=null
         lastClick=Long.MIN_VALUE
         if(p.metronome) tone=tone ?: try {ToneGenerator(AudioManager.STREAM_MUSIC,65)} catch(_: Exception){null}
-        ui.value=p.copy(listening=true,paused=false,hidden=false,result=null,matched=emptySet(),missed=emptySet(),beat=a,transportBeat=a,feedback="Listening · no assessment",playbackHeld=emptySet())
+        ui.value=p.copy(listening=true,paused=false,hidden=false,review=false,result=null,matched=emptySet(),missed=emptySet(),beat=fromBeat,transportBeat=fromBeat,feedback="Listening",playbackHeld=emptySet())
         val generation=++playbackGeneration
         playback=viewModelScope.launch {
             try {
                 do {
-                    var origin=System.nanoTime()
-                    var next=0
+                    var origin=System.nanoTime()-(score.secondsBetween(a,fromBeat,tempoScale)*1e9).toLong()
+                    var next=plan.indexOfFirst { it.beat>=fromBeat-.0001 }.let { if(it<0)plan.size else it }
                     var suspendedAt: Long?=null
                     val held=mutableMapOf<Int,Int>()
                     while(isActive) {
