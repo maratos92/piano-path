@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     env:
-      PIANO_KEYSTORE: ${{ runner.temp }}/piano-release.jks
+      PIANO_KEYSTORE: /tmp/piano-path-release.jks
       PIANO_STORE_PASSWORD: ${{ secrets.PIANO_STORE_PASSWORD }}
       PIANO_KEY_ALIAS: ${{ secrets.PIANO_KEY_ALIAS }}
       PIANO_KEY_PASSWORD: ${{ secrets.PIANO_KEY_PASSWORD }}
