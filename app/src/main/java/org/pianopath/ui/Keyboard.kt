@@ -42,7 +42,7 @@ import org.pianopath.core.*
 
 @Composable fun PianoKeyboard(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,
     onKey: (Int,Boolean)->Unit,height: Int=88,focusRange: IntRange? = null) {
-    val initialZoom=when(focusRange?.last?.minus(focusRange.first)) {12->5f;24->3.25f;36->2.3f;else->1f}
+    val initialZoom=when(focusRange?.let { it.last-it.first }) {12->5f;24->3.25f;36->2.3f;else->1f}
     val center=focusRange?.let { range ->
         ((PianoLayout.key(range.first)?.left ?: 0.0)+(PianoLayout.key(range.last)?.left ?: 52.0))/2.0
     } ?: 0.0
