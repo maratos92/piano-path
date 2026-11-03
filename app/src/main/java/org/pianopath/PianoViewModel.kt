@@ -161,8 +161,9 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     /** Quarter-beat precision selection for the loop handles; same bounds as measure controls. */
     fun setPassage(start: Double,end: Double) {
         edit { p ->
-            val measures=p.score?.measures ?: return@edit p
-            val full=p.score.endBeat
+            val score=p.score ?: return@edit p
+            val measures=score.measures
+            val full=score.endBeat
             val a=(kotlin.math.round(start*4)/4).coerceIn(0.0,(full-.25).coerceAtLeast(0.0))
             val b=(kotlin.math.round(end*4)/4).coerceIn(a+.25,full)
             val from=measures.last { it.start<=a+.0001 }
