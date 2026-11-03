@@ -18,6 +18,10 @@ android {
         targetSdk = 36
         versionCode = 4
         versionName = "0.4.0-dev.1"
+        // The Actions runner supplies GITHUB_SHA; local builds are intentionally labelled "local".
+        val revision = providers.environmentVariable("GITHUB_SHA").orNull
+            ?.take(8)?.takeIf { it.matches(Regex("[a-fA-F0-9]{8}")) } ?: "local"
+        buildConfigField("String", "BUILD_REVISION", "\"$revision\"")
         buildConfigField("String", "SUPPORT_URL", "\"$supportUrl\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
