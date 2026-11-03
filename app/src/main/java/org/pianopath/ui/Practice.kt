@@ -160,6 +160,11 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { Hand.entries.forEach { h-> FilterChip(p.hand==h,{vm.edit{it.copy(hand=h)}},enabled=!(p.running || p.listening),label={Text(handName(h))}) } }
             Text("Tempo · ${p.bpm.toInt()} BPM",fontWeight=FontWeight.SemiBold)
             Slider(p.bpm.toFloat(),{v->vm.edit{it.copy(bpm=v.toDouble())}},valueRange=30f..240f,steps=209,enabled=!(p.running || p.listening))
+            if(score.tempoMarks.isNotEmpty())Text("Score tempo markings: "+score.tempoMarks.take(6).joinToString { mark ->
+                "m.${score.measures.lastOrNull {it.start<=mark.beat+.0001}?.number ?: 1} · ${mark.bpm.toInt()} BPM"
+            }+if(score.tempoMarks.size>6)" …" else "",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(score.expressiveTempo)Text("Expressive tempo text (e.g. accelerando or ritardando) detected; words alone do not define an exact BPM curve.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows explicit BPM changes; scored Practice uses your selected fixed tempo.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Piano sound",fontWeight=FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 PianoSound.entries.forEach { sound -> FilterChip(settings.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),enabled=!(p.running || p.listening),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
