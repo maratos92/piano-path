@@ -58,9 +58,12 @@ import kotlin.math.*
             FilterChip(p.view==ScoreView.SHEET,{vm.setView(ScoreView.SHEET)},label={Text("Sheet",fontSize=12.sp)})
             FilterChip(p.view==ScoreView.FALLING,{vm.setView(ScoreView.FALLING)},label={Text("Falling",fontSize=12.sp)})
             FilterChip(p.view==ScoreView.COMBINED,{vm.setView(ScoreView.COMBINED)},label={Text("Both",fontSize=12.sp)})
-            FilterChip(monitor,{monitor=!monitor},label={Text("Notes",fontSize=12.sp)})
             Spacer(Modifier.weight(1f))
-            IconButton(onClick={scorePopup=true},modifier=Modifier.size(32.dp)) {Icon(Icons.Outlined.OpenInNew,"Floating score window",Modifier.size(18.dp))}
+            IconButton(onClick={scorePopup=true},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.OpenInNew,"Floating score window",Modifier.size(18.dp))}
+        }
+        Row(Modifier.fillMaxWidth().height(40.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+            FilterChip(monitor,{monitor=!monitor},label={Text("Played notes",fontSize=12.sp)})
+            Spacer(Modifier.weight(1f))
             TextButton(onClick={if(settings.simulator)vm.setSettings{it.copy(simulator=false)} else vm.enableTouch()},contentPadding=PaddingValues(horizontal=6.dp)) {
                 Text(if(settings.simulator)"Touch piano ✓" else "Touch piano",fontSize=12.sp)
             }
