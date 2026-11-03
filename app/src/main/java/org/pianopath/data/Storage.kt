@@ -3,7 +3,6 @@ package org.pianopath.data
 import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
-import org.json.JSONArray
 import org.pianopath.core.*
 
 @Entity data class SessionEntity(@PrimaryKey(autoGenerate=true) val id: Long = 0, val title: String, val date: Long,
@@ -27,7 +26,6 @@ abstract class PianoDatabase: RoomDatabase() { abstract fun dao(): PianoDao
 }
 data class LibraryPiece(val key: String, val title: String, val composer: String, val difficulty: String,
     val asset: String, val license: String, val attribution: String, val source: String)
-fun loadLibrary(context: Context): List<LibraryPiece> {
-    val array = JSONArray(context.assets.open("scores/catalog.json").bufferedReader().use { it.readText() })
-    return (0 until array.length()).map { i -> val p = array.getJSONObject(i); LibraryPiece(p.getString("key"),p.getString("title"),p.getString("composer"),p.getString("difficulty"),p.getString("asset"),p.getString("license"),p.getString("attribution"),p.getString("source")) }
-}
+/** No demo music is bundled. Only a player's private imports populate the Library screen. */
+@Suppress("UNUSED_PARAMETER")
+fun loadLibrary(context: Context): List<LibraryPiece> = emptyList()
