@@ -20,9 +20,9 @@ import org.pianopath.core.noteName
     var voices by remember {mutableIntStateOf(1)}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        PageTitle("Train your ear","Hear it, then find it.","Listen without seeing the answer. Guess pitches using touch or a connected MIDI piano.")
+        PageTitle("Ear training","Hear it. Find it.")
         Panel(Modifier.fillMaxWidth()) {
-            Text("Pitch range",fontWeight=FontWeight.SemiBold)
+            Text("Octaves · C4–C${4+octaves}",fontWeight=FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 (1..3).forEach { n -> FilterChip(octaves==n,{octaves=n},modifier=Modifier.weight(1f),label={Text("$n octave${if(n>1)"s" else ""}",fontSize=12.sp)}) }
             }
@@ -30,12 +30,12 @@ import org.pianopath.core.noteName
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 (1..3).forEach { n -> FilterChip(voices==n,{voices=n},modifier=Modifier.weight(1f),label={Text("$n note${if(n>1)"s" else ""}",fontSize=12.sp)}) }
             }
-            Text("Starting on C4. Multiple notes are played simultaneously (polyphonic).",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Questions use C4–C${4+octaves}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick={vm.earQuestion(octaves,voices)},modifier=Modifier.fillMaxWidth()) {Text(if(ear.target.isEmpty())"Play first question" else "Next question")}
         }
         if(ear.target.isNotEmpty()) {
             Panel(Modifier.fillMaxWidth()) {
-                Text("Question · ${ear.voices} note${if(ear.voices>1)"s" else ""} in ${ear.octaves} octave${if(ear.octaves>1)"s" else ""}",fontWeight=FontWeight.SemiBold)
+                Text("C4–C${4+ear.octaves} · ${ear.voices} note${if(ear.voices>1)"s" else ""}",fontWeight=FontWeight.SemiBold)
                 Text(ear.feedback,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Guesses selected: ${ear.guesses.size} / ${ear.voices}",fontSize=12.sp)
                 if(ear.revealed) {
@@ -48,10 +48,9 @@ import org.pianopath.core.noteName
                     Button(onClick={vm.earCheck()},modifier=Modifier.weight(1f),enabled=!ear.revealed && ear.guesses.isNotEmpty()){Text("Check")}
                 }
             }
-            Text("Play the answer on your piano, or tap the keys below. Zoom in and use C4 to navigate.",fontSize=12.sp)
+            Text("Tap the keys or play your connected piano.",fontSize=12.sp)
             PianoKeyboard(held=emptySet(),sounding=emptySet(),expected=ear.guesses.toList(),
-                interactive=true,onKey={pitch,down -> if(down) vm.earGuess(pitch)},height=156)
-            Text("This is pitch recognition, not rhythmic scoring. Questions and results remain in this session.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                interactive=true,onKey={pitch,down -> if(down) vm.earGuess(pitch)},height=156,focusRange=60..(60+ear.octaves*12))
         }
         if(ear.attempts>0) Text("Questions correct: ${ear.correct} / ${ear.attempts}",fontWeight=FontWeight.SemiBold)
     }
