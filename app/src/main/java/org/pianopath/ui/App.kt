@@ -260,7 +260,6 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 PianoSound.entries.forEach { sound -> FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
             }
-            Text("Grand: sampled acoustic piano. Mellow and Bright: lightweight synthesized sounds. All work without internet.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Panel(Modifier.fillMaxWidth()) {
             Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
@@ -296,7 +295,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Open source under MIT · Offline by design. No account, analytics, or network permission.",
                 fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Original study scores: CC0-1.0\nPiano samples: Alexander Holm, Salamander Grand Piano (CC BY 3.0), adapted from Tone.js/audio\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)",
+            Text("Piano sound: Alexander Holm, Salamander Grand (CC BY 3.0)\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)",
                 fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
