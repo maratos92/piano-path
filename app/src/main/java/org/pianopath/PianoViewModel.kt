@@ -393,8 +393,9 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun key(pitch: Int, down: Boolean) {
-        if(!(settings.value.simulator || ui.value.listening) || down && !audio.start()) return
-        if(!ui.value.listening) { simulationUsed=true; ui.value=ui.value.copy(simulated=true) }
+        // Always deliver key-up: playback may finish while a finger is still down.
+        if(down && (!(settings.value.simulator || ui.value.listening) || !audio.start()))return
+        if(!ui.value.listening && down) { simulationUsed=true; ui.value=ui.value.copy(simulated=true) }
         touchEvent(if(down) MidiEvent.On(pitch,80,System.nanoTime()) else MidiEvent.Off(pitch,0,System.nanoTime()))
     }
     private fun touchEvent(event: MidiEvent) {audio.accept(event);midi.simulate(event)}
