@@ -193,11 +193,39 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable private fun History(vm: PianoViewModel) {
     val all by vm.history.collectAsStateWithLifecycle();var category by remember{mutableStateOf("All")}
+    val filtered=all.filter{category=="All"||it.category==category}
+    val dateFormat=remember { SimpleDateFormat("yyyy-MM-dd",Locale.getDefault()) }
+    val days=remember(all,category) {
+        val cal=Calendar.getInstance()
+        (6 downTo 0).map { offset ->
+            val d=cal.clone() as Calendar
+            d.add(Calendar.DAY_OF_YEAR,-offset)
+            val key=dateFormat.format(d.time)
+            val count=filtered.count { dateFormat.format(Date(it.date))==key }
+            SimpleDateFormat("EEE",Locale.getDefault()).format(d.time) to count
+        }
+    }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Every repetition counts","Your progress", "Pitch and rhythm are tracked separately, on this device.") }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("All","Scales","Sight reading","Score","Imported score").forEach {FilterChip(category==it,{category=it},label={Text(it)})}} }
-        if(all.isEmpty()) item { Text("Complete a practice session to start your history.") }
-        items(all.filter{category=="All"||it.category==category},key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("Practice days · last 7 days",fontWeight=FontWeight.SemiBold)
+            val highest=days.maxOf {it.second}.coerceAtLeast(1)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                days.forEach { (day,count) ->
+                    Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally) {
+                        Box(Modifier.fillMaxWidth().height(76.dp),contentAlignment=Alignment.BottomCenter) {
+                            Box(Modifier.fillMaxWidth(.7f).fillMaxHeight(count.toFloat()/highest).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart=5.dp,topEnd=5.dp)))
+                        }
+                        Text(day,fontSize=11.sp)
+                        Text(count.toString(),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Text("${days.count { it.second>0 }} active days · ${days.sumOf {it.second}} completed sessions",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        } }
+        if(filtered.isEmpty()) item { Text("Complete a practice session to start your history for this category.") }
+        items(filtered,key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
             Text(s.title,fontWeight=FontWeight.SemiBold);Text(SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(s.date))+" · ${s.bpm.toInt()} BPM · ${s.mode}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)){Metric("${s.pitch.toInt()}%","pitch",Modifier.weight(1f));Metric(s.rhythm?.let{"${it.toInt()}%"}?:"—","rhythm",Modifier.weight(1f));Metric("${s.overall.toInt()}%","overall",Modifier.weight(1f))}
             if(s.reviewFile!=null)TextButton(onClick={vm.openReview(s)}){Text("Review on score")}
