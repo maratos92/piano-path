@@ -7,10 +7,28 @@ import android.os.Looper
 import org.pianopath.core.*
 import java.util.concurrent.atomic.AtomicBoolean
 
+enum class PianoSound(val label: String) {
+    GRAND("Sampled grand"), MELLOW("Mellow synth"), BRIGHT("Bright synth")
+}
+
 /** PCM output is independent from assessment. Listening never feeds generated notes into the scorer. */
 class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
     private val manager=context.getSystemService(AudioManager::class.java)
-    private val synth by lazy { SampledPiano((21..108 step 3).map { pitch -> PianoSample.read(pitch,context.assets.open("piano/$pitch.wav")) }) }
+    private val grand by lazy { SampledPiano((21..108 step 3).map { pitch -> PianoSample.read(pitch,context.assets.open("piano/$pitch.wav")) }) }
+    private val mellow by lazy { PianoSynth(tone=SynthTone.MELLOW) }
+    private val bright by lazy { PianoSynth(tone=SynthTone.BRIGHT) }
+    @Volatile private var sound=PianoSound.GRAND
+    fun selectSound(next: PianoSound) {if(sound!=next){silence();sound=next}}
+    private fun render(buffer: FloatArray) = when(sound) {
+        PianoSound.GRAND->grand.render(buffer)
+        PianoSound.MELLOW->mellow.render(buffer)
+        PianoSound.BRIGHT->bright.render(buffer)
+    }
+    private fun voices()=when(sound) {
+        PianoSound.GRAND->grand.activeVoiceCount
+        PianoSound.MELLOW->mellow.activeVoiceCount
+        PianoSound.BRIGHT->bright.activeVoiceCount
+    }
     private val handler=Handler(Looper.getMainLooper())
     private data class Output(val track: AudioTrack,val alive: AtomicBoolean,val thread: Thread)
     private var output: Output?=null
@@ -41,11 +59,11 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
                     track.play()
                     var idleFrames=0
                     while(alive.get()) {
-                        synth.render(buffer)
-                        idleFrames=if(synth.activeVoiceCount==0)idleFrames+buffer.size else 0
-                        if(idleFrames>=synth.sampleRate*2) {
+                        render(buffer)
+                        idleFrames=if(voices()==0)idleFrames+buffer.size else 0
+                        if(idleFrames>=44100*2) {
                             idleFrames=0
-                            handler.post {if(output?.track===track && synth.activeVoiceCount==0)stop()}
+                            handler.post {if(output?.track===track && voices()==0)stop()}
                         }
                         var offset=0
                         while(offset<buffer.size&&alive.get()) {
@@ -63,15 +81,31 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
             manager?.abandonAudioFocusRequest(focus);interrupted("Sound unavailable: ${e.message}");false
         }
     }
-    fun accept(event: MidiEvent) {if(output!=null)synth.accept(event)}
-    fun releaseTouch()=synth.releaseChannel(0)
-    fun releasePlayback() {(1..15).forEach(synth::releaseChannel)}
-    fun silence()=synth.silence()
+    fun accept(event: MidiEvent) {if(output!=null)when(sound) {
+        PianoSound.GRAND->grand.accept(event)
+        PianoSound.MELLOW->mellow.accept(event)
+        PianoSound.BRIGHT->bright.accept(event)
+    }}
+    fun releaseTouch()=when(sound) {
+        PianoSound.GRAND->grand.releaseChannel(0)
+        PianoSound.MELLOW->mellow.releaseChannel(0)
+        PianoSound.BRIGHT->bright.releaseChannel(0)
+    }
+    fun releasePlayback() {(1..15).forEach { channel -> when(sound) {
+        PianoSound.GRAND->grand.releaseChannel(channel)
+        PianoSound.MELLOW->mellow.releaseChannel(channel)
+        PianoSound.BRIGHT->bright.releaseChannel(channel)
+    } }}
+    fun silence()=when(sound) {
+        PianoSound.GRAND->grand.silence()
+        PianoSound.MELLOW->mellow.silence()
+        PianoSound.BRIGHT->bright.silence()
+    }
     fun stop() {
         val previous=output;output=null
         previous?.alive?.set(false)
         try {previous?.track?.pause()}catch(_: Exception){}
         previous?.thread?.interrupt()
-        synth.silence();manager?.abandonAudioFocusRequest(focus)
+        silence();manager?.abandonAudioFocusRequest(focus)
     }
 }
