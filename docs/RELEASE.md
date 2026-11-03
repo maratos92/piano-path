@@ -1,0 +1,37 @@
+# Signed release builds
+
+The supplied debug APK is installable and development-signed. It is not a production release. A release identity belongs to the project owner: keep that private key backed up and out of Git.
+
+## Local
+
+1. Create your private signing identity. `keytool` prompts for secrets; do not paste them into source or commits.
+
+```sh
+keytool -genkeypair -v -keystore /secure/path/piano-release.jks \
+  -alias piano-path -keyalg RSA -keysize 4096 -validity 10000
+```
+
+2. Set `PIANO_KEYSTORE` to that absolute path and `PIANO_KEY_ALIAS` to the alias. Provide `PIANO_STORE_PASSWORD` and `PIANO_KEY_PASSWORD` through your local secret manager or shell prompt. They are read only by the Gradle signing configuration. Never commit them.
+3. Run `./gradlew :core:test :app:lintRelease :app:assembleRelease`.
+4. Verify `app/build/outputs/apk/release/app-release.apk`:
+
+```sh
+"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs \
+  app/build/outputs/apk/release/app-release.apk
+sha256sum app/build/outputs/apk/release/app-release.apk
+```
+
+Without `PIANO_KEYSTORE`, `assembleRelease` deliberately produces `app-release-unsigned.apk`. It cannot be installed until signed. It never falls back to the development signing identity.
+
+## GitHub Actions
+
+Create a GitHub environment named `release` and add these environment secrets:
+
+- `PIANO_KEYSTORE_BASE64`: base64 of your binary JKS (single line).
+- `PIANO_STORE_PASSWORD`
+- `PIANO_KEY_ALIAS`
+- `PIANO_KEY_PASSWORD`
+
+Run **Signed release APK** manually or push a `v*` tag. The workflow restores the key in the runner's temporary directory, builds/tests/lints, verifies the signature, uploads the signed APK/checksum artifact and removes the temporary key. It does not publish to the Play Store or create a public release automatically.
+
+A release APK signed with your key cannot upgrade the delivered debug APK under the same package ID because their certificates differ. Uninstall the debug app first (this removes its local data), or use a separately suffixed application ID for internal testing. Future versions must preserve the production key and increment `versionCode`.

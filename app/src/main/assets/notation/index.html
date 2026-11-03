@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"><meta charset="utf-8"><style>
+html,body{margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#loading{padding:28px;color:#617471}#score{padding:8px;min-height:240px}#range{position:fixed;right:8px;top:5px;background:#e6f0e8e8;padding:5px 10px;border-radius:6px;font-size:11px;z-index:30}svg{overflow:visible}#error{padding:20px;color:#9e3c32;white-space:pre-wrap}
+</style></head><body><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div><script src="opensheetmusicdisplay.min.js"></script><script>
+let osmd,ready=false,entries=[],lastBeat=-1,lastState='',lastZoom=1,lastHorizontal=false;
+function fail(e){document.getElementById('loading').style.display='none';document.getElementById('error').textContent='Notation could not be rendered. '+e; if(window.Android)Android.error(String(e));}
+async function init(){try{
+osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay('score',{autoResize:true,backend:'svg',drawTitle:false,drawSubtitle:false,drawComposer:false,drawPartNames:false,drawMeasureNumbers:true,drawFingerings:true,followCursor:true,cursorsOptions:[{type:0,color:'#46a18a',alpha:0.32,follow:true}]});
+await osmd.load(Android.score());osmd.render();indexNotes();ready=true;document.getElementById('loading').style.display='none';Android.ready();
+}catch(e){fail(e)}}
+function indexNotes(){entries=[];const c=osmd.cursor;c.reset();let guard=0;
+while(!c.Iterator.EndReached&&guard++<100000){const beat=c.Iterator.currentTimeStamp.RealValue*4;
+for(const g of c.GNotesUnderCursor()){const n=g.sourceNote;entries.push({g,beat,pitch:n.Pitch?n.Pitch.getHalfTone()+12:-1});}
+c.next();}c.reset();c.show();lastBeat=-1;lastState='';}
+function progress(beat,matched,missed,start,end,zoom,horizontal){if(!ready)return;
+try{
+if(zoom!==lastZoom||horizontal!==lastHorizontal){lastZoom=zoom;lastHorizontal=horizontal;osmd.Zoom=zoom;osmd.setOptions({renderSingleHorizontalStaffline:horizontal});osmd.render();indexNotes();}
+const state=JSON.stringify([matched,missed,start,end]);
+if(state!==lastState){lastState=state;for(const e of entries){let color=e.beat>=start-0.001&&e.beat<end-0.001?'#173c3b':'#adb8b3';
+if(matched.some(n=>Math.abs(n[0]-e.beat)<0.001&&n[1]===e.pitch))color='#16836d';
+if(missed.some(n=>Math.abs(n[0]-e.beat)<0.001&&n[1]===e.pitch))color='#c04438';
+e.g.setColor(color,{applyToNoteheads:true,applyToBeams:false,applyToFlag:false,applyToStem:false});}}
+if(Math.abs(beat-lastBeat)>0.001){const c=osmd.cursor;if(beat<lastBeat)c.reset();let guard=0;while(!c.Iterator.EndReached&&c.Iterator.currentTimeStamp.RealValue*4<beat-0.001&&guard++<100000)c.next();c.show();lastBeat=beat;}
+document.getElementById('range').textContent='Selected beats '+(start+1).toFixed(1)+' – '+(end+1).toFixed(1);
+}catch(e){console.warn(e)}}
+window.addEventListener('resize',()=>{if(ready){osmd.render();indexNotes();}});init();
+</script></body></html>
