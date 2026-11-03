@@ -234,10 +234,10 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         load(ex.xml,"scale-$root-$kind-$octaves-$hand-$descending","Scales",ex.guidance)
         edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM) }
     }
-    fun sight(level: Int,fifths: Int,beats: Int,hand: Hand,preview: Int) = viewModelScope.launch {
+    fun sight(level: Int,fifths: Int,beats: Int,hand: Hand,preview: Int,bpm: Double = 80.0) = viewModelScope.launch {
         val ex = Exercises.sight(level,fifths,beats,hand)
         load(ex.xml,"sight-${System.currentTimeMillis()}","Sight reading",ex.guidance,preview)
-        edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM,loop=false) }
+        edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM,loop=false,bpm=bpm.coerceIn(40.0,200.0)) }
     }
     private fun bounds(p: PracticeUi): Pair<Double,Double> {
         val score = requireNotNull(p.score)
