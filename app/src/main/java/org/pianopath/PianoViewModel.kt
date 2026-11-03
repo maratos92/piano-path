@@ -12,6 +12,7 @@ import org.pianopath.core.*
 import org.pianopath.data.*
 import org.pianopath.midi.BleMidi
 import org.pianopath.audio.PianoAudio
+import org.pianopath.audio.PianoSound
 import java.security.MessageDigest
 import kotlin.math.*
 
@@ -31,7 +32,7 @@ data class PracticeUi(val score: Score? = null, val xml: String = "", val key: S
     val view: ScoreView = ScoreView.FALLING, val listening: Boolean = false,
     val transportBeat: Double = 0.0, val playbackHeld: Set<Int> = emptySet(),
     val paused: Boolean = false)
-data class AppSettings(val tolerance: Double = 180.0, val latency: Double = 0.0, val theme: ThemeMode = ThemeMode.SYSTEM, val simulator: Boolean = false)
+data class AppSettings(val tolerance: Double = 180.0, val latency: Double = 0.0, val theme: ThemeMode = ThemeMode.SYSTEM, val simulator: Boolean = false, val sound: PianoSound = PianoSound.GRAND)
 
 class PianoViewModel(application: Application): AndroidViewModel(application) {
     val midi = BleMidi(application)
@@ -41,7 +42,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     val history = dao.history().stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
     val imports = dao.imports().stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
     private val preferences = application.getSharedPreferences("settings",0)
-    val settings = MutableStateFlow(AppSettings(preferences.getFloat("tolerance",180f).toDouble(),preferences.getFloat("latency",0f).toDouble(),runCatching { ThemeMode.valueOf(preferences.getString("theme",if(preferences.getBoolean("dark",false))"DARK" else "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),preferences.getBoolean("simulator",false)))
+    val settings = MutableStateFlow(AppSettings(preferences.getFloat("tolerance",180f).toDouble(),preferences.getFloat("latency",0f).toDouble(),runCatching { ThemeMode.valueOf(preferences.getString("theme",if(preferences.getBoolean("dark",false))"DARK" else "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),preferences.getBoolean("simulator",false),runCatching {PianoSound.valueOf(preferences.getString("sound","GRAND")!!)}.getOrDefault(PianoSound.GRAND)))
     val ui = MutableStateFlow(PracticeUi())
     val message = MutableStateFlow<String?>(null)
     val screen = MutableStateFlow("Home")
@@ -65,6 +66,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     private var finishing = false
     private var simulationUsed = false
     init {
+        audio.selectSound(settings.value.sound)
         midi.onEvent = { event ->
             if(calibrating.value && event is MidiEvent.On && calibrationClicks.size >= 5) {
                 val nearest = calibrationClicks.minByOrNull { abs(event.timestamp-it) }
@@ -84,7 +86,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         settings.value = change(previous)
         val s = settings.value
         if(previous.simulator && !s.simulator){audio.releaseTouch();midi.clearKeys()}
-        preferences.edit().putFloat("tolerance",s.tolerance.toFloat()).putFloat("latency",s.latency.toFloat()).putString("theme",s.theme.name).putBoolean("simulator",s.simulator).apply()
+        if(previous.sound!=s.sound)audio.selectSound(s.sound)
+        preferences.edit().putFloat("tolerance",s.tolerance.toFloat()).putFloat("latency",s.latency.toFloat()).putString("theme",s.theme.name).putBoolean("simulator",s.simulator).putString("sound",s.sound.name).apply()
     }
     fun zoom(delta: Double) { ui.value=ui.value.copy(zoom=(ui.value.zoom+delta).coerceIn(.4,2.5)) }
     fun edit(change: (PracticeUi)->PracticeUi) { if(!ui.value.running && !ui.value.listening) ui.value = change(ui.value) }
