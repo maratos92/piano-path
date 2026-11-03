@@ -125,10 +125,10 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 @Composable private fun Home(vm: PianoViewModel) {
     val history by vm.history.collectAsStateWithLifecycle(); val p by vm.ui.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item { PageTitle("A little practice, every day","Make room for music.","Your piano. Your pace. Every note matters.") }
-        item { Surface(shape=RoundedCornerShape(24.dp),color=Pine,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.open(vm.library.first())}) {
+        item { PageTitle("Piano Path","Make room for music.") }
+        item { Surface(shape=RoundedCornerShape(24.dp),color=Pine,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}) {
             Row(Modifier.fillMaxWidth().padding(24.dp),verticalAlignment=Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("YOUR NEXT SESSION",color=Color(0xffbbd8c9),letterSpacing=2.sp,fontSize=11.sp);Spacer(Modifier.height(14.dp));Text(p.score?.title ?: "Start with a simple melody",color=Color.White,fontFamily=FontFamily.Serif,fontSize=27.sp);Spacer(Modifier.height(8.dp));Text(if(p.score==null)"Build confidence, one phrase at a time." else "Continue your selected passage",color=Color(0xffd1e4d8));Spacer(Modifier.height(18.dp));Text("Open practice  →",color=Apricot,fontWeight=FontWeight.Bold) }
+                Column(Modifier.weight(1f)) { Text("YOUR NEXT SESSION",color=Color(0xffbbd8c9),letterSpacing=2.sp,fontSize=11.sp);Spacer(Modifier.height(14.dp));Text(p.score?.title ?: "Start with a scale",color=Color.White,fontFamily=FontFamily.Serif,fontSize=27.sp);Spacer(Modifier.height(8.dp));Text(if(p.score==null)"C major · both hands" else "Continue practice",color=Color(0xffd1e4d8));Spacer(Modifier.height(18.dp));Text("Open practice  →",color=Apricot,fontWeight=FontWeight.Bold) }
                 Icon(Icons.Outlined.Piano,null,Modifier.size(72.dp).padding(start=12.dp),tint=Color(0xff9ec9b5))
             }
         } }
@@ -142,41 +142,31 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             FocusCard("Read ahead","Fresh sight reading",Icons.Outlined.Visibility,Modifier.weight(1f)){vm.screen.value="Sight reading"}
         } }
         item { OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.fillMaxWidth()) {
-            Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(8.dp));Text("Ear training · identify notes by listening")
+            Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(8.dp));Text("Ear training")
         } }
-        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.Bluetooth,null);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text("Connect your digital piano",fontWeight=FontWeight.SemiBold);Text("Direct MIDI. Every chord, release and velocity.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)} }; TextButton(onClick={vm.screen.value="Connect"}){Text("Set up piano connection  →")} } }
-        item { TextButton(onClick={vm.screen.value="History"}) { Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("View practice history") } }
+        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.Bluetooth,null);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text("Connect your digital piano",fontWeight=FontWeight.SemiBold);Text("Bluetooth or USB MIDI",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)} }; TextButton(onClick={vm.screen.value="Connect"}){Text("Connect")} } }
+        item { TextButton(onClick={vm.screen.value="History"}) { Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("History") } }
     }
 }
 @Composable private fun FocusCard(title: String,description: String,icon: ImageVector,modifier: Modifier,onClick: ()->Unit) {
     Surface(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh) { Column(Modifier.padding(18.dp)) { Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(16.dp));Text(title,fontWeight=FontWeight.SemiBold);Text(description,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) } }
 }
 @Composable private fun Library(vm: PianoViewModel,onImport: ()->Unit) {
-    val context=LocalContext.current
-    var query by remember { mutableStateOf("") }; var difficulty by remember { mutableStateOf("All") };var info by remember { mutableStateOf<LibraryPiece?>(null) }
+    var query by remember { mutableStateOf("") }
     val imports by vm.imports.collectAsStateWithLifecycle()
-    val visible=vm.library.filter { (difficulty=="All" || it.difficulty==difficulty) && (it.title+it.composer).contains(query,true) }
+    val visible=imports.filter {(it.title+it.composer).contains(query,true)}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { PageTitle("Your music shelf","The library","Offline studies and your own MusicXML editions.") }
-        item { Button(onClick=onImport) { Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL") } }
-        item { Panel(Modifier.fillMaxWidth()) {
-            Text("Explore familiar classical repertoire",fontWeight=FontWeight.SemiBold)
-            Text("The bundled studies are original exercises, not famous compositions. For Bach, Beethoven, Chopin and other familiar music, use an openly shared edition and import it as MusicXML/MXL.",fontSize=13.sp)
-            OutlinedButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://musescore.com/openscore-lieder-corpus")))},modifier=Modifier.fillMaxWidth()) {Text("OpenScore · browse MusicXML scores")}
-            OutlinedButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.mutopiaproject.org/")))},modifier=Modifier.fillMaxWidth()) {Text("Mutopia · free classical editions")}
-            Text("Check each edition's licence. Mutopia often provides LilyPond/PDF rather than MusicXML; conversion with MuseScore Studio may be needed. Export a single piano part.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        item { PageTitle("Your music","The library") }
+        item { Button(onClick=onImport,modifier=Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL")
         } }
-        item { OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Search titles or composers")},leadingIcon={Icon(Icons.Outlined.Search,null)}) }
-        item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("All","Beginner","Elementary","Intermediate","Upper-intermediate","Advanced").forEach { FilterChip(selected=difficulty==it,onClick={difficulty=it},label={Text(it)}) } } }
-        if(imports.isNotEmpty()) {
-            item { Text("YOUR IMPORTS",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
-            items(imports.filter { (it.title+it.composer).contains(query,true) },key={it.key}) { item -> ScoreRow(item.title,item.composer,"Imported",{vm.openImport(item)}) }
+        if(imports.isEmpty()) item { Text("No scores imported yet.",color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        else {
+            item { OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,
+                placeholder={Text("Find an imported score")},leadingIcon={Icon(Icons.Outlined.Search,null)}) }
+            items(visible,key={it.key}) { piece -> ScoreRow(piece.title,piece.composer,"Imported",{vm.openImport(piece)}) }
         }
-        item { Text("${visible.size} ORIGINAL EXERCISES",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
-        items(visible,key={it.key}) { piece -> ScoreRow(piece.title,piece.composer,piece.difficulty,{vm.open(piece)}) {info=piece} }
-
     }
-    info?.let { piece -> AlertDialog(onDismissRequest={info=null},confirmButton={TextButton(onClick={info=null}){Text("Close")}},title={Text(piece.title)},text={Text("${piece.composer}\n${piece.difficulty}\n\n${piece.license}\n${piece.attribution}\n\nSource: ${piece.source}")}) }
 }
 @Composable private fun ScoreRow(title: String,composer: String,level: String,onClick: ()->Unit,onInfo: (()->Unit)?=null) {
     Surface(onClick=onClick,shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {
