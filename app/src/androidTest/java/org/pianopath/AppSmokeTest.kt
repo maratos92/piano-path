@@ -86,6 +86,48 @@ class AppSmokeTest {
         compose.onNodeWithText("Fit all 88").assertIsDisplayed()
         compose.onNodeWithText("Listen").assertIsDisplayed()
     }
+    @Test fun sheetScoreTapMovesBlueCursorToTouchedMeasure() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {vm.setView(ScoreView.SHEET)}
+        fun find(view: android.view.View): WebView? {
+            if(view is WebView)return view
+            if(view is android.view.ViewGroup)for(i in 0 until view.childCount){
+                val result=find(view.getChildAt(i));if(result!=null)return result
+            }
+            return null
+        }
+        val rendered=AtomicBoolean(false)
+        compose.waitUntil(30_000) {
+            compose.runOnUiThread {
+                find(compose.activity.window.decorView)?.evaluateJavascript(
+                    "typeof entries!=='undefined' && entries.length>5 && ready"
+                ){if(it=="true")rendered.set(true)}
+            }
+            rendered.get()
+        }
+        val tapped=AtomicBoolean(false)
+        compose.runOnUiThread {
+            find(compose.activity.window.decorView)?.evaluateJavascript("""
+                (() => {
+                  const e=entries.find(n=>n.beat>=2 && n.staff===1);
+                  if(!e)return false;
+                  const pt=e.svg.createSVGPoint();pt.x=e.x;pt.y=e.y;
+                  const pos=pt.matrixTransform(e.svg.getScreenCTM());
+                  document.getElementById('score').dispatchEvent(new MouseEvent('click',{
+                    bubbles:true,clientX:pos.x,clientY:pos.y
+                  }));
+                  return true;
+                })()
+            """.trimIndent()){if(it=="true")tapped.set(true)}
+        }
+        compose.waitUntil(10_000){tapped.get() && vm.ui.value.transportBeat>=1.5}
+        assertTrue("Tapping score noteheads must seek to their beat",vm.ui.value.transportBeat>=1.5)
+    }
     @Test fun cursorSeekEndsScoredTakeAndMovesNextPracticeStart() {
         lateinit var vm: PianoViewModel
         compose.runOnUiThread {
