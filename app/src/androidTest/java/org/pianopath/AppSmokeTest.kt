@@ -30,14 +30,14 @@ class AppSmokeTest {
     @Test fun androidXmlParserLoadsAllAssetsAndExercises() {
         val context=compose.activity
         val files=context.assets.list("scores")!!.filter{it.endsWith("musicxml")}
-        assertEquals(50,files.size)
+        assertTrue("No bundled demo scores are expected",files.isEmpty())
         files.forEach{file->val xml=context.assets.open("scores/$file").bufferedReader().use{it.readText()};assertTrue(MusicXml.parse(xml).notes.isNotEmpty())}
         assertTrue(MusicXml.parse(Exercises.sight(level=3,seed=44).xml).notes.isNotEmpty())
         assertEquals(29,MusicXml.parse(Exercises.scale(octaves=2,hand=Hand.RIGHT).xml).notes.count{!it.rest})
     }
     @Test fun practiceRendersNotationInAndroidWebView() {
         compose.onNodeWithText("Open practice  →").performClick()
-        compose.waitUntil(20_000){compose.onAllNodesWithText("First Light").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Sheet").performClick()
         compose.waitForIdle()
         val rendered=AtomicBoolean(false);var diagnostic="WebView not found"
@@ -57,7 +57,7 @@ class AppSmokeTest {
         compose.runOnUiThread {
             vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
             vm.setSettings{it.copy(simulator=true)}
-            vm.open(vm.library.first())
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
         }
         compose.waitUntil(15_000){vm.ui.value.score!=null}
         compose.runOnUiThread {
@@ -78,7 +78,7 @@ class AppSmokeTest {
         compose.onNodeWithText("Open practice  →").performClick()
         // The practice toolbar uses the short "Falling" label on narrow devices.
         // Wait for the score to load, then verify the view controls separately.
-        compose.waitUntil(20_000){compose.onAllNodesWithText("First Light").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Falling").assertIsDisplayed()
         compose.onNodeWithText("Both").assertIsDisplayed()
         compose.onNodeWithContentDescription("88-key piano, A0 to C8").assertIsDisplayed()
@@ -88,7 +88,7 @@ class AppSmokeTest {
     }
     @Test fun listeningNeverProducesAnAccuracyResult() {
         lateinit var vm: PianoViewModel
-        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.open(vm.library.first())}
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}
         compose.waitUntil(15_000){vm.ui.value.score!=null}
         compose.runOnUiThread {vm.edit{it.copy(loop=false,bpm=240.0,endMeasure=1,endOffset=1.0)};vm.listen();assertTrue("Audio playback must start",vm.ui.value.listening)}
         compose.waitUntil(5_000){!vm.ui.value.listening}
@@ -117,7 +117,7 @@ class AppSmokeTest {
     }
     @Test fun landscapePracticeUsesExpandableNavigation() {
         compose.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        compose.runOnUiThread {ViewModelProvider(compose.activity)[PianoViewModel::class.java].open(ViewModelProvider(compose.activity)[PianoViewModel::class.java].library.first())}
+        compose.runOnUiThread {ViewModelProvider(compose.activity)[PianoViewModel::class.java].scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}
         compose.waitUntil(20_000){compose.onAllNodesWithContentDescription("Open navigation menu").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
         compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
