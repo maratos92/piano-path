@@ -67,9 +67,11 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.message.value=null } }
         ModalNavigationDrawer(drawerState=drawer,gesturesEnabled=screen=="Practice",drawerContent={
             ModalDrawerSheet(Modifier.width(280.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Piano Path",Modifier.padding(24.dp),fontSize=26.sp,fontFamily=FontFamily.Serif)
                 listOf("Home","Library","Scales","Sight reading","Connect","Note monitor","History","Settings").forEach { name ->
                     NavigationDrawerItem(label={Text(name)},selected=screen==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
+                }
                 }
             }
         }) { Surface(Modifier.fillMaxSize()) {

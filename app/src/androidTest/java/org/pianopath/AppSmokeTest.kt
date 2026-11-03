@@ -111,7 +111,8 @@ class AppSmokeTest {
         compose.runOnUiThread {ViewModelProvider(compose.activity)[PianoViewModel::class.java].open(ViewModelProvider(compose.activity)[PianoViewModel::class.java].library.first())}
         compose.waitUntil(20_000){compose.onAllNodesWithContentDescription("Open navigation menu").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Note monitor").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Note monitor").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("Live note monitor").assertIsDisplayed()
     }
 
