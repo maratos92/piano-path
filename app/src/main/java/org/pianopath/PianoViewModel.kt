@@ -387,8 +387,11 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         if(a>=b){message.value="End of passage must follow its start";return}
         if(!audio.start())return
         val plan=PlaybackPlan.create(score,a,b,p.hand)
+        val tempoScale=p.bpm/score.tempo
         if(plan.isEmpty()){message.value="No notes for this hand in the passage";return}
         playbackSeek=null
+        lastClick=Long.MIN_VALUE
+        if(p.metronome) tone=tone ?: try {ToneGenerator(AudioManager.STREAM_MUSIC,65)} catch(_: Exception){null}
         ui.value=p.copy(listening=true,paused=false,hidden=false,result=null,matched=emptySet(),missed=emptySet(),beat=a,transportBeat=a,feedback="Listening · no assessment",playbackHeld=emptySet())
         val generation=++playbackGeneration
         playback=viewModelScope.launch {
@@ -409,10 +412,10 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                             playbackSeek=null
                             audio.releasePlayback();held.clear()
                             next=plan.indexOfFirst { it.beat>=requested-.0001 }.let { if(it<0)plan.size else it }
-                            origin=System.nanoTime()-beatNanos(requested-a,p.bpm)
+                            origin=System.nanoTime()-(score.secondsBetween(a,requested,tempoScale)*1e9).toLong()
                         }
                         val now=System.nanoTime()
-                        val beat=a+(now-origin)/1e9*p.bpm/60.0
+                        val beat=score.beatAtSeconds(a,(now-origin)/1e9,b,tempoScale)
                         while(next<plan.size && plan[next].beat<=beat) {
                             val event=plan[next++]
                             audio.accept(if(event.down)MidiEvent.On(event.pitch,event.velocity,now,event.channel) else MidiEvent.Off(event.pitch,0,now,event.channel))
@@ -420,6 +423,14 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                             else if((held[event.pitch] ?: 0)<=1)held.remove(event.pitch) else held[event.pitch]=held.getValue(event.pitch)-1
                         }
                         ui.value=ui.value.copy(beat=beat.coerceAtMost(b),transportBeat=beat.coerceAtMost(b),playbackHeld=held.keys.toSet())
+                        if(p.metronome && beat<b) {
+                            val click=floor(beat).toLong()
+                            if(click!=lastClick && click>=floor(a).toLong()) {
+                                lastClick=click
+                                val downbeat=score.measures.any {abs(it.start-click.toDouble())<.0001}
+                                tone?.startTone(if(downbeat)ToneGenerator.TONE_PROP_BEEP2 else ToneGenerator.TONE_PROP_BEEP,45)
+                            }
+                        }
                         if(beat>=b)break
                         delay(12)
                     }
@@ -430,7 +441,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun stopListening() {
-        playbackGeneration++;playback?.cancel();playback=null;playbackSeek=null;audio.releasePlayback()
+        playbackGeneration++;playback?.cancel();playback=null;playbackSeek=null;audio.releasePlayback();tone?.stopTone()
         if(ui.value.listening)ui.value=ui.value.copy(listening=false,paused=false,playbackHeld=emptySet(),feedback="Playback stopped")
     }
     fun background() {
