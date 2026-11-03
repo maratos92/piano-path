@@ -1,14 +1,18 @@
 # Piano Path
 
-**Practice workspace preview (0.4.0-dev.1, this branch):** [Find the most recent Android build](https://github.com/maratos92/piano-path/actions/workflows/debug.yml?query=branch%3Acodex%2Fpractice-workspace-2026-11-03) → open a successful run → download **piano-path-debug-apk** under Artifacts → unzip and install `app-debug.apk`. This contains the combined score/falling notes, whole-piece seek slider, pause, live noteheads, ear training, and improved history. [Changes and handoff in PR #1](https://github.com/maratos92/piano-path/pull/1).
+## Install the latest tested app
 
-**Previously published stable preview (0.3.0, `main`):** [Download old Android APK](https://github.com/maratos92/piano-path/releases/download/v0.3.0-preview/piano-path-0.3.0-debug.apk) · [Old release page](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview). **This older download does NOT include the features in this pull request.**
+**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-latest-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
 
-> The whole-piece seek bar is intentionally locked while **scored Practice is running** to avoid corrupting note accuracy; it can be dragged while stopped or in Listen mode. Passage loop boundaries use the two handles in Practice controls. A new debug APK may use a different signing certificate, requiring uninstalling the previously installed debug app; back up local data first.
+The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
+
+**Current feature branch: 0.4.0-dev.1 (code 4).** In the app, open **Settings → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+
+> **Update/signature note:** CI debug builds can use different signing keys, so Android may refuse an in-place update. Uninstalling the old app may delete its locally stored scores and practice history; back up anything important first.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The older main release is version 0.3.0. This PR branch is version 0.4.0-dev.1: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The current development app is version 0.4.0-dev.1: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
