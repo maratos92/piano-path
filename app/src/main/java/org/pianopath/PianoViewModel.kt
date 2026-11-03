@@ -32,6 +32,10 @@ data class PracticeUi(val score: Score? = null, val xml: String = "", val key: S
     val view: ScoreView = ScoreView.FALLING, val listening: Boolean = false,
     val transportBeat: Double = 0.0, val playbackHeld: Set<Int> = emptySet(),
     val paused: Boolean = false)
+data class EarUi(val octaves: Int = 1, val voices: Int = 1, val target: Set<Int> = emptySet(),
+    val guesses: Set<Int> = emptySet(), val revealed: Boolean = false, val correct: Int = 0,
+    val attempts: Int = 0, val feedback: String = "Choose a range and hear a question.")
+
 data class AppSettings(val tolerance: Double = 180.0, val latency: Double = 0.0, val theme: ThemeMode = ThemeMode.SYSTEM, val simulator: Boolean = false, val sound: PianoSound = PianoSound.GRAND)
 
 class PianoViewModel(application: Application): AndroidViewModel(application) {
@@ -45,6 +49,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     val settings = MutableStateFlow(AppSettings(preferences.getFloat("tolerance",180f).toDouble(),preferences.getFloat("latency",0f).toDouble(),runCatching { ThemeMode.valueOf(preferences.getString("theme",if(preferences.getBoolean("dark",false))"DARK" else "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),preferences.getBoolean("simulator",false),runCatching {PianoSound.valueOf(preferences.getString("sound","GRAND")!!)}.getOrDefault(PianoSound.GRAND)))
     val ui = MutableStateFlow(PracticeUi())
     val message = MutableStateFlow<String?>(null)
+    val ear = MutableStateFlow(EarUi())
+    private var earPlayback: Job?=null
     val screen = MutableStateFlow("Home")
     val calibrating = MutableStateFlow(false)
     private val audio=PianoAudio(application) { reason ->
@@ -68,6 +74,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     init {
         audio.selectSound(settings.value.sound)
         midi.onEvent = { event ->
+            if(screen.value=="Ear training" && event is MidiEvent.On) earGuess(event.pitch)
             if(calibrating.value && event is MidiEvent.On && calibrationClicks.size >= 5) {
                 val nearest = calibrationClicks.minByOrNull { abs(event.timestamp-it) }
                 nearest?.let { val ms = (event.timestamp-it)/1e6; if(abs(ms) < 350) calibrationSamples.add(ms) }
@@ -80,6 +87,40 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         midi.onDisconnect = {
             if(ui.value.running) stop("Piano disconnected. Session stopped; reconnect before restarting.")
         }
+    }
+    /** Ear training uses outgoing audio only; questions never feed generated MIDI into the scorer. */
+    fun earQuestion(octaves: Int,voices: Int) {
+        val count=voices.coerceIn(1,3)
+        val span=octaves.coerceIn(1,3)
+        val pitches=(60..(60+span*12)).shuffled().take(count).toSet()
+        val previous=ear.value
+        ear.value=previous.copy(octaves=span,voices=count,target=pitches,guesses=emptySet(),revealed=false,feedback="Listen, then select the notes you heard.")
+        earReplay()
+    }
+    fun earReplay() {
+        val pitches=ear.value.target
+        if(pitches.isEmpty())return
+        if(!audio.start())return
+        earPlayback?.cancel();audio.releasePlayback()
+        earPlayback=viewModelScope.launch {
+            try {
+                pitches.sorted().forEach { audio.accept(MidiEvent.On(it,80,System.nanoTime(),14)) }
+                delay(900)
+            } finally { pitches.forEach { audio.accept(MidiEvent.Off(it,0,System.nanoTime(),14)) } }
+        }
+    }
+    fun earGuess(pitch: Int) {
+        val p=ear.value
+        if(p.target.isEmpty() || p.revealed || pitch !in 60..(60+p.octaves*12))return
+        ear.value=p.copy(guesses=if(pitch in p.guesses)p.guesses-pitch else p.guesses+pitch)
+    }
+    fun earClear() {ear.value=ear.value.copy(guesses=emptySet())}
+    fun earCheck() {
+        val p=ear.value
+        if(p.target.isEmpty() || p.revealed || p.guesses.isEmpty())return
+        val right=p.guesses==p.target
+        ear.value=p.copy(revealed=true,attempts=p.attempts+1,correct=p.correct+if(right)1 else 0,
+            feedback=if(right)"Correct! You identified every pitch." else "Not quite. Compare your answer with the revealed notes.")
     }
     fun setSettings(change: (AppSettings)->AppSettings) {
         val previous=settings.value
@@ -394,7 +435,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     }
     fun background() {
         stopListening();if(ui.value.running)stop("Practice stopped while app is in the background")
-        simulator?.cancel();calibration?.cancel();calibrating.value=false;tone?.stopTone();midi.clearKeys();audio.stop()
+        simulator?.cancel();earPlayback?.cancel();calibration?.cancel();calibrating.value=false;tone?.stopTone();midi.clearKeys();audio.stop()
     }
     fun pedal(down: Boolean) { if(settings.value.simulator) touchEvent(MidiEvent.Control(64,if(down) 127 else 0,System.nanoTime())) }
     fun calibrate() {
@@ -413,5 +454,5 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             calibrating.value=false
         }
     }
-    override fun onCleared() { playback?.cancel();audio.stop();midi.close(); tone?.release(); database.close(); super.onCleared() }
+    override fun onCleared() { playback?.cancel();earPlayback?.cancel();audio.stop();midi.close(); tone?.release(); database.close(); super.onCleared() }
 }
