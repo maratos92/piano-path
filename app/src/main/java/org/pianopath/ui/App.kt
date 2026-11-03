@@ -152,19 +152,27 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     Surface(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh) { Column(Modifier.padding(18.dp)) { Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(16.dp));Text(title,fontWeight=FontWeight.SemiBold);Text(description,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) } }
 }
 @Composable private fun Library(vm: PianoViewModel,onImport: ()->Unit) {
+    val context=LocalContext.current
     var query by remember { mutableStateOf("") }; var difficulty by remember { mutableStateOf("All") };var info by remember { mutableStateOf<LibraryPiece?>(null) }
     val imports by vm.imports.collectAsStateWithLifecycle()
     val visible=vm.library.filter { (difficulty=="All" || it.difficulty==difficulty) && (it.title+it.composer).contains(query,true) }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Your music shelf","The library","Offline studies and your own MusicXML editions.") }
         item { Button(onClick=onImport) { Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL") } }
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("Explore familiar classical repertoire",fontWeight=FontWeight.SemiBold)
+            Text("The bundled studies are original exercises, not famous compositions. For Bach, Beethoven, Chopin and other familiar music, use an openly shared edition and import it as MusicXML/MXL.",fontSize=13.sp)
+            OutlinedButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://musescore.com/openscore-lieder-corpus")))},modifier=Modifier.fillMaxWidth()) {Text("OpenScore · browse MusicXML scores")}
+            OutlinedButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.mutopiaproject.org/")))},modifier=Modifier.fillMaxWidth()) {Text("Mutopia · free classical editions")}
+            Text("Check each edition's licence. Mutopia often provides LilyPond/PDF rather than MusicXML; conversion with MuseScore Studio may be needed. Export a single piano part.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        } }
         item { OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Search titles or composers")},leadingIcon={Icon(Icons.Outlined.Search,null)}) }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("All","Beginner","Elementary","Intermediate","Upper-intermediate","Advanced").forEach { FilterChip(selected=difficulty==it,onClick={difficulty=it},label={Text(it)}) } } }
         if(imports.isNotEmpty()) {
             item { Text("YOUR IMPORTS",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
             items(imports.filter { (it.title+it.composer).contains(query,true) },key={it.key}) { item -> ScoreRow(item.title,item.composer,"Imported",{vm.openImport(item)}) }
         }
-        item { Text("${visible.size} ORIGINAL STUDIES",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
+        item { Text("${visible.size} ORIGINAL EXERCISES",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
         items(visible,key={it.key}) { piece -> ScoreRow(piece.title,piece.composer,piece.difficulty,{vm.open(piece)}) {info=piece} }
 
     }
