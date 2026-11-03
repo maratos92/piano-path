@@ -43,6 +43,6 @@ import org.pianopath.PracticeUi
         val take=JSONArray(p.take.map{n->JSONObject().put("id",n.id).put("pitch",n.pitch).put("beat",n.beat).put("duration",n.duration ?: JSONObject.NULL).put("expectedId",n.expectedId ?: JSONObject.NULL).put("onsetMs",n.onsetMs ?: JSONObject.NULL)})
         val expected=JSONArray(score.notes.filter{!it.rest}.map{n->JSONObject().put("id",n.id).put("midi",n.midi).put("beat",n.beat).put("staff",n.staff)})
         val beat=if(p.review && !p.running)p.reviewBeat else if(p.listening || p.running)p.transportBeat else p.beat
-        web?.evaluateJavascript("progress($beat,${json(p.matched)},${json(p.missed)},$start,$end,${p.zoom},${p.horizontal},$take,$expected,${p.visualTolerance},${p.sheetMargin},$dark,${p.bpm},'${p.hand.name}',${!p.running})",null)
+        web?.evaluateJavascript("progress($beat,${json(p.matched)},${json(p.missed)},$start,$end,${p.zoom},${p.horizontal},$take,$expected,${p.visualTolerance},${p.sheetMargin},$dark,${p.bpm},'${p.hand.name}',true)",null)
     }
 }
