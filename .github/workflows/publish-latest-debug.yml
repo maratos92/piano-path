@@ -1,0 +1,76 @@
+name: Publish latest passing debug APK
+
+# A push to main runs the complete build + phone/tablet emulator suite first.
+# This workflow only publishes the artifact from that exact successful run.
+on:
+  workflow_run:
+    workflows: ["Build and test Android"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: latest-passing-apk
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      ${{ github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tested commit, not a newer main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Download APK from completed full test workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: piano-path-debug-apk
+          path: build-artifact
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare versioned release notes and unambiguous APK filename
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          test -s build-artifact/app-debug.apk
+          cp build-artifact/app-debug.apk piano-path-latest-debug.apk
+          VERSION="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
+          test -n "$VERSION"
+          {
+            echo "# Piano Path ${VERSION} · latest passing debug APK"
+            echo
+            echo "Automatically published after **unit tests, lint, APK build, and both Android emulator test jobs passed** on `main`."
+            echo
+            echo "- Source commit: `$SOURCE_SHA`"
+            echo "- [Successful test run]($SOURCE_RUN_URL)"
+            echo "- This is a debug-signed testing APK, not a Play Store signed release."
+            echo "- CI debug-signing certificates may differ across builds: Android might require uninstalling an existing debug install, which deletes locally stored data. Back up your data first."
+          } > release-notes.md
+
+      - name: Publish one stable download link after full test success
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if gh release view latest-debug --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest-debug" -f sha="$SOURCE_SHA" -F force=true >/dev/null
+            gh release edit latest-debug --repo "$GITHUB_REPOSITORY" --title 'Piano Path · latest passing debug APK' --notes-file release-notes.md --prerelease
+            gh release upload latest-debug piano-path-latest-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create latest-debug piano-path-latest-debug.apk --repo "$GITHUB_REPOSITORY" \
+              --target "$SOURCE_SHA" --title 'Piano Path · latest passing debug APK' \
+              --notes-file release-notes.md --prerelease
+          fi

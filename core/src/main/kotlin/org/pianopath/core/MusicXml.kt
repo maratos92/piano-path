@@ -57,6 +57,8 @@ object MusicXml {
         val all = mutableListOf<ScoreNote>()
         val measures = mutableListOf<Measure>()
         var tempo = 80.0; var fifths = 0; var initialBeats = 4; var initialType = 4
+        val tempoMarks=mutableListOf<TempoMark>()
+        var expressiveTempo=false
         val part = root.children("part").firstOrNull() ?: error("No musical part found")
         require(root.children("part").size == 1) { "Import a single piano part with grand staff; multi-instrument scores are not supported" }
         var divisions = 1.0; var start = 0.0; var beats = 4; var beatType = 4; var transpose = 0
@@ -70,11 +72,17 @@ object MusicXml {
                     e.one("transpose")?.let { transpose = it.txt("chromatic","0").toInt() + 12 * it.txt("octave-change","0").toInt() }
                     if(index == 0) { fifths = e.one("key")?.txt("fifths","0")?.toIntOrNull() ?: 0; initialBeats = beats; initialType = beatType }
                 }
-                "direction" -> if(index == 0) {
+                "direction" -> {
                     val sound = e.one("sound")?.getAttribute("tempo")?.toDoubleOrNull()
                     val metro = e.one("direction-type")?.one("metronome")
                     val unit = mapOf("whole" to 4.0,"half" to 2.0,"quarter" to 1.0,"eighth" to 0.5)[metro?.txt("beat-unit")] ?: 1.0
-                    tempo = sound ?: metro?.txt("per-minute")?.toDoubleOrNull()?.let { it * unit * if(metro.one("beat-unit-dot") != null) 1.5 else 1.0 } ?: tempo
+                    val bpm = sound ?: metro?.txt("per-minute")?.toDoubleOrNull()?.let { it * unit * if(metro.one("beat-unit-dot") != null) 1.5 else 1.0 }
+                    if(bpm != null && bpm in 10.0..400.0) {
+                        if(index==0 && pos<.0001)tempo=bpm
+                        tempoMarks.add(TempoMark(start+pos,bpm))
+                    }
+                    if(Regex("(?i)\\b(accel|accelerando|rit|ritard|ritardando|rall|rallentando|rubato)\\b")
+                        .containsMatchIn(e.one("direction-type")?.txt("words") ?: "")) expressiveTempo=true
                 }
                 "backup" -> pos = (pos - e.txt("duration","0").toDouble() / divisions).coerceAtLeast(0.0)
                 "forward" -> { pos += e.txt("duration","0").toDouble() / divisions; extent = max(extent,pos) }
@@ -107,6 +115,6 @@ object MusicXml {
         }
         require(all.any { !it.rest }) { "The score has no pitched notes" }
         require(all.size <= 100_000) { "Score contains too many notes" }
-        return Score(title,composer,all,measures,tempo.coerceIn(20.0,300.0),fifths,initialBeats,initialType)
+        return Score(title,composer,all,measures,tempo.coerceIn(20.0,300.0),fifths,initialBeats,initialType,tempoMarks.sortedBy {it.beat},expressiveTempo)
     }
 }

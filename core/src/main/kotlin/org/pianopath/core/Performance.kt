@@ -24,6 +24,7 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     private val groups = results.groupBy { it.note.beat }.values.toList()
     private var group = 0
     private var origin = 0L
+    private var pausedAt: Long? = null
     private var started = false
     private var anchored = false
     private var phaseMs = 0.0
@@ -37,7 +38,11 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     val finished get() = group >= groups.size
     val matchedIds get() = results.filter { it.onsetMs != null }.map { it.note.id }.toSet()
     val missedIds get() = results.filter { it.missing }.map { it.note.id }.toSet()
-    fun start(now: Long) { origin = now; started = true; anchored = config.mode == PracticeMode.RHYTHM }
+    fun start(now: Long) { origin = now; started = true; pausedAt = null; anchored = config.mode == PracticeMode.RHYTHM }
+    /** Freezes the musical clock without changing note-matching results. */
+    fun pause(now: Long) { if(started && pausedAt == null) pausedAt = now }
+    /** Move the clock origin by the paused interval so notes remain aligned on resume. */
+    fun resume(now: Long) { pausedAt?.let { origin += (now-it).coerceAtLeast(0L); pausedAt = null } }
     private fun elapsedMs(now: Long) = (now - origin) / 1e6 - config.latencyMs
     private fun expectedMs(note: ScoreNote) = (note.beat - config.startBeat) * 60000.0 / config.bpm + phaseMs
     fun clockBeat(now: Long) = config.startBeat + (elapsedMs(now) - phaseMs) * config.bpm / 60000.0
@@ -45,7 +50,7 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     private val recordingActive = mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<Pair<Int,Long>>>()
     val take: List<PlayedNote> get() = recorded.toList()
     fun accept(e: MidiEvent) {
-        if(!started || config.mode == PracticeMode.FREE)return
+        if(!started || pausedAt != null || config.mode == PracticeMode.FREE)return
         val before=matchedIds
         val clockBefore=if(config.mode==PracticeMode.WAIT || !anchored)currentBeat else clockBeat(e.timestamp)
         val releaseIsExtra=e is MidiEvent.Off && recordingActive[e.channel to e.pitch]?.peekFirst()?.first?.let{recorded[it].expectedId==null}==true
@@ -131,7 +136,7 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         }
     }
     fun tick(now: Long) {
-        if(!started || !anchored || config.mode in listOf(PracticeMode.WAIT,PracticeMode.FREE,PracticeMode.FOLLOW)) return
+        if(!started || pausedAt != null || !anchored || config.mode in listOf(PracticeMode.WAIT,PracticeMode.FREE,PracticeMode.FOLLOW)) return
         val expiry = max(450.0,config.toleranceMs + config.chordSpreadMs)
         while(group < groups.size) {
             val g = groups[group]

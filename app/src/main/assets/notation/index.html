@@ -50,12 +50,13 @@ function drawTake(take,expected,tolerance,beat,bpm){
  append(pos.e.svg,'line',{x1:pos.x,y1:traceY,x2:Math.max(pos.x+2,last.x),y2:traceY,stroke:color,'stroke-width':2.4,opacity:.7,'data-hold-id':n.id},label);cursor=until+.001;}
  }
 }
-function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80){if(!ready)return;
+function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH'){if(!ready)return;
 try{
 lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm];
 if(zoom!==lastZoom||horizontal!==lastHorizontal||margin!==lastMargin||dark!==lastDark){lastZoom=zoom;lastHorizontal=horizontal;lastMargin=margin;lastDark=dark;layout();}
-const state=JSON.stringify([matched,missed,start,end,take]);
+const state=JSON.stringify([matched,missed,start,end,take,hand]);
 if(state!==lastState){lastState=state;for(const e of entries){let color=e.beat>=start-.001&&e.beat<end-.001?(lastDark?'#dce8df':'#173c3b'):'#86958d';
+ if(hand==='RIGHT'&&e.staff>1||hand==='LEFT'&&e.staff===1)color=lastDark?'#63766c':'#abb5ad';
 if(matched.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))color='#16836d';
 if(missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))color='#c04438';
 e.g.setColor(color,{applyToNoteheads:true,applyToBeams:false,applyToFlag:false,applyToStem:false});
@@ -66,7 +67,9 @@ drawTake(take,expected,tolerance,beat,bpm);
 for(const e of entries.filter(e=>missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch)))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');
 const loc=locateBeat(Math.max(start,Math.min(end,beat)),1);if(loc){const svg=loc.e.svg,rect=svg.getBoundingClientRect(),root=document.getElementById('score').getBoundingClientRect(),scale=rect.width/svg.viewBox.baseVal.width;
 const ys=loc.group.map(e=>e.y),line=document.getElementById('playhead');line.style.left=(rect.left-root.left+loc.x*scale)+'px';line.style.top=(rect.top-root.top+(Math.min(...ys)-45)*scale)+'px';line.style.height=((Math.max(...ys)-Math.min(...ys)+80)*scale)+'px';
-if(Math.floor(beat)!==Math.floor(lastBeat))line.scrollIntoView({block:'nearest',inline:'nearest'});}
+// Follow timing may drift slightly; only scroll when the playhead truly leaves the visible viewport.
+ const viewport=line.getBoundingClientRect();
+ if(viewport.left<0||viewport.right>window.innerWidth||viewport.top<0||viewport.bottom>window.innerHeight)line.scrollIntoView({block:'nearest',inline:'nearest'});}
 lastBeat=beat;document.getElementById('range').textContent='Selected beats '+(start+1).toFixed(1)+' – '+(end+1).toFixed(1);
 }catch(e){console.warn(e)}}
 window.addEventListener('resize',()=>{if(ready){layout();if(lastArgs)progress(...lastArgs);}});init();

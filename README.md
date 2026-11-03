@@ -1,10 +1,18 @@
 # Piano Path
 
-[Download the Android APK](https://github.com/maratos92/piano-path/releases/download/v0.3.0-preview/piano-path-0.3.0-debug.apk) · [Release page](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview)
+## Install the latest tested app
+
+**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-latest-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
+
+The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
+
+**Current feature branch: 0.4.0-dev.1 (code 4).** In the app, open **Settings → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+
+> **Update/signature note:** CI debug builds can use different signing keys, so Android may refuse an in-place update. Uninstalling the old app may delete its locally stored scores and practice history; back up anything important first.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-This is version 0.3.0: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The current development app is version 0.4.0-dev.1: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 

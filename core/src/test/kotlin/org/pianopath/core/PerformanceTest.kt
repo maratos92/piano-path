@@ -8,6 +8,20 @@ class PerformanceTest {
     private fun at(ms: Int)=base+ms*1_000_000L
     private fun score(vararg notes: ScoreNote)=Score("Test","Test",notes.toList(),listOf(Measure(1,0.0,4.0)),120.0)
     private fun engine(s: Score,mode: PracticeMode=PracticeMode.RHYTHM,start: Double=0.0,end: Double=4.0,hand: Hand=Hand.BOTH,bpm: Double=120.0)=PerformanceEngine(s,PracticeConfig(mode,hand,bpm,toleranceMs=100.0,startBeat=start,endBeat=end)).also{it.start(base)}
+    @Test fun pauseDoesNotTurnElapsedSilenceIntoMissedNotes() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1)))
+        e.accept(MidiEvent.On(60,80,base))
+        e.pause(at(150))
+        e.accept(MidiEvent.On(62,80,at(800))) // ignored during pause
+        e.tick(at(800))
+        assertEquals(0,e.summary().missing)
+        e.resume(at(1150))
+        assertEquals(1.0,e.clockBeat(at(1500)),.01)
+        e.accept(MidiEvent.On(62,80,at(1500)))
+        val result=e.finish(at(1550))
+        assertEquals(2,result.correct)
+        assertEquals(0.0,result.meanOnsetMs!!,.01)
+    }
     @Test fun simultaneousChordIsMatchedIndividually() {
         val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,64,0.0,1.0,1),ScoreNote(2,67,0.0,1.0,1)))
         listOf(60,64,67).forEach{e.accept(MidiEvent.On(it,80,base))};listOf(60,64,67).forEach{e.accept(MidiEvent.Off(it,0,at(500)))}

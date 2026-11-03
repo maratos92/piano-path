@@ -31,6 +31,7 @@ import org.pianopath.*
 import org.pianopath.core.*
 import org.pianopath.data.*
 import org.pianopath.midi.MidiStatus
+import org.pianopath.audio.PianoSound
 import android.net.Uri
 import java.text.SimpleDateFormat
 import java.util.*
@@ -69,7 +70,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             ModalDrawerSheet(Modifier.width(280.dp)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Piano Path",Modifier.padding(24.dp),fontSize=26.sp,fontFamily=FontFamily.Serif)
-                listOf("Home","Library","Scales","Sight reading","Connect","Note monitor","History","Settings").forEach { name ->
+                listOf("Home","Library","Scales","Sight reading","Ear training","Connect","Note monitor","History","Settings").forEach { name ->
                     NavigationDrawerItem(label={Text(name)},selected=screen==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
                 }
                 }
@@ -98,6 +99,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         "Note monitor" -> NoteMonitorPage(vm,midi)
                         "Scales" -> ScaleSetup(vm)
                         "Sight reading" -> SightSetup(vm)
+                        "Ear training" -> EarTraining(vm)
                         "History" -> History(vm)
                         "Diagnostics" -> Diagnostics(vm,midi)
                         else -> SettingsScreen(vm)
@@ -139,6 +141,9 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             FocusCard("Technique","Scales & arpeggios",Icons.Outlined.Piano,Modifier.weight(1f)){vm.screen.value="Scales"}
             FocusCard("Read ahead","Fresh sight reading",Icons.Outlined.Visibility,Modifier.weight(1f)){vm.screen.value="Sight reading"}
         } }
+        item { OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(8.dp));Text("Ear training · identify notes by listening")
+        } }
         item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.Bluetooth,null);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text("Connect your digital piano",fontWeight=FontWeight.SemiBold);Text("Direct MIDI. Every chord, release and velocity.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)} }; TextButton(onClick={vm.screen.value="Connect"}){Text("Set up piano connection  →")} } }
         item { TextButton(onClick={vm.screen.value="History"}) { Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("View practice history") } }
     }
@@ -147,19 +152,27 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     Surface(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh) { Column(Modifier.padding(18.dp)) { Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(16.dp));Text(title,fontWeight=FontWeight.SemiBold);Text(description,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) } }
 }
 @Composable private fun Library(vm: PianoViewModel,onImport: ()->Unit) {
+    val context=LocalContext.current
     var query by remember { mutableStateOf("") }; var difficulty by remember { mutableStateOf("All") };var info by remember { mutableStateOf<LibraryPiece?>(null) }
     val imports by vm.imports.collectAsStateWithLifecycle()
     val visible=vm.library.filter { (difficulty=="All" || it.difficulty==difficulty) && (it.title+it.composer).contains(query,true) }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Your music shelf","The library","Offline studies and your own MusicXML editions.") }
         item { Button(onClick=onImport) { Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL") } }
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("Explore familiar classical repertoire",fontWeight=FontWeight.SemiBold)
+            Text("The bundled studies are original exercises, not famous compositions. For Bach, Beethoven, Chopin and other familiar music, use an openly shared edition and import it as MusicXML/MXL.",fontSize=13.sp)
+            OutlinedButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://musescore.com/openscore-lieder-corpus")))},modifier=Modifier.fillMaxWidth()) {Text("OpenScore · browse MusicXML scores")}
+            OutlinedButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.mutopiaproject.org/")))},modifier=Modifier.fillMaxWidth()) {Text("Mutopia · free classical editions")}
+            Text("Check each edition's licence. Mutopia often provides LilyPond/PDF rather than MusicXML; conversion with MuseScore Studio may be needed. Export a single piano part.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        } }
         item { OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Search titles or composers")},leadingIcon={Icon(Icons.Outlined.Search,null)}) }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("All","Beginner","Elementary","Intermediate","Upper-intermediate","Advanced").forEach { FilterChip(selected=difficulty==it,onClick={difficulty=it},label={Text(it)}) } } }
         if(imports.isNotEmpty()) {
             item { Text("YOUR IMPORTS",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
             items(imports.filter { (it.title+it.composer).contains(query,true) },key={it.key}) { item -> ScoreRow(item.title,item.composer,"Imported",{vm.openImport(item)}) }
         }
-        item { Text("${visible.size} ORIGINAL STUDIES",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
+        item { Text("${visible.size} ORIGINAL EXERCISES",fontSize=11.sp,letterSpacing=2.sp,color=MaterialTheme.colorScheme.primary) }
         items(visible,key={it.key}) { piece -> ScoreRow(piece.title,piece.composer,piece.difficulty,{vm.open(piece)}) {info=piece} }
 
     }
@@ -193,11 +206,39 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable private fun History(vm: PianoViewModel) {
     val all by vm.history.collectAsStateWithLifecycle();var category by remember{mutableStateOf("All")}
+    val filtered=all.filter{category=="All"||it.category==category}
+    val dateFormat=remember { SimpleDateFormat("yyyy-MM-dd",Locale.getDefault()) }
+    val days=remember(all,category) {
+        val cal=Calendar.getInstance()
+        (6 downTo 0).map { offset ->
+            val d=cal.clone() as Calendar
+            d.add(Calendar.DAY_OF_YEAR,-offset)
+            val key=dateFormat.format(d.time)
+            val count=filtered.count { dateFormat.format(Date(it.date))==key }
+            SimpleDateFormat("EEE",Locale.getDefault()).format(d.time) to count
+        }
+    }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Every repetition counts","Your progress", "Pitch and rhythm are tracked separately, on this device.") }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("All","Scales","Sight reading","Score","Imported score").forEach {FilterChip(category==it,{category=it},label={Text(it)})}} }
-        if(all.isEmpty()) item { Text("Complete a practice session to start your history.") }
-        items(all.filter{category=="All"||it.category==category},key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("Practice days · last 7 days",fontWeight=FontWeight.SemiBold)
+            val highest=days.maxOf {it.second}.coerceAtLeast(1)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                days.forEach { (day,count) ->
+                    Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally) {
+                        Box(Modifier.fillMaxWidth().height(76.dp),contentAlignment=Alignment.BottomCenter) {
+                            Box(Modifier.fillMaxWidth(.7f).fillMaxHeight(count.toFloat()/highest).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart=5.dp,topEnd=5.dp)))
+                        }
+                        Text(day,fontSize=11.sp)
+                        Text(count.toString(),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Text("${days.count { it.second>0 }} active days · ${days.sumOf {it.second}} completed sessions",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        } }
+        if(filtered.isEmpty()) item { Text("Complete a practice session to start your history for this category.") }
+        items(filtered,key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
             Text(s.title,fontWeight=FontWeight.SemiBold);Text(SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(s.date))+" · ${s.bpm.toInt()} BPM · ${s.mode}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)){Metric("${s.pitch.toInt()}%","pitch",Modifier.weight(1f));Metric(s.rhythm?.let{"${it.toInt()}%"}?:"—","rhythm",Modifier.weight(1f));Metric("${s.overall.toInt()}%","overall",Modifier.weight(1f))}
             if(s.reviewFile!=null)TextButton(onClick={vm.openReview(s)}){Text("Review on score")}
@@ -225,6 +266,13 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Make it yours","Practice settings")
         Panel(Modifier.fillMaxWidth()) {
+            Text("Piano sound",fontWeight=FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                PianoSound.entries.forEach { sound -> FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
+            }
+            Text("Grand: sampled acoustic piano. Mellow and Bright: lightweight synthesized sounds. All work without internet.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Panel(Modifier.fillMaxWidth()) {
             Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
             Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
             Text("Notes inside this onset window are on time. Chord notes may spread over a short interval.",fontSize=13.sp)
@@ -250,7 +298,17 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Text("Piano Path is free and has no ads. Voluntary support helps its continued development.",fontSize=13.sp)
             OutlinedButton(onClick={support=true}){Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")}
         }
-        Text("Piano Path 0.3.0 · Open source under MIT\nOriginal study scores: CC0-1.0\nPiano samples: Alexander Holm, Salamander Grand Piano (CC BY 3.0), adapted from Tone.js/audio\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)\nOffline by design. No account, analytics, or network permission.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Panel(Modifier.fillMaxWidth()) {
+            Text("About Piano Path",fontWeight=FontWeight.SemiBold)
+            Text("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",fontWeight=FontWeight.SemiBold)
+            Text(if(BuildConfig.DEBUG)"Development / debug APK" else "Release APK",
+                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Open source under MIT · Offline by design. No account, analytics, or network permission.",
+                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Original study scores: CC0-1.0\nPiano samples: Alexander Holm, Salamander Grand Piano (CC BY 3.0), adapted from Tone.js/audio\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)",
+                fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 @Composable fun Toggle(label: String,checked: Boolean,onChange: (Boolean)->Unit,enabled: Boolean=true) { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(label,Modifier.weight(1f));Switch(checked,onChange,enabled=enabled)} }
