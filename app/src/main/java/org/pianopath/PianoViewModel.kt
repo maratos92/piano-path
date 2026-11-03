@@ -150,15 +150,31 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             ui.value=p.copy(paused=true,playbackHeld=emptySet(),feedback="Paused")
         }
     }
-    /** Whole-score scrubbing; a running scored take cannot be arbitrarily re-timed. */
+    /**
+     * Draggable score cursor / whole-piece slider.
+     * Repositioning during assessment ends the current take, then moves the selected
+     * start so the next Practice really begins at the chosen point (no invalid scoring).
+     */
     fun seek(beat: Double) {
-        val p=ui.value; val score=p.score ?: return
-        if(!beat.isFinite() || p.running)return
-        val target=if(p.listening) {
-            val(a,b)=bounds(p);beat.coerceIn(a,b-.001)
+        val before=ui.value;val score=before.score ?: return
+        if(!beat.isFinite() || score.endBeat<=0.0)return
+        if(before.running)stop("Practice stopped for cursor move")
+        val current=ui.value
+        val target=if(current.listening) {
+            val (a,b)=bounds(current);beat.coerceIn(a,(b-.001).coerceAtLeast(a))
         } else beat.coerceIn(0.0,score.endBeat)
-        if(p.listening) playbackSeek=target
-        ui.value=p.copy(beat=target,transportBeat=target,reviewBeat=target)
+        if(current.listening)playbackSeek=target
+        var next=current.copy(beat=target,transportBeat=target,reviewBeat=target,review=false)
+        if(before.running) {
+            val a=target.coerceAtMost((score.endBeat-.25).coerceAtLeast(0.0))
+            val from=score.measures.last {it.start<=a+.0001}
+            val oldEnd=bounds(before).second
+            val b=if(a>=oldEnd-.25)score.endBeat else oldEnd
+            val through=score.measures.last {it.start<b-.0001}
+            next=next.copy(startMeasure=from.number,startOffset=a-from.start,
+                endMeasure=through.number,endOffset=b-through.start)
+        }
+        ui.value=next
     }
     /** Quarter-beat precision selection for the loop handles; same bounds as measure controls. */
     fun setPassage(start: Double,end: Double) {
