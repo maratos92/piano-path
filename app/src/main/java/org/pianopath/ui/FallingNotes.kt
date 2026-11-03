@@ -17,7 +17,7 @@ import kotlin.math.*
     val start=score.measures[p.startMeasure-1].start+p.startOffset
     val end=score.measures[p.endMeasure-1].start+p.endOffset
     val roll=remember(score,start,end,p.hand){PianoRoll(score,start,end,p.hand)}
-    val position=if(p.running||p.listening)p.transportBeat else start
+    val position=if(p.transportBeat in start..end)p.transportBeat else start
     val lookAhead=(p.bpm/60.0*4).coerceAtLeast(2.0)
     Canvas(modifier.semantics{contentDescription="Falling notes aligned to the 88-key piano"}) {
         drawRect(Color(0xff102c2d))
