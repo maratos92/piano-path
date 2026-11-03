@@ -181,9 +181,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             edit{it.copy(mode=PracticeMode.FREE,view=ScoreView.FALLING)}
             screen.value="Practice";return@launch
         }
-        val piece=library.first()
-        val xml=withContext(Dispatchers.IO) {getApplication<Application>().assets.open("scores/${piece.asset}").bufferedReader().use{it.readText()}}
-        load(xml,piece.key,"Score","Touch the keys to play. Zoom for larger keys; use the range slider to move across all 88 notes.")
+        val exercise=Exercises.scale(root=0,kind=ScaleKind.MAJOR,octaves=1,hand=Hand.BOTH,descending=true)
+        load(exercise.xml,"touch-free-play","Scales","")
         edit{it.copy(mode=PracticeMode.FREE,view=ScoreView.FALLING)}
     }
     fun open(piece: LibraryPiece) = viewModelScope.launch {
