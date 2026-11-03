@@ -37,3 +37,5 @@ Run **Signed release APK** manually or push a `v*` tag. The workflow restores th
 A release APK signed with your key cannot upgrade the delivered debug APK under the same package ID because their certificates differ. Uninstall the debug app first (this removes its local data), or use a separately suffixed application ID for internal testing. Future versions must preserve the production key and increment `versionCode`.
 
 For Google Play preparation and remaining owner tasks, see STORE_READINESS.md. A locally unsigned release bundle is not a production submission artifact.
+
+The development `v0.3.0-preview` tag may advance to a newer verified preview commit. Its APK and source ZIP are republished together, with an updated checksum. Pin a commit/checksum when reproducing a particular preview; production release tags should be immutable.

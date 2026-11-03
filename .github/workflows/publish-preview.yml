@@ -30,6 +30,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view v0.3.0-preview --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/v0.3.0-preview" -f sha="$GITHUB_SHA" -F force=false >/dev/null
             gh release edit v0.3.0-preview --repo "$GITHUB_REPOSITORY" --title 'Piano Path 0.3.0 — Android preview' --notes-file dist/RELEASE_NOTES.md --prerelease
           else
             gh release create v0.3.0-preview --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Piano Path 0.3.0 — Android preview' --notes-file dist/RELEASE_NOTES.md --prerelease

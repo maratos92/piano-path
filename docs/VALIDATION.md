@@ -2,7 +2,7 @@
 
 ## Evidence
 
-Remote verification: [GitHub Actions run 41671948737](https://github.com/maratos92/piano-path/actions/runs/41671948737) passed the debug build/unit/lint job and **9/9 Android tests on API 36 Pixel 2** plus **9/9 on API 35 Pixel C** emulators. Tests include native WebView sheet rendering, visual-take round trips, landscape navigation and the external-support explanation. These are emulator results, not physical piano/tablet certification.
+Remote verification: [GitHub Actions run 41674522753](https://github.com/maratos92/piano-path/actions/runs/41674522753) passed the debug build/unit/lint job and **9/9 Android tests on API 36 Pixel 2** plus **9/9 on API 35 Pixel C** emulators. Tests include native WebView sheet rendering, visual-take round trips, landscape navigation and the external-support explanation. These are emulator results, not physical piano/tablet certification.
 
 Local release-candidate checks: **77 JVM tests passed, zero failures**; debug and instrumentation APKs built; unsigned release APK/AAB built; debug/release lint passed; static 64-bit ELF/APK 16 KB alignment passed. All 50 notation renders passed in Chromium. The debug certificate matches the preceding preview. Production signing, Android runtime reports and physical MIDI checks are separate.
 
