@@ -29,7 +29,7 @@ class AppSmokeTest {
     }
     @Test fun androidXmlParserLoadsAllAssetsAndExercises() {
         val context=compose.activity
-        val files=context.assets.list("scores")!!.filter{it.endsWith("musicxml")}
+        val files=context.assets.list("scores")?.filter{it.endsWith("musicxml")} ?: emptyList()
         assertTrue("No bundled demo scores are expected",files.isEmpty())
         files.forEach{file->val xml=context.assets.open("scores/$file").bufferedReader().use{it.readText()};assertTrue(MusicXml.parse(xml).notes.isNotEmpty())}
         assertTrue(MusicXml.parse(Exercises.sight(level=3,seed=44).xml).notes.isNotEmpty())
