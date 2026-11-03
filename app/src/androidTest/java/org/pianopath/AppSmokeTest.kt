@@ -10,8 +10,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Assert.*
 import org.pianopath.core.*
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(AndroidJUnit4::class)
 class AppSmokeTest {
@@ -34,17 +33,18 @@ class AppSmokeTest {
         compose.onNodeWithText("Open practice  →").performClick()
         compose.waitUntil(20_000){compose.onAllNodesWithText("First Light").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Sheet").performClick()
-        val ready=CountDownLatch(1);var rendered=false;var diagnostic="WebView not found"
+        compose.waitForIdle()
+        val rendered=AtomicBoolean(false);var diagnostic="WebView not found"
         fun find(view: android.view.View): WebView? {
             if(view is WebView)return view
             if(view is android.view.ViewGroup)for(i in 0 until view.childCount){val result=find(view.getChildAt(i));if(result!=null)return result}
             return null
         }
-        repeat(30){
-            compose.runOnUiThread{find(compose.activity.window.decorView)?.evaluateJavascript("JSON.stringify({url:location.href,svg:!!document.querySelector('svg .vf-notehead'),error:document.getElementById('error')?.textContent,loading:document.getElementById('loading')?.textContent,engine:typeof opensheetmusicdisplay,html:document.body?.innerText?.slice(0,600)})"){value->diagnostic=value;val state=runCatching{org.json.JSONObject(org.json.JSONTokener(value).nextValue() as String)}.getOrNull();if(state?.let{it.optBoolean("svg") && it.optString("error").isBlank()}==true){rendered=true;ready.countDown()}}}
-            if(ready.await(1,TimeUnit.SECONDS))return@repeat
-        }
-        assertTrue("Local MusicXML must render in Android WebView. Package=${WebView.getCurrentWebViewPackage()?.versionName}. State=$diagnostic",rendered)
+        try { compose.waitUntil(30_000){
+            compose.runOnUiThread{find(compose.activity.window.decorView)?.also{diagnostic="WebView mounted; waiting for JavaScript"}?.evaluateJavascript("JSON.stringify({url:location.href,svg:!!document.querySelector('svg .vf-notehead'),error:document.getElementById('error')?.textContent,loading:document.getElementById('loading')?.textContent,engine:typeof opensheetmusicdisplay,html:document.body?.innerText?.slice(0,600)})"){value->diagnostic=value;val state=runCatching{org.json.JSONObject(org.json.JSONTokener(value).nextValue() as String)}.getOrNull();if(state?.let{it.optBoolean("svg") && it.optString("error").isBlank()}==true){rendered.set(true)}}}
+            rendered.get()
+        } } finally {println("WEBVIEW_STATE=$diagnostic")}
+        assertTrue("Local MusicXML must render in Android WebView. Package=${WebView.getCurrentWebViewPackage()?.versionName}. State=$diagnostic",rendered.get())
     }
     @Test fun simulatedWaitSessionCompletesWithoutHardware() {
         lateinit var vm: PianoViewModel
