@@ -31,6 +31,7 @@ import org.pianopath.*
 import org.pianopath.core.*
 import org.pianopath.data.*
 import org.pianopath.midi.MidiStatus
+import org.pianopath.audio.PianoSound
 import android.net.Uri
 import java.text.SimpleDateFormat
 import java.util.*
@@ -252,6 +253,13 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     })
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Make it yours","Practice settings")
+        Panel(Modifier.fillMaxWidth()) {
+            Text("Piano sound",fontWeight=FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                PianoSound.entries.forEach { sound -> FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
+            }
+            Text("Grand: sampled acoustic piano. Mellow and Bright: lightweight synthesized sounds. All work without internet.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Panel(Modifier.fillMaxWidth()) {
             Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
             Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
