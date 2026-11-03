@@ -292,7 +292,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                     val elapsedBeat=floor((now-startTime)/1e9*ui.value.bpm/60).toLong()
                     if(elapsedBeat != lastClick && (now<startTime || ui.value.mode==PracticeMode.RHYTHM || engine?.hasAnchor==true)) {
                         lastClick=elapsedBeat
-                        tone?.startTone(if(Math.floorMod(elapsedBeat,4)==0) ToneGenerator.TONE_PROP_BEEP2 else ToneGenerator.TONE_PROP_BEEP,45)
+                        val measureBeats=(ui.value.score?.beats ?: 4)*4.0/(ui.value.score?.beatType ?: 4)
+                        audio.metronomeClick(Math.floorMod(elapsedBeat,measureBeats.toLong().coerceAtLeast(1L))==0L)
                     }
                 }
                 delay(12)
@@ -428,7 +429,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                             if(click!=lastClick && click>=floor(a).toLong()) {
                                 lastClick=click
                                 val downbeat=score.measures.any {abs(it.start-click.toDouble())<.0001}
-                                tone?.startTone(if(downbeat)ToneGenerator.TONE_PROP_BEEP2 else ToneGenerator.TONE_PROP_BEEP,45)
+                                audio.metronomeClick(downbeat)
                             }
                         }
                         if(beat>=b)break
