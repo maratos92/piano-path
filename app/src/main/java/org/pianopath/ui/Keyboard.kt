@@ -20,37 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.pianopath.core.*
 
-@Composable fun KeyboardControls(zoom: Float,pan: Float,onZoom: (Float)->Unit,onPan: (Float)->Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().height(34.dp).padding(horizontal=10.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-            Text("88 keys · A0–C8",fontSize=11.sp,modifier=Modifier.weight(1f))
-            IconButton(onClick={onZoom((zoom-.75f).coerceAtLeast(1f))},modifier=Modifier.size(32.dp),enabled=zoom>1f){Icon(Icons.Outlined.Remove,"Smaller piano keys",Modifier.size(18.dp))}
-            TextButton(onClick={onZoom(1f);onPan(0f)},contentPadding=PaddingValues(horizontal=8.dp),modifier=Modifier.height(32.dp)){Text("Fit all 88",fontSize=11.sp)}
-            IconButton(onClick={onZoom((zoom+.75f).coerceAtMost(6f))},modifier=Modifier.size(32.dp),enabled=zoom<6f){Icon(Icons.Outlined.Add,"Larger piano keys",Modifier.size(18.dp))}
-            if(zoom>1f)TextButton(onClick={
-                val target=((PianoLayout.key(60)!!.left+.5)/52.0*zoom-.5)/(zoom-1)
-                onPan(target.toFloat().coerceIn(0f,1f))
-            },contentPadding=PaddingValues(horizontal=4.dp),modifier=Modifier.height(32.dp)){Text("C4",fontSize=11.sp)}
-        }
-        if(zoom>1f)Row(Modifier.fillMaxWidth().height(28.dp).padding(horizontal=12.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-            Text("A0",fontSize=10.sp)
-            Slider(pan,onPan,modifier=Modifier.weight(1f).height(28.dp).semantics{contentDescription="Keyboard range"})
-            Text("C8",fontSize=10.sp)
-        }
-    }
-}
-
 @Composable fun PianoKeyboard(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,
     onKey: (Int,Boolean)->Unit,height: Int=88,focusRange: IntRange? = null) {
-    val initialZoom=when(focusRange?.let { it.last-it.first }) {12->5f;24->3.25f;36->2.3f;else->1f}
-    val center=focusRange?.let { range ->
-        ((PianoLayout.key(range.first)?.left ?: 0.0)+(PianoLayout.key(range.last)?.left ?: 52.0))/2.0
-    } ?: 0.0
-    val initialPan=if(initialZoom<=1f)0f else ((center/52.0*initialZoom-.5)/(initialZoom-1)).toFloat().coerceIn(0f,1f)
-    var zoom by rememberSaveable(focusRange?.first,focusRange?.last) {mutableFloatStateOf(initialZoom)}
-    var pan by rememberSaveable(focusRange?.first,focusRange?.last) {mutableFloatStateOf(initialPan)}
-    Column {KeyboardControls(zoom,pan,{zoom=it},{pan=it})
-        KeyboardCanvas(held,sounding,expected,interactive,onKey,height,zoom,pan,focusRange=focusRange)}
+    KeyboardCanvas(held,sounding,expected,interactive,onKey,height,1f,0f,focusRange=focusRange)
 }
 
 @Composable fun KeyboardCanvas(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,

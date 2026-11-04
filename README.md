@@ -6,38 +6,44 @@
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**Current feature branch: 0.4.0-dev.2 (code 5).** In the app, open **Settings → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+**Current build: 0.4.0-dev.3 (code 6).** In the app, open **Settings → About → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
 
-> **Update/signature note:** CI debug builds can use different signing keys, so Android may refuse an in-place update. Uninstalling the old app may delete its locally stored scores and practice history; back up anything important first.
+> **Update/signature note:** CI now caches a personal-test debug signing certificate so successive APKs should install over one another. The first switch from the old signing certificate may still require one uninstall, and GitHub may eventually evict the cache. For reliable long-term updates use a permanent privately stored signing key. Uninstalling can delete local scores/history; back them up first.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The current development app is version 0.4.0-dev.2: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The current development app is version 0.4.0-dev.3: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
 1. Download the `latest-debug` APK linked at the top of this README (or unzip `app-debug.apk` from a successful Actions build).
 2. Open the APK on your Android phone and allow installation from your browser/file manager when Android prompts. This build is signed with a development key; use it for evaluation.
 3. Open **Connect piano → Find piano**, grant Bluetooth access, and select your instrument. On Android 8–11 also enable system Location for BLE discovery. Enable Bluetooth MIDI on the piano, and close other apps using its connection.
-4. Open **Library → Import MusicXML / MXL** to add your own score, or use **Scales** / **Sight reading** to generate an exercise.
-5. Open the tune icon in the score reader. Choose mode, hands, tempo and passage measures. Optional quarter-beat offsets allow finer boundaries. Enable looping/count-in and save a named passage.
+4. Use **Library → Import MusicXML / MXL** for your own piece, or **Practice → Scales**, **Sight reading** or **Listening** for exercises.
+5. In the reader, drag the gold A/B handles on the score to select a loop. The range is highlighted on the sheet and marked on falling bars. The tune icon contains mode, hand, tempo and other passage controls.
 6. Tap **Practice**. Complete a repetition or tap **Finish** for separate pitch/rhythm results and note-level timing details. Open History for saved repetitions.
 
-**Without a piano:** tap **Home → Play without a piano**, or enable **Touch piano** in any score. The keys make sound through a offline sampled grand piano. For evaluated touch practice, choose Wait/Follow/Rhythm in Practice controls and tap Practice; Free Play lets you play without scoring. Touch/test sessions are marked in history.
+**Without a piano:** tap **Home → Play without a piano**. The full on-screen 88-key piano is always touch-enabled and uses the selected sound. For evaluated touch practice, choose Wait/Follow/Rhythm in Practice controls and tap Practice; Free Play lets you play without scoring. Touch/test sessions are marked in history.
 
 **Listen to music:** open any score and tap **Listen**. The selected passage plays aloud at the chosen BPM, with separate left/right/both-hand filtering and the passage loop setting. **Stop music** stops playback. Listening never feeds generated notes into assessment and never awards a practice accuracy result. Turn up Android's media volume. Touch keys use a fixed velocity; MIDI diagnostics still report the instrument’s actual velocity. Sound uses Alexander Holm’s Salamander Grand Piano samples (CC BY 3.0), with 128 voices, sustain and velocity-controlled amplitude. The compact bank has one dynamic layer, rather than a full multi-layer piano instrument; no download is required.
 
 **Falling bars:** choose **Falling** beside **Sheet** in the reader (falling notes is the default). Each note falls onto its matching key; bar length represents notated duration. Blue = left staff, green = right staff; played/missed notes change colour during assessment. Listen animates the bars automatically; Practice uses the selected practice mode. In Wait mode bars wait for the correct pitches. In Follow mode they follow the performance. Free Play has no enforced score transport, so use Listen to watch a demonstration.
 
-**Whole keyboard:** all 88 keys, **A0–C8**, fit on screen initially in both orientations. Tap **Fit all 88** to restore this view. For playable-size touch keys, tap **+**, use **C4** to centre middle C, and move the **A0–C8 range slider** to reach lower or higher notes. The falling bars use the identical zoom and position, so they stay aligned. Fitting 88 keys on a narrow phone necessarily makes each key small; landscape or zoom is recommended for touch performance.
+**Whole keyboard:** all **88 keys, A0–C8**, remain visible and touch-enabled in the reader. Keyboard zoom/pan controls have been removed as requested; a narrow phone necessarily makes each key small.
 
 **Score cursor:** touch a note on the score or drag the blue cursor handle to move through the piece. This also works while listening. Seeking during scored Practice ends the current take first and sets the next practice start to that beat, so timing results remain valid.
 
+**Looping:** the selected A/B passage is tinted on the score; drag the gold A and B grips to select its precise boundaries. The falling view shows A/B lines as they scroll into view. The footer shows the selected beats and a Repeat icon. Looping restarts at A after the end B. Adaptive tempo (off by default) raises the next repetition by 4 BPM only when the just-completed assessed repetition scored at least 90%; this is optional speed-building practice.
+
+**Recorded MIDI roll:** completed scored sessions save private MIDI takes. In History, choose **Replay MIDI roll** to view actual played pitches, held lengths and extra notes as falling bars, or **Review score** for traditional notation. The Recorded view supports scrubbing and a visual animation; it is not an audio or video exporter, and Free Play is not yet archived.
+
+**Ear training game:** choose a specific starting octave (C1–C7), span 1–3 octaves and simultaneous note count 1–3. The 88-key keyboard dims notes outside the selected range; points, attempts, accuracy and streak are saved locally and summarised in History.
+
 **Visual review:** choose Sheet, then Practice. Rhythm mode (the default) starts the cursor after count-in; Follow starts on the first expected pitch, and Wait advances on chord completion. Green markers show matched input, amber early/late input, red extras and dashed rings missed notes. Hold traces show physical key-down duration; they are not pedal sustain. After Finish select Review on score, scrub the score, or reopen a take in History. This is a diagnostic overlay, not a quantised MusicXML transcription/export. Wrong pitches use a conventional sharp spelling; MIDI does not carry enharmonic spelling or physical-hand identity.
 
-**Live note names:** toggle Notes in practice, or open the navigation menu → Note monitor. Diagnostics provides timestamps, channels, velocity and controller events.
+**Played notes:** tap the compact note icon in the score toolbar or open Settings → MIDI → Played notes. The staff shows the last five key presses in sequence by default, with approximate note durations after release and pause markers for long gaps. Settings → Practice adjusts note count (up to 32) and gap threshold. Diagnostics has raw MIDI events.
 
-**Landscape:** practice hides the navigation rail. The top-left menu opens navigation as an overlay. Practice controls offer horizontal score layout and a 0–32 px side margin. Required clef/key/time spacing remains. Appearance follows the system by default and can be overridden in Settings.
+**Navigation:** Home, Practice, Library and Settings are the four main sections. Practice opens Sight reading, Listening/ear training, Scales, current score and free play. Settings has General / Practice / MIDI / About subsections. Sheet padding is in Settings → General; notation zoom remains in the reader. Landscape uses the menu overlay rather than an inactive P button.
 
 **USB:** connect a data cable/OTG adapter, select a class-compliant MIDI input under Connect piano → USB MIDI. Bluetooth grants are not needed. See [compatibility testing](docs/HARDWARE_TESTING.md).
 
@@ -52,7 +58,7 @@ The current development app is version 0.4.0-dev.2: a working initial implementa
 - Measure and quarter-beat passage controls, looping, count-in, metronome, named saved passages, per-loop Room history and optional +4 BPM after a 90% repetition.
 - All twelve tonics, major/natural/harmonic/melodic minor, chromatic and major arpeggio exercises; one/two octaves, hands, ascent or ascent+descent. Curated conventional fingering for common keys; uncurated keys are left unnumbered. MIDI does **not** measure actual finger choice.
 - Seeded sight-reading generator, four complexity settings, nine major key signatures, 3/4, 4/4 and 6/8, hands, count-in/metronome and limited/no preview. Shared notation/evaluation engine and category-filtered practice history.
-- Full 88-key fit/zoom/pan touch piano, an aligned falling-note view, and unscored offline score listening. 128-voice acoustic sample playback, sustain, voice limits, audio focus and background cleanup.
+- Full 88-key always-on touch piano, an aligned falling-note view, and unscored offline score listening. 128-voice acoustic sample playback, sustain, voice limits, audio focus and background cleanup.
 - Responsive Compose screens, full-width practice with a closed-by-default navigation drawer, system/light/dark appearance, local Room persistence. No Internet permission, accounts, analytics or backend.
 
 ## Score library

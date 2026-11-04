@@ -17,6 +17,7 @@ class AppSmokeTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
     @Test fun aboutPanelShowsTheActualInstalledVersion() {
         compose.onNodeWithContentDescription("Settings",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("About").performClick()
         compose.onNodeWithText("About Piano Path").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Revision ${BuildConfig.BUILD_REVISION}").performScrollTo().assertIsDisplayed()
@@ -83,7 +84,7 @@ class AppSmokeTest {
         compose.onNodeWithText("Both").assertIsDisplayed()
         compose.onNodeWithContentDescription("88-key piano, A0 to C8").assertIsDisplayed()
         compose.onNodeWithContentDescription("Falling notes aligned to the 88-key piano").assertIsDisplayed()
-        compose.onNodeWithText("Fit all 88").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Played notes").assertIsDisplayed()
         compose.onNodeWithText("Listen").assertIsDisplayed()
     }
     @Test fun sheetScoreTapMovesBlueCursorToTouchedMeasure() {
@@ -136,6 +137,40 @@ class AppSmokeTest {
         compose.waitUntil(10_000) { vm.ui.value.transportBeat >= 1.5 || diagnostic.get().contains("error") }
         assertTrue("Tapping a score note should seek near its beat. JS=${diagnostic.get()} transport=${vm.ui.value.transportBeat}",
             vm.ui.value.transportBeat>=1.5)
+    }
+    @Test fun liveNoteHistoryKeepsSequenceAndClosesDurationOnRelease() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.clearPlayedSequence()
+            val now=System.nanoTime()
+            vm.midi.simulate(MidiEvent.On(60,80,now))
+            vm.midi.simulate(MidiEvent.Off(60,0,now+500_000_000))
+            vm.midi.simulate(MidiEvent.On(64,80,now+2_700_000_000))
+            vm.midi.simulate(MidiEvent.Off(64,0,now+3_100_000_000))
+        }
+        compose.waitUntil(5000){vm.playedSequence.value.size==2}
+        val entries=vm.playedSequence.value
+        assertEquals(listOf(60,64),entries.map{it.pitch})
+        assertEquals(500L,entries[0].durationMs)
+        assertEquals(400L,entries[1].durationMs)
+    }
+    @Test fun selectedLoopChangesTheRealPracticeBounds() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15000){vm.ui.value.score!=null}
+        compose.runOnUiThread {
+            vm.edit {it.copy(loop=false)}
+            vm.setPassage(.5,3.5)
+        }
+        compose.waitUntil(5000){vm.ui.value.startOffset>=.5}
+        val p=vm.ui.value
+        assertTrue(p.loop)
+        assertEquals(.5,p.score!!.measures[p.startMeasure-1].start+p.startOffset,.01)
+        assertEquals(3.5,p.score!!.measures[p.endMeasure-1].start+p.endOffset,.01)
     }
     @Test fun cursorSeekEndsScoredTakeAndMovesNextPracticeStart() {
         lateinit var vm: PianoViewModel
@@ -216,12 +251,13 @@ class AppSmokeTest {
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
         compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Note monitor").performScrollTo().assertIsDisplayed().performClick()
-        compose.onNodeWithText("Live note monitor").assertIsDisplayed()
+        compose.onNodeWithText("Played notes").assertIsDisplayed()
     }
 
     @Test fun voluntarySupportExplainsTheExternalProviderWithoutLaunchingPayment() {
         assertTrue(BuildConfig.SUPPORT_URL.startsWith("https://ko-fi.com/"))
         compose.onNodeWithContentDescription("Settings",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("About").performClick()
         compose.onNodeWithText("Support Piano Path").performScrollTo().performClick()
         compose.onNodeWithText("Open Ko-fi").assertIsDisplayed()
         compose.onNodeWithText("Maybe later").assertIsDisplayed().performClick()

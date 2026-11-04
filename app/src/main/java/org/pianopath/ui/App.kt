@@ -70,17 +70,16 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             ModalDrawerSheet(Modifier.width(280.dp)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Piano Path",Modifier.padding(24.dp),fontSize=26.sp,fontFamily=FontFamily.Serif)
-                listOf("Home","Library","Scales","Sight reading","Ear training","Connect","Note monitor","History","Settings").forEach { name ->
-                    NavigationDrawerItem(label={Text(name)},selected=screen==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
+                listOf("Home","Practice hub","Library","Settings","Connect","Note monitor","History").forEach { name ->
+                    NavigationDrawerItem(label={Text(if(name=="Practice hub")"Practice" else name)},selected=screen==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
                 }
                 }
             }
         }) { Surface(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 if(screen!="Practice" && (wide || compactLandscape)) NavigationRail(containerColor=MaterialTheme.colorScheme.surface) {
-                    Text("P",Modifier.padding(16.dp),fontFamily=FontFamily.Serif,fontSize=30.sp,color=MaterialTheme.colorScheme.primary)
-                    (if(config.screenHeightDp<500) listOf("Home" to Icons.Outlined.Home,"Library" to Icons.Outlined.LibraryMusic,"History" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings) else listOf("Home" to Icons.Outlined.Home,"Library" to Icons.Outlined.LibraryMusic,"Scales" to Icons.Outlined.Piano,"Sight reading" to Icons.Outlined.Visibility,"History" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)).forEach { (name,icon) ->
-                        NavigationRailItem(selected=screen==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Sight reading")"Read" else name)},alwaysShowLabel=config.screenHeightDp>=600)
+                    listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Settings" to Icons.Outlined.Settings).forEach { (name,icon) ->
+                        NavigationRailItem(selected=screen==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Practice hub")"Practice" else name)},alwaysShowLabel=config.screenHeightDp>=600)
                     }
                 }
                 Scaffold(modifier=Modifier.weight(1f),snackbarHost={SnackbarHost(snackbar)},
@@ -89,10 +88,11 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         Spacer(Modifier.weight(1f))
                         AssistChip(onClick={vm.screen.value="Connect"},label={Text(if(midi.connected)"Piano connected" else "Connect piano",fontSize=12.sp)},leadingIcon={Icon(Icons.Outlined.Bluetooth, null,Modifier.size(16.dp))})
                     } },bottomBar={ if(!wide && !compactLandscape && screen!="Practice") NavigationBar {
-                        listOf("Home" to Icons.Outlined.Home,"Library" to Icons.Outlined.LibraryMusic,"Scales" to Icons.Outlined.Piano,"Sight reading" to Icons.Outlined.Visibility,"Settings" to Icons.Outlined.Settings).forEach { (name,icon) -> NavigationBarItem(selected=screen==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Sight reading")"Read" else name)}) }
+                        listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Settings" to Icons.Outlined.Settings).forEach { (name,icon) -> NavigationBarItem(selected=screen==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Practice hub")"Practice" else name)}) }
                     } }) { padding ->
                     Box(Modifier.padding(padding).fillMaxSize()) { when(screen) {
                         "Home" -> Home(vm)
+                        "Practice hub" -> PracticeHub(vm)
                         "Library" -> Library(vm) { importer.launch(arrayOf("*/*")) }
                         "Connect" -> Connection(vm,midi,requestScan) { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
                         "Practice" -> Practice(vm){scope.launch{drawer.open()}}
@@ -121,6 +121,36 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable fun Metric(value: String,label: String,modifier: Modifier=Modifier) {
     Column(modifier) { Text(value,fontSize=28.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.primary);Text(label,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+}
+@Composable private fun PracticeHub(vm: PianoViewModel) {
+    val p by vm.ui.collectAsStateWithLifecycle()
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { Text("Practice",fontFamily=FontFamily.Serif,fontSize=32.sp) }
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("Choose a session",fontWeight=FontWeight.SemiBold)
+            OutlinedButton(onClick={vm.screen.value="Sight reading"},modifier=Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Visibility,null);Spacer(Modifier.width(10.dp));Text("Sight reading",Modifier.weight(1f))
+                Icon(Icons.Outlined.MusicNote,null)
+            }
+            OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(10.dp));Text("Listening · ear training",Modifier.weight(1f))
+                Icon(Icons.Outlined.MusicNote,null)
+            }
+            OutlinedButton(onClick={vm.screen.value="Scales"},modifier=Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Piano,null);Spacer(Modifier.width(10.dp));Text("Scales & technique",Modifier.weight(1f))
+                Icon(Icons.Outlined.MusicNote,null)
+            }
+        } }
+        item { Panel(Modifier.fillMaxWidth()) {
+            Text("Pieces & free play",fontWeight=FontWeight.SemiBold)
+            if(p.score!=null) Button(onClick={vm.screen.value="Practice"},modifier=Modifier.fillMaxWidth()){
+                Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score?.title ?: "Current score"}",maxLines=1)
+            }
+            OutlinedButton(onClick={vm.screen.value="Library"},modifier=Modifier.fillMaxWidth()){Text("Choose a piece from Library")}
+            OutlinedButton(onClick={vm.playWithoutPiano()},modifier=Modifier.fillMaxWidth()){Text("Free play · 88 keys")}
+        } }
+        item { TextButton(onClick={vm.screen.value="History"}){Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("Practice history")} }
+    }
 }
 @Composable private fun Home(vm: PianoViewModel) {
     val history by vm.history.collectAsStateWithLifecycle(); val p by vm.ui.collectAsStateWithLifecycle()
@@ -209,7 +239,13 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
     }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { PageTitle("Every repetition counts","Your progress", "Pitch and rhythm are tracked separately, on this device.") }
+        item { PageTitle("History","Your progress") }
+        item { val ear by vm.ear.collectAsStateWithLifecycle()
+            if(ear.attempts>0)Panel(Modifier.fillMaxWidth()) {
+                Text("Ear training · ${ear.correct*10} points",fontWeight=FontWeight.SemiBold)
+                Text("${ear.correct}/${ear.attempts} correct · ${(100.0*ear.correct/ear.attempts).toInt()}% accuracy · best streak ${ear.bestStreak}",fontSize=12.sp)
+            }
+        }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("All","Scales","Sight reading","Score","Imported score").forEach {FilterChip(category==it,{category=it},label={Text(it)})}} }
         item { Panel(Modifier.fillMaxWidth()) {
             Text("Practice days · last 7 days",fontWeight=FontWeight.SemiBold)
@@ -231,7 +267,10 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         items(filtered,key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
             Text(s.title,fontWeight=FontWeight.SemiBold);Text(SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(s.date))+" · ${s.bpm.toInt()} BPM · ${s.mode}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)){Metric("${s.pitch.toInt()}%","pitch",Modifier.weight(1f));Metric(s.rhythm?.let{"${it.toInt()}%"}?:"—","rhythm",Modifier.weight(1f));Metric("${s.overall.toInt()}%","overall",Modifier.weight(1f))}
-            if(s.reviewFile!=null)TextButton(onClick={vm.openReview(s)}){Text("Review on score")}
+            if(s.reviewFile!=null)Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick={vm.openReview(s,false)}){Text("Review score")}
+                TextButton(onClick={vm.openReview(s,true)}){Text("Replay MIDI roll")}
+            }
             Text("${s.correct}/${s.expected} notes · ${s.extra} extra · ${s.missing} missing${if(s.simulated)" · TOUCH / TEST INPUT" else ""}",fontSize=12.sp)
         } }
     }
@@ -253,50 +292,77 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Text(remember{context.assets.open("piano/LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
         }
     })
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        PageTitle("Make it yours","Practice settings")
-        Panel(Modifier.fillMaxWidth()) {
-            Text("Piano sound",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                PianoSound.entries.forEach { sound -> FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
+    var section by remember {mutableStateOf("General")}
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Text("Settings",fontFamily=FontFamily.Serif,fontSize=29.sp)
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+            listOf("General","Practice","MIDI","About").forEach { tab ->
+                FilterChip(section==tab,{section=tab},modifier=Modifier.weight(1f),label={Text(tab,fontSize=11.sp,maxLines=1)})
             }
         }
-        Panel(Modifier.fillMaxWidth()) {
-            Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
-            Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
-            Text("Notes inside this onset window are on time. Chord notes may spread over a short interval.",fontSize=13.sp)
-            Text("Input latency compensation · ${s.latency.toInt()} ms",fontWeight=FontWeight.SemiBold)
-            Slider(s.latency.toFloat(),{v->vm.setSettings{it.copy(latency=v.toDouble())}},valueRange=-300f..300f,steps=119)
-            Text("Positive compensation subtracts input delay. Tap a piano key with the 12 clicks to estimate your combined input and tapping offset; use headphones or a low-volume piano.",fontSize=13.sp)
-            OutlinedButton(onClick={vm.calibrate()},enabled=!calibrating){Text(if(calibrating)"Tap with each click…" else "Calibrate with MIDI taps")}
-        }
-        Panel(Modifier.fillMaxWidth()) {
-            Text("Appearance",fontWeight=FontWeight.SemiBold)
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { ThemeMode.entries.forEach { mode ->
-                FilterChip(s.theme==mode,{vm.setSettings{it.copy(theme=mode)}},label={Text(mode.name.lowercase().replaceFirstChar{it.uppercase()})})
-            } }
-            Toggle("Touch piano with sound",s.simulator,{v->vm.setSettings{it.copy(simulator=v)}})
-            Text("Play on the phone without an instrument. Listen plays scores aloud; touch keys use a offline sampled grand piano. Touch practice is marked in history.",fontSize=13.sp)
-            TextButton(onClick={notices=true}){Text("Sound attribution and licence")}
-            TextButton(onClick={vm.screen.value="Note monitor"}){Text("Live note monitor")}
-            TextButton(onClick={vm.screen.value="Diagnostics"}){Text("MIDI diagnostics")}
-            TextButton(onClick={vm.screen.value="History"}){Text("Practice history")}
-        }
-        if(BuildConfig.SUPPORT_URL.isNotBlank())Panel(Modifier.fillMaxWidth()) {
-            Text("Help keep music accessible",fontWeight=FontWeight.SemiBold)
-            Text("Piano Path is free and has no ads. Voluntary support helps its continued development.",fontSize=13.sp)
-            OutlinedButton(onClick={support=true}){Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")}
-        }
-        Panel(Modifier.fillMaxWidth()) {
-            Text("About Piano Path",fontWeight=FontWeight.SemiBold)
-            Text("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",fontWeight=FontWeight.SemiBold)
-            Text(if(BuildConfig.DEBUG)"Development / debug APK" else "Release APK",
-                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Open source under MIT · Offline by design. No account, analytics, or network permission.",
-                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Piano sound: Alexander Holm, Salamander Grand (CC BY 3.0)\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)",
-                fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        when(section) {
+            "General" -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Appearance",fontWeight=FontWeight.SemiBold)
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        ThemeMode.entries.forEach {mode ->
+                            FilterChip(s.theme==mode,{vm.setSettings{it.copy(theme=mode)}},label={Text(mode.name.lowercase().replaceFirstChar{it.uppercase()})})
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("Piano sound",fontWeight=FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        PianoSound.entries.forEach {sound ->
+                            FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)})
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("Score padding · ${s.sheetMargin} px",fontWeight=FontWeight.SemiBold)
+                    Slider(s.sheetMargin.toFloat(),{v->vm.setSettings{it.copy(sheetMargin=v.toInt())}},valueRange=0f..32f)
+                }
+            }
+            "Practice" -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
+                    Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
+                    HorizontalDivider()
+                    Text("Input delay · ${s.latency.toInt()} ms",fontWeight=FontWeight.SemiBold)
+                    Slider(s.latency.toFloat(),{v->vm.setSettings{it.copy(latency=v.toDouble())}},valueRange=-300f..300f,steps=119)
+                    OutlinedButton(onClick={vm.calibrate()},enabled=!calibrating){Text(if(calibrating)"Calibrating…" else "Calibrate with MIDI")}
+                }
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Played-note history",fontWeight=FontWeight.SemiBold)
+                    Text("Visible notes · ${s.playedNoteCount} (maximum 32)",fontSize=13.sp)
+                    Slider(s.playedNoteCount.toFloat(),{v->vm.setSettings{it.copy(playedNoteCount=v.toInt())}},valueRange=1f..32f,steps=30)
+                    HorizontalDivider()
+                    Text("Insert pause after · ${"%.1f".format(s.noteGapMs/1000.0)} s",fontSize=13.sp)
+                    Slider(s.noteGapMs.toFloat(),{v->vm.setSettings{it.copy(noteGapMs=(v/500).toInt()*500)}},valueRange=500f..10000f,steps=18)
+                    Text("Durations appear after releasing a key; note values are approximate.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            "MIDI" -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Your piano",fontWeight=FontWeight.SemiBold)
+                    Text(if(vm.midi.state.collectAsStateWithLifecycle().value.connected)"Connected" else "Disconnected")
+                    OutlinedButton(onClick={vm.screen.value="Connect"},modifier=Modifier.fillMaxWidth()){Text("Connection")}
+                    OutlinedButton(onClick={vm.screen.value="Note monitor"},modifier=Modifier.fillMaxWidth()){Text("Played notes")}
+                    OutlinedButton(onClick={vm.screen.value="Diagnostics"},modifier=Modifier.fillMaxWidth()){Text("MIDI diagnostics")}
+                }
+                Text("The on-screen piano is always playable.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            else -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("About Piano Path",fontWeight=FontWeight.SemiBold)
+                    Text("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",fontWeight=FontWeight.SemiBold)
+                    Text(if(BuildConfig.DEBUG)"Development APK" else "Release APK",fontSize=12.sp)
+                    Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp)
+                    Text("Open source · offline · no account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick={notices=true}){Text("Sound attribution and licences")}
+                }
+                if(BuildConfig.SUPPORT_URL.isNotBlank())OutlinedButton(onClick={support=true}) {
+                    Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")
+                }
+            }
         }
     }
 }
