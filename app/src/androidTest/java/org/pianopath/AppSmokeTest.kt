@@ -133,7 +133,7 @@ class AppSmokeTest {
             }
         }
         compose.waitUntil(10_000){tapped.get()}
-        compose.waitForIdle()
+        compose.waitUntil(10_000) { vm.ui.value.transportBeat >= 1.5 || diagnostic.get().contains("error") }
         assertTrue("Tapping a score note should seek near its beat. JS=${diagnostic.get()} transport=${vm.ui.value.transportBeat}",
             vm.ui.value.transportBeat>=1.5)
     }
