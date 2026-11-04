@@ -105,28 +105,37 @@ class AppSmokeTest {
         compose.waitUntil(30_000) {
             compose.runOnUiThread {
                 find(compose.activity.window.decorView)?.evaluateJavascript(
-                    "typeof entries!=='undefined' && entries.length>5 && ready"
+                    "typeof entries!=='undefined' && entries.length>5 && ready && canSeek && hitGroups.length>0"
                 ){if(it=="true")rendered.set(true)}
             }
             rendered.get()
         }
         val tapped=AtomicBoolean(false)
+        val diagnostic=java.util.concurrent.atomic.AtomicReference("No JS result")
         compose.runOnUiThread {
             find(compose.activity.window.decorView)?.evaluateJavascript("""
                 (() => {
                   const e=entries.find(n=>n.beat>=2 && n.staff===1);
-                  if(!e)return false;
+                  if(!e)return JSON.stringify({error:'No note at beat 2'});
                   const pt=e.svg.createSVGPoint();pt.x=e.x;pt.y=e.y;
-                  const pos=pt.matrixTransform(e.svg.getScreenCTM());
+                  const matrix=e.svg.getScreenCTM();
+                  if(!matrix)return JSON.stringify({error:'SVG transform missing'});
+                  const pos=pt.matrixTransform(matrix);
+                  const mapped=beatAtClient(pos.x,pos.y);
                   document.getElementById('score').dispatchEvent(new MouseEvent('click',{
                     bubbles:true,clientX:pos.x,clientY:pos.y
                   }));
-                  return true;
+                  return JSON.stringify({beat:e.beat,mapped:mapped,ready:ready,seek:canSeek,groups:hitGroups.length});
                 })()
-            """.trimIndent()){if(it=="true")tapped.set(true)}
+            """.trimIndent()) { value ->
+                diagnostic.set(value)
+                tapped.set(value.contains("mapped"))
+            }
         }
-        compose.waitUntil(10_000){tapped.get() && vm.ui.value.transportBeat>=1.5}
-        assertTrue("Tapping score noteheads must seek to their beat",vm.ui.value.transportBeat>=1.5)
+        compose.waitUntil(10_000){tapped.get()}
+        compose.waitForIdle()
+        assertTrue("Tapping a score note should seek near its beat. JS=${diagnostic.get()} transport=${vm.ui.value.transportBeat}",
+            vm.ui.value.transportBeat>=1.5)
     }
     @Test fun cursorSeekEndsScoredTakeAndMovesNextPracticeStart() {
         lateinit var vm: PianoViewModel
