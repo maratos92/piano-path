@@ -144,7 +144,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         item { Panel(Modifier.fillMaxWidth()) {
             Text("Pieces & free play",fontWeight=FontWeight.SemiBold)
             if(p.score!=null) Button(onClick={vm.screen.value="Practice"},modifier=Modifier.fillMaxWidth()){
-                Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score.title}",maxLines=1)
+                Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score?.title ?: "Current score"}",maxLines=1)
             }
             OutlinedButton(onClick={vm.screen.value="Library"},modifier=Modifier.fillMaxWidth()){Text("Choose a piece from Library")}
             OutlinedButton(onClick={vm.playWithoutPiano()},modifier=Modifier.fillMaxWidth()){Text("Free play · 88 keys")}
