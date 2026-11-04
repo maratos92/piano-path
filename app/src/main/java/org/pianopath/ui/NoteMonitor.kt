@@ -113,7 +113,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
         LiveNotes(vm)
         Row(Modifier.fillMaxWidth()) {
             Text("Sustain: ${if(midi.sustain)"down" else "up"}",fontSize=12.sp,modifier=Modifier.weight(1f))
-            TextButton(onClick=vm.clearPlayedSequence()){Text("Clear")}
+            TextButton(onClick={vm.clearPlayedSequence()}){Text("Clear")}
         }
         TextButton(onClick={vm.screen.value="Settings"}){Text("Display settings")}
         TextButton(onClick={vm.screen.value="Diagnostics"}){Text("MIDI events")}
