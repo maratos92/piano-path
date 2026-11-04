@@ -22,6 +22,8 @@ import org.pianopath.PracticeUi
             settings.javaScriptEnabled=true
             settings.allowFileAccess=false; settings.allowContentAccess=false
             settings.domStorageEnabled=false
+            // Respect the device-width viewport instead of scaling a long SVG to fit.
+            settings.useWideViewPort=true;settings.loadWithOverviewMode=false
             settings.setSupportZoom(true);settings.builtInZoomControls=true;settings.displayZoomControls=false
             webViewClient=object: WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView,request: WebResourceRequest)=true

@@ -117,3 +117,9 @@ Browser pointer tests additionally reproduced three gesture defects: rebuilt han
 
 
 Verification: 83 local JVM tests, debug/instrumentation build and debug lint passed. Browser renderer and the slur/tie/zoom/loop/pointer regression passed. The first CI run correctly failed its signing pin: the restored cached key does not sign the published dev.3 APK. Publication and upgrade checks remain blocked until the SAME published key is restored. Source phone/tablet tests run independently of that delivery gate. Public certificate/path diagnostics are provided; no private key bytes are printed or uploaded. Do not weaken the pin or claim that these changes are shipped before this is resolved.
+
+
+Signing root cause confirmed by CI `signingReport`: AGP uses `/home/runner/.config/.android/debug.keystore` while the workflow cached `/home/runner/.android/debug.keystore`. The cached key has public fingerprint `d9adde74c012f99f451d7ac2618a8bd62959deccc1b6073675745f9581e9415e`, different from published dev.3 `1b7982e8fdb44fdc9316ca57da6444e211b7788f6a04ef100580cff69f158681`. A new random candidate used yet another key. Gradle now explicitly selects `PIANO_DEBUG_KEYSTORE_PATH` supplied after restore. The pin remains unchanged; restoring the unused cached key is not enough to upgrade dev.3. An original dev.3 key backup or an owner-approved, verified data-preserving migration is required. Do not pretend to recover a private key from an APK or silently replace the pin.
+
+
+First source emulator run: 15/16 tests passed on both API35 tablet and API36 phone. The new scroll test caught WebView reporting an entire 2026px horizontal score as its viewport (zero horizontal travel). Enable `useWideViewPort` and disable overview fitting so the device-width meta viewport is honored. Rerun native tests on this fix before claiming 16/16 passed.

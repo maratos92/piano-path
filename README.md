@@ -6,13 +6,13 @@
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**Current build: 0.4.0-dev.4 (code 6).** In the app, open **Settings → About → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+**Published build: 0.4.0-dev.3 (code 6). Proposed update: 0.4.0-dev.4 (code 7), [PR #4](https://github.com/maratos92/piano-path/pull/4), not yet published.** In the app, open **Settings → About → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
 
-> **Update/signature note:** CI now caches a personal-test debug signing certificate so successive APKs should install over one another. The first switch from the old signing certificate may still require one uninstall, and GitHub may eventually evict the cache. For reliable long-term updates use a permanent privately stored signing key. Uninstalling can delete local scores/history; back them up first.
+> **Update/signature note:** the update must retain the published certificate. The dev.4 CI gate found that the workflow cached a different path from the key AGP actually used for dev.3, so publication is blocked. Restore the same private key before publishing. Do not uninstall your main app to bypass the error; that can delete imported scores and history.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The current development app is version 0.4.0-dev.4: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The source on this branch is version 0.4.0-dev.4: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
@@ -86,7 +86,7 @@ The first build needs network access for dependencies. The installed app works o
 python3 scripts/test_notation.py
 ```
 
-GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone and API 35 tablet emulator tests. The project is published at https://github.com/maratos92/piano-path. [The release-candidate run](https://github.com/maratos92/piano-path/actions/runs/41674522753) passed 77 JVM tests and 9 Android tests on each phone/tablet emulator. The preview-publishing workflow verifies the delivered APK checksum and publishes that exact development-signed binary; it does not expose any signing key. Separately rebuilt CI debug APKs use disposable CI keys, so they may require uninstalling an earlier debug build before installation. [Signed-release procedure](docs/RELEASE.md), [architecture](docs/ARCHITECTURE.md), [FP-10 testing](docs/FP10_TESTING.md), [validation](docs/VALIDATION.md), [third-party notices](docs/DEPENDENCIES.md).
+GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone and API 35 tablet emulator tests. The project is published at https://github.com/maratos92/piano-path. [The release-candidate run](https://github.com/maratos92/piano-path/actions/runs/41674522753) passed 77 JVM tests and 9 Android tests on each phone/tablet emulator. The preview-publishing workflow verifies the delivered APK checksum and publishes that exact development-signed binary; it does not expose any signing key. This is historical 0.3 evidence. The dev.4 source passed 83 local JVM tests, debug/instrumentation builds, lint and browser scrolling/gesture checks. Current source emulator results are tracked in PR #4; delivery remains blocked by the signer mismatch. [Signed-release procedure](docs/RELEASE.md), [architecture](docs/ARCHITECTURE.md), [FP-10 testing](docs/FP10_TESTING.md), [validation](docs/VALIDATION.md), [third-party notices](docs/DEPENDENCIES.md).
 
 ## Important practical limits
 

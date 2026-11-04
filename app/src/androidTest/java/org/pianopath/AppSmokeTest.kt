@@ -113,7 +113,7 @@ class AppSmokeTest {
                   window.scrollCheck={done:true,count:samples.length,measures:new Set(entries.map(e=>e.measure)).size,
                     ySpread:spread('y'),heightSpread:spread('height'),xTravel:spread('x'),
                     backwards:samples.slice(1).filter((s,i)=>s.x<samples[i].x-1).length,
-                    viewport:{width:innerWidth,height:innerHeight}};
+                    viewport:{width:innerWidth,height:innerHeight,visualWidth:visualViewport?.width,documentWidth:document.scrollingElement.scrollWidth}};
                 }catch(e){window.scrollCheck={done:true,error:String(e)}}
               })();
             })()
