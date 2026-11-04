@@ -239,7 +239,13 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
     }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { PageTitle("Every repetition counts","Your progress", "Pitch and rhythm are tracked separately, on this device.") }
+        item { PageTitle("History","Your progress") }
+        item { val ear by vm.ear.collectAsStateWithLifecycle()
+            if(ear.attempts>0)Panel(Modifier.fillMaxWidth()) {
+                Text("Ear training · ${ear.correct*10} points",fontWeight=FontWeight.SemiBold)
+                Text("${ear.correct}/${ear.attempts} correct · ${(100.0*ear.correct/ear.attempts).toInt()}% accuracy · best streak ${ear.bestStreak}",fontSize=12.sp)
+            }
+        }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("All","Scales","Sight reading","Score","Imported score").forEach {FilterChip(category==it,{category=it},label={Text(it)})}} }
         item { Panel(Modifier.fillMaxWidth()) {
             Text("Practice days · last 7 days",fontWeight=FontWeight.SemiBold)
@@ -261,7 +267,10 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         items(filtered,key={it.id}) { s -> Panel(Modifier.fillMaxWidth()) {
             Text(s.title,fontWeight=FontWeight.SemiBold);Text(SimpleDateFormat("MMM d, HH:mm",Locale.getDefault()).format(Date(s.date))+" · ${s.bpm.toInt()} BPM · ${s.mode}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)){Metric("${s.pitch.toInt()}%","pitch",Modifier.weight(1f));Metric(s.rhythm?.let{"${it.toInt()}%"}?:"—","rhythm",Modifier.weight(1f));Metric("${s.overall.toInt()}%","overall",Modifier.weight(1f))}
-            if(s.reviewFile!=null)TextButton(onClick={vm.openReview(s)}){Text("Review on score")}
+            if(s.reviewFile!=null)Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick={vm.openReview(s,false)}){Text("Review score")}
+                TextButton(onClick={vm.openReview(s,true)}){Text("Replay MIDI roll")}
+            }
             Text("${s.correct}/${s.expected} notes · ${s.extra} extra · ${s.missing} missing${if(s.simulated)" · TOUCH / TEST INPUT" else ""}",fontSize=12.sp)
         } }
     }
