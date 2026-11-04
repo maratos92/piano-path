@@ -145,8 +145,8 @@ fun modeName(m: PracticeMode)=when(m){PracticeMode.FREE->"Free play";PracticeMod
 fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Hand.BOTH->"Both hands"}
 @Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,close: ()->Unit) {
     val score=p.score ?: return
-    val settings by vm.settings.collectAsStateWithLifecycle()
     var sectionName by remember{mutableStateOf("")}
+    var advanced by remember{mutableStateOf(false)}
     ModalBottomSheet(onDismissRequest=close) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Shape your practice",fontFamily=FontFamily.Serif,fontSize=28.sp)
@@ -165,30 +165,27 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             }+if(score.tempoMarks.size>6)" …" else "",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(score.expressiveTempo)Text("Expressive tempo text (e.g. accelerando or ritardando) detected; words alone do not define an exact BPM curve.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows explicit BPM changes; scored Practice uses your selected fixed tempo.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Piano sound",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                PianoSound.entries.forEach { sound -> FilterChip(settings.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),enabled=!(p.running || p.listening),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
-            }
             HorizontalDivider()
-            Text("Passage · drag handles to select a loop",fontWeight=FontWeight.SemiBold)
+            Text("Loop · drag A/B on the sheet",fontWeight=FontWeight.SemiBold)
             val from=score.measures[p.startMeasure-1].start+p.startOffset
             val to=score.measures[p.endMeasure-1].start+p.endOffset
             RangeSlider(value=from.toFloat()..to.toFloat(),onValueChange={vm.setPassage(it.start.toDouble(),it.endInclusive.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.25f),enabled=!(p.running || p.listening))
-            Text("Selection: beat ${"%.1f".format(from)}–${"%.1f".format(to)} of ${"%.1f".format(score.endBeat)}",fontSize=12.sp)
+            Text("A ${"%.1f".format(from)}  →  B ${"%.1f".format(to)}",fontSize=12.sp)
+            TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide fine adjustments" else "Fine adjustments")}
+            if(advanced) {
             MeasureStepper("From measure",p.startMeasure,score.measures.size,!(p.running || p.listening)) { n -> vm.edit { val end=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=end,startOffset=0.0,endOffset=score.measures[end-1].length) } }
             MeasureStepper("Through measure",p.endMeasure,score.measures.size,!(p.running || p.listening)) { n -> vm.edit { val start=min(n,it.startMeasure);it.copy(startMeasure=start,endMeasure=n,startOffset=0.0,endOffset=score.measures[n-1].length) } }
             Text("Start offset · ${"%.2f".format(p.startOffset)} quarter beats",fontSize=12.sp)
             Slider(p.startOffset.toFloat(),{v->vm.edit{it.copy(startOffset=v.toDouble())}},valueRange=0f..(score.measures[p.startMeasure-1].length-.25).coerceAtLeast(.25).toFloat(),enabled=!(p.running || p.listening))
             Text("End offset · ${"%.2f".format(p.endOffset)} quarter beats",fontSize=12.sp)
             Slider(p.endOffset.toFloat(),{v->vm.edit{it.copy(endOffset=v.toDouble())}},valueRange=.25f..score.measures[p.endMeasure-1].length.toFloat().coerceAtLeast(.26f),enabled=!(p.running || p.listening))
-            Toggle("Loop selected passage",p.loop,{v->vm.edit{it.copy(loop=v)}},!(p.running || p.listening))
+            }
+            Toggle("Repeat A–B passage",p.loop,{v->vm.edit{it.copy(loop=v)}},!(p.running || p.listening))
             Toggle("Count in each repetition",p.countIn,{v->vm.edit{it.copy(countIn=v)}},!(p.running || p.listening))
             Toggle("Metronome",p.metronome,{v->vm.edit{it.copy(metronome=v)}},!(p.running || p.listening))
-            Toggle("Raise tempo by 4 BPM after 90%",p.autoTempo,{v->vm.edit{it.copy(autoTempo=v)}},!(p.running || p.listening))
+            if(p.loop)Toggle("Adaptive tempo · +4 BPM after ≥90% score",p.autoTempo,{v->vm.edit{it.copy(autoTempo=v)}},!(p.running || p.listening))
             Toggle("Horizontal score layout",p.horizontal,{v->vm.edit{it.copy(horizontal=v)}},!(p.running || p.listening))
-            Text("Score side margin · ${p.sheetMargin} px",fontSize=12.sp)
-            Slider(p.sheetMargin.toFloat(),{v->vm.edit{it.copy(sheetMargin=v.toInt())}},valueRange=0f..32f,enabled=!(p.running || p.listening))
             OutlinedTextField(sectionName,{sectionName=it},label={Text("Passage name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!(p.running || p.listening))
             OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkAdd,null);Spacer(Modifier.width(8.dp));Text("Save passage")}
             p.sections.forEach { s->TextButton(onClick={vm.useSection(s)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkBorder,null);Spacer(Modifier.width(8.dp));Text("${s.name} · ${s.bpm.toInt()} BPM")} }
