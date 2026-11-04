@@ -32,9 +32,10 @@ data class PracticeUi(val score: Score? = null, val xml: String = "", val key: S
     val view: ScoreView = ScoreView.FALLING, val listening: Boolean = false,
     val transportBeat: Double = 0.0, val playbackHeld: Set<Int> = emptySet(),
     val paused: Boolean = false)
-data class EarUi(val octaves: Int = 1, val voices: Int = 1, val target: Set<Int> = emptySet(),
+data class EarUi(val startOctave: Int = 4, val octaves: Int = 1, val voices: Int = 1, val target: Set<Int> = emptySet(),
     val guesses: Set<Int> = emptySet(), val revealed: Boolean = false, val correct: Int = 0,
-    val attempts: Int = 0, val feedback: String = "Choose a range and hear a question.")
+    val attempts: Int = 0, val streak: Int = 0, val bestStreak: Int = 0,
+    val feedback: String = "Choose a range and hear a question.")
 
 data class NoteCapture(val pitch: Int, val channel: Int, val startedNs: Long, val durationMs: Long? = null)
 
@@ -75,7 +76,9 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun clearPlayedSequence(){activeKeyStarts.clear();playedSequence.value=emptyList()}
-    val ear = MutableStateFlow(EarUi())
+    val ear = MutableStateFlow(EarUi(correct=preferences.getInt("earCorrect",0),
+        attempts=preferences.getInt("earAttempts",0),streak=preferences.getInt("earStreak",0),
+        bestStreak=preferences.getInt("earBestStreak",0)))
     private var earPlayback: Job?=null
     val screen = MutableStateFlow("Home")
     val calibrating = MutableStateFlow(false)
@@ -116,12 +119,18 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     /** Ear training uses outgoing audio only; questions never feed generated MIDI into the scorer. */
-    fun earQuestion(octaves: Int,voices: Int) {
-        val count=voices.coerceIn(1,3)
-        val span=octaves.coerceIn(1,3)
-        val pitches=(60..(60+span*12)).shuffled().take(count).toSet()
+    fun earQuestion(octaves: Int,voices: Int) = earQuestion(4,octaves,voices)
+    /** Choose any C1..C7 start and 1..3 octaves within the 88-key C8 limit. */
+    fun earQuestion(startOctave: Int,octaves: Int,voices: Int) {
         val previous=ear.value
-        ear.value=previous.copy(octaves=span,voices=count,target=pitches,guesses=emptySet(),revealed=false,feedback="Listen, then select the notes you heard.")
+        if(previous.target.isNotEmpty() && !previous.revealed)return
+        val from=startOctave.coerceIn(1,7)
+        val span=octaves.coerceIn(1,minOf(3,8-from))
+        val count=voices.coerceIn(1,3)
+        val first=(from+1)*12
+        val pitches=(first..minOf(108,first+span*12)).shuffled().take(count).toSet()
+        ear.value=previous.copy(startOctave=from,octaves=span,voices=count,target=pitches,guesses=emptySet(),revealed=false,
+            feedback="Listen and find the notes.")
         earReplay()
     }
     fun earReplay() {
@@ -138,7 +147,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     }
     fun earGuess(pitch: Int) {
         val p=ear.value
-        if(p.target.isEmpty() || p.revealed || pitch !in 60..(60+p.octaves*12))return
+        if(p.target.isEmpty() || p.revealed || pitch !in (p.startOctave+1)*12..minOf(108,(p.startOctave+1)*12+p.octaves*12))return
         ear.value=p.copy(guesses=if(pitch in p.guesses)p.guesses-pitch else p.guesses+pitch)
     }
     fun earClear() {ear.value=ear.value.copy(guesses=emptySet())}
@@ -146,8 +155,13 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         val p=ear.value
         if(p.target.isEmpty() || p.revealed || p.guesses.isEmpty())return
         val right=p.guesses==p.target
-        ear.value=p.copy(revealed=true,attempts=p.attempts+1,correct=p.correct+if(right)1 else 0,
-            feedback=if(right)"Correct! You identified every pitch." else "Not quite. Compare your answer with the revealed notes.")
+        val streak=if(right)p.streak+1 else 0
+        val updated=p.copy(revealed=true,attempts=p.attempts+1,correct=p.correct+if(right)1 else 0,
+            streak=streak,bestStreak=maxOf(p.bestStreak,streak),
+            feedback=if(right)"Correct! +10 points" else "Try the next question.")
+        ear.value=updated
+        preferences.edit().putInt("earCorrect",updated.correct).putInt("earAttempts",updated.attempts)
+            .putInt("earStreak",updated.streak).putInt("earBestStreak",updated.bestStreak).apply()
     }
     fun setSettings(change: (AppSettings)->AppSettings) {
         val previous=settings.value
