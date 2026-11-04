@@ -33,10 +33,11 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
 /** Last N notes in time order, with rests for gaps longer than the configured threshold. */
 @Composable fun LiveNotes(vm: PianoViewModel,modifier: Modifier=Modifier) {
     val all by vm.playedSequence.collectAsStateWithLifecycle()
+    val isIdle by vm.playedIdle.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val practice by vm.ui.collectAsStateWithLifecycle()
     val notes=all.takeLast(settings.playedNoteCount)
-    val tokens=remember(notes,settings.noteGapMs) {
+    val tokens=remember(notes,settings.noteGapMs,isIdle) {
         buildList<NoteCapture?> {
             notes.forEachIndexed {index,n->
                 if(index>0) {
@@ -46,6 +47,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                 }
                 add(n)
             }
+            if(isIdle && notes.isNotEmpty()) add(null)
         }
     }
     if(tokens.isEmpty()) {
