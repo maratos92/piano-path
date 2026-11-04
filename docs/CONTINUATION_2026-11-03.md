@@ -1,5 +1,18 @@
 # Practice workspace refresh — continuation notes (2026-11-03)
 
+## Later owner-directed follow-up: score scrubbing and sample-free library
+
+- Branch `codex/score-scrub-cleanup-2026-11-03` adds pointer-hit-test mapping from OSMD SVG noteheads/measure geometry into beat numbers. The blue cursor has a touch target and grip. Sheet, Both, and popup connect it through `Android.seek` to ViewModel.seek. Tapping notation also seeks.
+- All score/bar seeks work during Listen and when stopped. During graded Practice they terminate the current take, seek, and move the selected passage start, so starting Practice again really begins at that position. This deliberately changes the current practice range instead of corrupting results.
+- On-screen piano keys accept touch alongside Listen without requiring the Touch piano switch. They remain on MIDI channel 0; generated playback remains on channels 1–15.
+- Ear training now labels C4–C5, C4–C6 and C4–C7 explicitly and zooms/dims the keyboard to focus on the chosen register.
+- Sight reading now has a directly selectable 40–200 BPM tempo; Sight/Scale setup groups are divided and concise.
+- Owner explicitly rejected the external repertoire links and the 50 generated example-score miniatures. **They are removed**, along with the generator/catalogue. Library shows only user-imported MusicXML/MXL; Home defaults to a generated C-major scale. The Scales and Sight reading exercise generators are still available. Do not silently reintroduce bundled demo pieces or third-party links.
+- Bluetooth code and manifest permissions are unchanged from 0.3.0. Connection status on a physical FP-10 still needs owner verification; check Nearby Devices permission after reinstall, and diagnostics for MIDI ON/OFF events.
+- Regression map: `app/ui/Notation.kt`, `assets/notation/index.html` (score gestures), `PianoViewModel.kt` (safe seek and Listen touch), `app/ui/Keyboard.kt`/`EarTraining.kt` (octave focus), `Training.kt`, `Storage.kt`, `App.kt`, and `app/src/androidTest`. `scripts/test_notation.py` now builds a test-only score in memory.
+- The earlier sections below describe the initial 0.4.0-dev.1 implementation. Where they mention 50 bundled miniatures or disabled scored seeks, **this follow-up supersedes those statements**.
+
+
 This branch is intentionally separate from `main`. It addresses the owner's feedback across score
 display, timing, musical exercises, sound and navigation. **Do not merge blindly:** run
 `./gradlew :core:test :app:lintDebug :app:assembleDebug` and emulator/physical-MIDI checks.

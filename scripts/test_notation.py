@@ -11,8 +11,17 @@ with sync_playwright() as p:
  failures=[]
  page.on('pageerror',lambda err: failures.append(str(err)))
  page.on('console',lambda msg: failures.append(msg.text) if msg.type=='warning' else None)
- xml=(ASSETS/'scores/study-1-01.musicxml').read_text()
- page.add_init_script('window.Android={score:()=>'+json.dumps(xml)+',ready:()=>{window.androidReady=true},error:e=>{window.androidError=e}}')
+ # A test-only inline fixture, not bundled in the Android APK.
+ head='''<?xml version="1.0" encoding="utf-8"?><score-partwise version="4.0">
+ <work><work-title>Renderer test</work-title></work><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">'''
+ measures=[]
+ for number in range(1,5):
+  attrs='''<attributes><divisions>4</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>''' if number==1 else ''
+  def notes(octave,staff):
+   return ''.join(f'<note><pitch><step>{step}</step><octave>{octave}</octave></pitch><duration>4</duration><type>quarter</type><voice>{staff}</voice><staff>{staff}</staff></note>' for step in ('C','D','E','F'))
+  measures.append(f'<measure number="{number}">{attrs}{notes(4,1)}<backup><duration>16</duration></backup>{notes(3,2)}</measure>')
+ xml=head+''.join(measures)+'</part></score-partwise>'
+ page.add_init_script('window.Android={score:()=>'+json.dumps(xml)+',ready:()=>{window.androidReady=true},seek:beat=>{window.seekedBeat=beat},error:e=>{window.androidError=e}}')
  page.route('http://piano.test/**',lambda route: route.fulfill(path=str(ASSETS/'notation'/route.request.url.split('/')[-1])))
  page.goto('http://piano.test/index.html')
  page.wait_for_function('window.androidReady || window.androidError',timeout=60000)
@@ -47,11 +56,16 @@ with sync_playwright() as p:
  assert page.locator('[data-take-id]').count()==2
  page.screenshot(path=str(ROOT/'docs/notation-dark-horizontal.png'),full_page=True)
  assert not failures,failures
- rendered=[]
- for file in sorted((ASSETS/'scores').glob('*.musicxml')):
-  count=page.evaluate('async xml=>{await osmd.load(xml);osmd.render();indexNotes();return entries.length}',file.read_text())
-  assert count>20,(file.name,count)
-  rendered.append(file.name)
+ # Touching another measure must post the estimated musical beat to Android.seek.
+ page.evaluate('''() => {
+   const e=entries.find(n=>n.beat>=6&&n.staff===1),svg=e.svg,rect=svg.getBoundingClientRect();
+   const scale=rect.width/svg.viewBox.baseVal.width;
+   document.getElementById('score').dispatchEvent(new MouseEvent('click',{bubbles:true,
+     clientX:rect.left+e.x*scale,clientY:rect.top+e.y*scale}));
+ }''')
+ assert page.evaluate('window.seekedBeat')>=5.5,'Score tap must seek to the touched beat'
+ assert page.locator('#playhead').get_attribute('aria-label').startswith('Blue score cursor')
+ assert page.locator('#playhead').evaluate('(el)=>getComputedStyle(el).pointerEvents')=='auto'
  assert not failures,failures
- print(json.dumps({'scoresRendered':len(rendered),'renderer':'OSMD 1.9.2','graphicalNotes':count,'firstNotes':values,'svg':page.locator('svg').count(),'errors':failures}))
+ print(json.dumps({'testFixture':'four measures with both staves','renderer':'OSMD 1.9.2','graphicalNotes':count,'firstNotes':values,'svg':page.locator('svg').count(),'seekBeat':page.evaluate('window.seekedBeat'),'errors':failures}))
  browser.close()

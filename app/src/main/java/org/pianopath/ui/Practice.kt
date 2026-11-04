@@ -85,10 +85,10 @@ import kotlin.math.*
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
-                    ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}
+                    ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}
                     ScoreView.FALLING -> FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}}
+                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}}
                         HorizontalDivider()
                         Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())}
                     }
@@ -100,13 +100,13 @@ import kotlin.math.*
                     Text(p.counting.toString(),fontSize=48.sp,color=Color.White,modifier=Modifier.padding(horizontal=30.dp,vertical=8.dp))
                 }
             }
-            KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,settings.simulator,vm::key,
+            KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,settings.simulator || p.listening,vm::key,
                 if(landscape)64 else 100,keyZoom,keyPan,p.playbackHeld)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(p.feedback,fontSize=12.sp,maxLines=1)
-                if(!landscape)Text(if(midi.connected)"MIDI connected" else if(settings.simulator)"Touch keys play sound · no piano needed" else "Use Listen, Touch piano, or connect MIDI",fontSize=10.sp,maxLines=1)
+                if(!landscape)Text(if(p.listening)"Tap keys to play along" else if(midi.connected)"MIDI connected" else if(settings.simulator)"Touch piano ready" else "Connect a piano or tap Touch piano",fontSize=10.sp,maxLines=1)
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.listening)Icons.Outlined.Stop else Icons.Outlined.VolumeUp,null,Modifier.size(18.dp))
@@ -120,7 +120,7 @@ import kotlin.math.*
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("Piece",fontSize=11.sp)
-            Slider(value=p.transportBeat.toFloat().coerceIn(0f,score.endBeat.toFloat()),onValueChange={vm.seek(it.toDouble())},enabled=!p.running,
+            Slider(value=p.transportBeat.toFloat().coerceIn(0f,score.endBeat.toFloat()),onValueChange={vm.seek(it.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f),modifier=Modifier.weight(1f).height(34.dp))
             Text("m.${score.measures.lastOrNull {it.start<=p.transportBeat+.0001}?.number ?: 1}/${score.measures.size}",fontSize=11.sp)
         }
@@ -137,7 +137,7 @@ import kotlin.math.*
                     Text("Score · floating view",Modifier.weight(1f).padding(start=16.dp),fontWeight=FontWeight.SemiBold)
                     IconButton(onClick={scorePopup=false}){Icon(Icons.Outlined.Close,"Close floating score")}
                 }
-                Notation(p,Modifier.weight(1f).fillMaxWidth(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}
+                Notation(p,Modifier.weight(1f).fillMaxWidth(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}
             }
         }
     }
@@ -156,8 +156,11 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             if(p.running || p.listening)Text("Stop playback or finish practice to change these settings.",color=MaterialTheme.colorScheme.primary)
             Text("Mode",fontWeight=FontWeight.SemiBold)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { PracticeMode.entries.forEach { mode-> FilterChip(p.mode==mode,{vm.edit{it.copy(mode=mode)}},enabled=!(p.running || p.listening),label={Text(modeName(mode))}) } }
-            Text(when(p.mode){PracticeMode.FREE->"Live MIDI display. No score or timing assessment.";PracticeMode.FOLLOW->"Start on the first expected note. The follower adapts gradually to your timing. Written order is followed; repeats are not unfolded.";PracticeMode.WAIT->"Complete each chord to advance. Pitch is assessed; rhythm and duration are not scored.";PracticeMode.RHYTHM->"Play on the metronome timeline. Early, late, missing notes and releases are assessed."},fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(when(p.mode){PracticeMode.FREE->"No scoring";PracticeMode.FOLLOW->"Follows your playing";PracticeMode.WAIT->"Waits for each chord";PracticeMode.RHYTHM->"Scores timing and pitch"},fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider()
+            Text("Hands",fontWeight=FontWeight.SemiBold)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { Hand.entries.forEach { h-> FilterChip(p.hand==h,{vm.edit{it.copy(hand=h)}},enabled=!(p.running || p.listening),label={Text(handName(h))}) } }
+            HorizontalDivider()
             Text("Tempo · ${p.bpm.toInt()} BPM",fontWeight=FontWeight.SemiBold)
             Slider(p.bpm.toFloat(),{v->vm.edit{it.copy(bpm=v.toDouble())}},valueRange=30f..240f,steps=209,enabled=!(p.running || p.listening))
             if(score.tempoMarks.isNotEmpty())Text("Score tempo markings: "+score.tempoMarks.take(6).joinToString { mark ->
@@ -169,7 +172,6 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 PianoSound.entries.forEach { sound -> FilterChip(settings.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),enabled=!(p.running || p.listening),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
             }
-            Text("Grand uses acoustic samples; mellow and bright are offline synthesized alternatives. All are polyphonic.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
             Text("Passage · drag handles to select a loop",fontWeight=FontWeight.SemiBold)
             val from=score.measures[p.startMeasure-1].start+p.startOffset
@@ -193,7 +195,6 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             OutlinedTextField(sectionName,{sectionName=it},label={Text("Passage name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!(p.running || p.listening))
             OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkAdd,null);Spacer(Modifier.width(8.dp));Text("Save passage")}
             p.sections.forEach { s->TextButton(onClick={vm.useSection(s)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkBorder,null);Spacer(Modifier.width(8.dp));Text("${s.name} · ${s.bpm.toInt()} BPM")} }
-            if(p.guidance.isNotBlank())Text(p.guidance,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick=close,modifier=Modifier.fillMaxWidth()){Text("Back to score")}
         }
     }

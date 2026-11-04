@@ -32,10 +32,11 @@ class ExercisesTest {
         for(level in 0..3)for(beats in listOf(3,4,6))for(hand in Hand.entries){val e=Exercises.sight(level,beats=beats,hand=hand,seed=123);val parsed=MusicXml.parse(e.xml);assertEquals(e.score.endBeat,parsed.endBeat,.001);assertTrue(e.score.notes.all{n->n.duration>0 && n.beat+n.duration<=e.score.measures[n.measure-1].let{it.start+it.length}+.001})}
     }
     @Test fun singleHandExercisesHaveOnlyOnePitchedStaff() {for(h in listOf(Hand.LEFT,Hand.RIGHT)){assertTrue(Exercises.sight(hand=h,seed=1).score.notes.all{it.hand==h})}}
-    @Test fun packagedLibraryContainsFiftyLegalParsableStudies() {
-        val dir=File("../app/src/main/assets/scores");val files=dir.listFiles{f->f.extension=="musicxml"} ?: emptyArray()
-        assertEquals(50,files.size)
-        for(f in files){val xml=f.readText();assertTrue(xml.contains("CC0-1.0"));val score=MusicXml.parse(xml);assertTrue(score.notes.count{!it.rest}>20);assertTrue(score.measures.size>=8)}
+    @Test fun noGeneratedDemoScoresArePackaged() {
+        val dir=File("../app/src/main/assets/scores")
+        val files=dir.listFiles{f->f.extension=="musicxml"} ?: emptyArray()
+        assertTrue("Bundled demo scores were explicitly removed",files.isEmpty())
+        assertFalse("Old generated catalogue must not be packaged",File(dir,"catalog.json").exists())
     }
     @Test fun fMajorRightHandEndsWithFour() { assertEquals("4",Exercises.scale(5,hand=Hand.RIGHT,descending=false).score.notes.last().finger) }
 }

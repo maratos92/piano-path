@@ -40,14 +40,22 @@ import org.pianopath.core.*
     }
 }
 
-@Composable fun PianoKeyboard(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,onKey: (Int,Boolean)->Unit,height: Int=88) {
-    var zoom by rememberSaveable {mutableFloatStateOf(1f)}
-    var pan by rememberSaveable {mutableFloatStateOf(0f)}
-    Column {KeyboardControls(zoom,pan,{zoom=it},{pan=it});KeyboardCanvas(held,sounding,expected,interactive,onKey,height,zoom,pan)}
+@Composable fun PianoKeyboard(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,
+    onKey: (Int,Boolean)->Unit,height: Int=88,focusRange: IntRange? = null) {
+    val initialZoom=when(focusRange?.let { it.last-it.first }) {12->5f;24->3.25f;36->2.3f;else->1f}
+    val center=focusRange?.let { range ->
+        ((PianoLayout.key(range.first)?.left ?: 0.0)+(PianoLayout.key(range.last)?.left ?: 52.0))/2.0
+    } ?: 0.0
+    val initialPan=if(initialZoom<=1f)0f else ((center/52.0*initialZoom-.5)/(initialZoom-1)).toFloat().coerceIn(0f,1f)
+    var zoom by rememberSaveable(focusRange?.first,focusRange?.last) {mutableFloatStateOf(initialZoom)}
+    var pan by rememberSaveable(focusRange?.first,focusRange?.last) {mutableFloatStateOf(initialPan)}
+    Column {KeyboardControls(zoom,pan,{zoom=it},{pan=it})
+        KeyboardCanvas(held,sounding,expected,interactive,onKey,height,zoom,pan,focusRange=focusRange)}
 }
 
 @Composable fun KeyboardCanvas(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,
-    onKey: (Int,Boolean)->Unit,height: Int,zoom: Float,pan: Float,playback: Set<Int> = emptySet()) {
+    onKey: (Int,Boolean)->Unit,height: Int,zoom: Float,pan: Float,playback: Set<Int> = emptySet(),
+    focusRange: IntRange? = null) {
     val currentOnKey by rememberUpdatedState(onKey)
     Canvas(Modifier.fillMaxWidth().height(height.dp).background(Color(0xff1b2e2b))
         .semantics {contentDescription="88-key piano, A0 to C8"}
@@ -76,12 +84,15 @@ import org.pianopath.core.*
         val w=size.width/52f*zoom
         val offset=pan*(zoom-1)*size.width
         val gap=.7.dp.toPx().coerceAtMost(w*.12f)
-        fun color(pitch: Int,black: Boolean) = when(pitch) {
+        fun color(pitch: Int,black: Boolean) = when {
+            focusRange!=null && pitch !in focusRange -> if(black)Color(0xff243633) else Color(0xff83918b)
+            else -> when(pitch) {
             in held->Color(0xff39a888)
             in playback->Color(0xff78bfe8)
             in sounding->Color(0xff99cdb8)
             in expected->if(black)Color(0xffb38853) else Color(0xfff4d5ae)
             else->if(black)Color(0xff182b29) else Color(0xfffaf7ef)
+        }
         }
         for(key in PianoLayout.whiteKeys) {
             val x=key.left.toFloat()*w-offset

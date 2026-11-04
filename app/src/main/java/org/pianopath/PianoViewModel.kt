@@ -150,13 +150,32 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             ui.value=p.copy(paused=true,playbackHeld=emptySet(),feedback="Paused")
         }
     }
-    /** Whole-piece timeline. Seeking a running assessment would invalidate its results, so it is blocked. */
+    /**
+     * Draggable score cursor / whole-piece slider.
+     * Repositioning during assessment ends the current take, then moves the selected
+     * start so the next Practice really begins at the chosen point (no invalid scoring).
+     */
     fun seek(beat: Double) {
-        val p=ui.value; val score=p.score ?: return
-        if(p.running)return
-        val target=beat.coerceIn(0.0,score.endBeat)
-        if(p.listening) playbackSeek=target
-        ui.value=p.copy(beat=target,transportBeat=target,reviewBeat=target)
+        val before=ui.value;val score=before.score ?: return
+        if(!beat.isFinite() || score.endBeat<=0.0)return
+        if(before.running)stop("Practice stopped for cursor move")
+        val current=ui.value
+        val target=if(current.listening) {
+            val (a,b)=bounds(current);beat.coerceIn(a,(b-.001).coerceAtLeast(a))
+        } else beat.coerceIn(0.0,score.endBeat)
+        if(current.listening)playbackSeek=target
+        var next=current.copy(beat=target,transportBeat=target,reviewBeat=target,review=false)
+        if(!current.listening) {
+            // After any stopped/graded seek, Practice should start where the cursor is.
+            val a=target.coerceAtMost((score.endBeat-.25).coerceAtLeast(0.0))
+            val from=score.measures.last {it.start<=a+.0001}
+            val oldEnd=bounds(before).second
+            val b=if(a>=oldEnd-.25)score.endBeat else oldEnd
+            val through=score.measures.last {it.start<b-.0001}
+            next=next.copy(startMeasure=from.number,startOffset=a-from.start,
+                endMeasure=through.number,endOffset=b-through.start)
+        }
+        ui.value=next
     }
     /** Quarter-beat precision selection for the loop handles; same bounds as measure controls. */
     fun setPassage(start: Double,end: Double) {
@@ -179,9 +198,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             edit{it.copy(mode=PracticeMode.FREE,view=ScoreView.FALLING)}
             screen.value="Practice";return@launch
         }
-        val piece=library.first()
-        val xml=withContext(Dispatchers.IO) {getApplication<Application>().assets.open("scores/${piece.asset}").bufferedReader().use{it.readText()}}
-        load(xml,piece.key,"Score","Touch the keys to play. Zoom for larger keys; use the range slider to move across all 88 notes.")
+        val exercise=Exercises.scale(root=0,kind=ScaleKind.MAJOR,octaves=1,hand=Hand.BOTH,descending=true)
+        load(exercise.xml,"touch-free-play","Scales","")
         edit{it.copy(mode=PracticeMode.FREE,view=ScoreView.FALLING)}
     }
     fun open(piece: LibraryPiece) = viewModelScope.launch {
@@ -232,10 +250,10 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         load(ex.xml,"scale-$root-$kind-$octaves-$hand-$descending","Scales",ex.guidance)
         edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM) }
     }
-    fun sight(level: Int,fifths: Int,beats: Int,hand: Hand,preview: Int) = viewModelScope.launch {
+    fun sight(level: Int,fifths: Int,beats: Int,hand: Hand,preview: Int,bpm: Double = 80.0) = viewModelScope.launch {
         val ex = Exercises.sight(level,fifths,beats,hand)
         load(ex.xml,"sight-${System.currentTimeMillis()}","Sight reading",ex.guidance,preview)
-        edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM,loop=false) }
+        edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM,loop=false,bpm=bpm.coerceIn(40.0,200.0)) }
     }
     private fun bounds(p: PracticeUi): Pair<Double,Double> {
         val score = requireNotNull(p.score)
@@ -376,8 +394,9 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun key(pitch: Int, down: Boolean) {
-        if(!settings.value.simulator || down && !audio.start()) return
-        simulationUsed=true; ui.value=ui.value.copy(simulated=true)
+        // Always deliver key-up: playback may finish while a finger is still down.
+        if(down && (!(settings.value.simulator || ui.value.listening) || !audio.start()))return
+        if(!ui.value.listening && down) { simulationUsed=true; ui.value=ui.value.copy(simulated=true) }
         touchEvent(if(down) MidiEvent.On(pitch,80,System.nanoTime()) else MidiEvent.Off(pitch,0,System.nanoTime()))
     }
     private fun touchEvent(event: MidiEvent) {audio.accept(event);midi.simulate(event)}
@@ -388,19 +407,21 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         val(a,b)=bounds(p)
         if(a>=b){message.value="End of passage must follow its start";return}
         if(!audio.start())return
+        // A stopped score may be scrubbed before pressing Listen. Honor that playhead.
+        val fromBeat=p.transportBeat.coerceIn(a,b-.001)
         val plan=PlaybackPlan.create(score,a,b,p.hand)
         val tempoScale=p.bpm/score.tempo
         if(plan.isEmpty()){message.value="No notes for this hand in the passage";return}
         playbackSeek=null
         lastClick=Long.MIN_VALUE
         if(p.metronome) tone=tone ?: try {ToneGenerator(AudioManager.STREAM_MUSIC,65)} catch(_: Exception){null}
-        ui.value=p.copy(listening=true,paused=false,hidden=false,result=null,matched=emptySet(),missed=emptySet(),beat=a,transportBeat=a,feedback="Listening · no assessment",playbackHeld=emptySet())
+        ui.value=p.copy(listening=true,paused=false,hidden=false,review=false,result=null,matched=emptySet(),missed=emptySet(),beat=fromBeat,transportBeat=fromBeat,feedback="Listening",playbackHeld=emptySet())
         val generation=++playbackGeneration
         playback=viewModelScope.launch {
             try {
                 do {
-                    var origin=System.nanoTime()
-                    var next=0
+                    var origin=System.nanoTime()-(score.secondsBetween(a,fromBeat,tempoScale)*1e9).toLong()
+                    var next=plan.indexOfFirst { it.beat>=fromBeat-.0001 }.let { if(it<0)plan.size else it }
                     var suspendedAt: Long?=null
                     val held=mutableMapOf<Int,Int>()
                     while(isActive) {

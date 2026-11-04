@@ -29,15 +29,15 @@ class AppSmokeTest {
     }
     @Test fun androidXmlParserLoadsAllAssetsAndExercises() {
         val context=compose.activity
-        val files=context.assets.list("scores")!!.filter{it.endsWith("musicxml")}
-        assertEquals(50,files.size)
+        val files=context.assets.list("scores")?.filter{it.endsWith("musicxml")} ?: emptyList()
+        assertTrue("No bundled demo scores are expected",files.isEmpty())
         files.forEach{file->val xml=context.assets.open("scores/$file").bufferedReader().use{it.readText()};assertTrue(MusicXml.parse(xml).notes.isNotEmpty())}
         assertTrue(MusicXml.parse(Exercises.sight(level=3,seed=44).xml).notes.isNotEmpty())
         assertEquals(29,MusicXml.parse(Exercises.scale(octaves=2,hand=Hand.RIGHT).xml).notes.count{!it.rest})
     }
     @Test fun practiceRendersNotationInAndroidWebView() {
         compose.onNodeWithText("Open practice  →").performClick()
-        compose.waitUntil(20_000){compose.onAllNodesWithText("First Light").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Sheet").performClick()
         compose.waitForIdle()
         val rendered=AtomicBoolean(false);var diagnostic="WebView not found"
@@ -57,7 +57,7 @@ class AppSmokeTest {
         compose.runOnUiThread {
             vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
             vm.setSettings{it.copy(simulator=true)}
-            vm.open(vm.library.first())
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
         }
         compose.waitUntil(15_000){vm.ui.value.score!=null}
         compose.runOnUiThread {
@@ -78,7 +78,7 @@ class AppSmokeTest {
         compose.onNodeWithText("Open practice  →").performClick()
         // The practice toolbar uses the short "Falling" label on narrow devices.
         // Wait for the score to load, then verify the view controls separately.
-        compose.waitUntil(20_000){compose.onAllNodesWithText("First Light").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Falling").assertIsDisplayed()
         compose.onNodeWithText("Both").assertIsDisplayed()
         compose.onNodeWithContentDescription("88-key piano, A0 to C8").assertIsDisplayed()
@@ -86,9 +86,103 @@ class AppSmokeTest {
         compose.onNodeWithText("Fit all 88").assertIsDisplayed()
         compose.onNodeWithText("Listen").assertIsDisplayed()
     }
+    @Test fun sheetScoreTapMovesBlueCursorToTouchedMeasure() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {vm.setView(ScoreView.SHEET)}
+        fun find(view: android.view.View): WebView? {
+            if(view is WebView)return view
+            if(view is android.view.ViewGroup)for(i in 0 until view.childCount){
+                val result=find(view.getChildAt(i));if(result!=null)return result
+            }
+            return null
+        }
+        val rendered=AtomicBoolean(false)
+        compose.waitUntil(30_000) {
+            compose.runOnUiThread {
+                find(compose.activity.window.decorView)?.evaluateJavascript(
+                    "typeof entries!=='undefined' && entries.length>5 && ready && canSeek && hitGroups.length>0"
+                ){if(it=="true")rendered.set(true)}
+            }
+            rendered.get()
+        }
+        val tapped=AtomicBoolean(false)
+        val diagnostic=java.util.concurrent.atomic.AtomicReference("No JS result")
+        compose.runOnUiThread {
+            find(compose.activity.window.decorView)?.evaluateJavascript("""
+                (() => {
+                  const e=entries.find(n=>n.beat>=2 && n.staff===1);
+                  if(!e)return JSON.stringify({error:'No note at beat 2'});
+                  const pt=e.svg.createSVGPoint();pt.x=e.x;pt.y=e.y;
+                  const matrix=e.svg.getScreenCTM();
+                  if(!matrix)return JSON.stringify({error:'SVG transform missing'});
+                  const pos=pt.matrixTransform(matrix);
+                  const mapped=beatAtClient(pos.x,pos.y);
+                  document.getElementById('score').dispatchEvent(new MouseEvent('click',{
+                    bubbles:true,clientX:pos.x,clientY:pos.y
+                  }));
+                  return JSON.stringify({beat:e.beat,mapped:mapped,ready:ready,seek:canSeek,groups:hitGroups.length});
+                })()
+            """.trimIndent()) { value ->
+                diagnostic.set(value)
+                tapped.set(value.contains("mapped"))
+            }
+        }
+        compose.waitUntil(10_000){tapped.get()}
+        compose.waitUntil(10_000) { vm.ui.value.transportBeat >= 1.5 || diagnostic.get().contains("error") }
+        assertTrue("Tapping a score note should seek near its beat. JS=${diagnostic.get()} transport=${vm.ui.value.transportBeat}",
+            vm.ui.value.transportBeat>=1.5)
+    }
+    @Test fun cursorSeekEndsScoredTakeAndMovesNextPracticeStart() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {
+            vm.edit {it.copy(countIn=false,loop=false)}
+            vm.start()
+            assertTrue(vm.ui.value.running)
+            vm.seek(2.0)
+            assertFalse("Dragging a score cursor must end the graded take",vm.ui.value.running)
+            assertEquals(2.0,vm.ui.value.transportBeat,0.01)
+            val p=vm.ui.value
+            val actualStart=p.score!!.measures[p.startMeasure-1].start+p.startOffset
+            assertEquals(2.0,actualStart,0.01)
+            vm.seek(1.0)
+            val moved=vm.ui.value
+            assertEquals(1.0,moved.transportBeat,0.01)
+            assertEquals(1.0,moved.score!!.measures[moved.startMeasure-1].start+moved.startOffset,0.01)
+        }
+    }
+    @Test fun listeningAcceptsTouchKeysWithoutSimulatorAndReleasesAfterStop() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)
+        }
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {
+            vm.setSettings{it.copy(simulator=false)}
+            vm.edit{it.copy(loop=false,bpm=70.0,endMeasure=1,endOffset=4.0)}
+            vm.listen()
+            assertTrue(vm.ui.value.listening)
+            vm.key(60,true)
+            assertTrue("Touch key must be held during Listen",60 in vm.midi.state.value.held)
+            vm.stopListening()
+            vm.key(60,false)
+            assertTrue("Key-up after Listen stops must still reach the keyboard",vm.midi.state.value.held.isEmpty())
+            assertNull(vm.ui.value.result)
+        }
+    }
     @Test fun listeningNeverProducesAnAccuracyResult() {
         lateinit var vm: PianoViewModel
-        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.open(vm.library.first())}
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}
         compose.waitUntil(15_000){vm.ui.value.score!=null}
         compose.runOnUiThread {vm.edit{it.copy(loop=false,bpm=240.0,endMeasure=1,endOffset=1.0)};vm.listen();assertTrue("Audio playback must start",vm.ui.value.listening)}
         compose.waitUntil(5_000){!vm.ui.value.listening}
@@ -117,7 +211,7 @@ class AppSmokeTest {
     }
     @Test fun landscapePracticeUsesExpandableNavigation() {
         compose.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        compose.runOnUiThread {ViewModelProvider(compose.activity)[PianoViewModel::class.java].open(ViewModelProvider(compose.activity)[PianoViewModel::class.java].library.first())}
+        compose.runOnUiThread {ViewModelProvider(compose.activity)[PianoViewModel::class.java].scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}
         compose.waitUntil(20_000){compose.onAllNodesWithContentDescription("Open navigation menu").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
         compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
