@@ -103,3 +103,5 @@ App source: [MIT](LICENSE). Piano sound samples: Alexander Holm, Salamander Gran
 
 
 The dev.4 continuation fixes score scrolling around slurs/ties and pause/release accounting while preserving the new draggable score and A/B controls. APK publication is gated by the current signing-certificate pin and phone/tablet data-preserving update checks. If the signing cache is lost, CI stops; the owner must restore the same private key using `PIANO_DEBUG_KEYSTORE_BASE64`. Do not uninstall the app as an update workaround. See `docs/CONTINUATION_2026-11-04.md` for remaining features and verification limits.
+
+Current recovery notes: [preserve the installed app and data](docs/SIGNING_RECOVERY.md). The dev.4 application code passed 83 JVM tests and 16 Android tests on each phone/tablet emulator; PR #4 remains unmerged because the signing-continuity check fails.
