@@ -1,8 +1,8 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"><meta charset="utf-8"><style>
-html,body{overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:#369dbe;box-shadow:0 0 0 3px #369dbe18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:7px;background:#369dbe}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:6px;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
-</style></head><body><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
+html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:#369dbe;box-shadow:0 0 0 3px #369dbe18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:7px;background:#369dbe}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:6px;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
+</style></head><body><div id="viewport"><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
 let osmd,ready=false,entries=[],hitGroups=[],lastBeat=-1,lastState='',lastSelection='',lastZoom=1,lastHorizontal=false,lastMargin=4,lastDark=false,lastArgs=null,canSeek=false,dragging=false,dragPointer=null,dragBeat=null,loopEnabled=true,loopEditable=true,loopDragging=null,loopPointer=null,loopStart=0,loopEnd=0,scoreEnd=0;
-let lastLayoutWidth=0;const scroller=new ScoreScroller(),systemBounds=new Map();
+let lastLayoutWidth=0;const scrollRoot=document.getElementById('viewport');const scroller=new ScoreScroller(),systemBounds=new Map();
 const NS='http://www.w3.org/2000/svg';
 function fail(e){document.getElementById('loading').style.display='none';document.getElementById('error').textContent='Notation could not be rendered. '+e;if(window.Android)Android.error(String(e));}
 function layout(){
@@ -10,7 +10,7 @@ const anchor=scroller.capture(entries),line=document.getElementById('playhead');
 const r=osmd.EngravingRules;r.PageLeftMargin=lastMargin/(10*lastZoom);r.PageRightMargin=r.PageLeftMargin;r.SystemLeftMargin=0;r.PageTopMargin=1.5;osmd.Zoom=lastZoom;
 osmd.setOptions({autoResize:false,renderSingleHorizontalStaffline:lastHorizontal,defaultColorMusic:lastDark?'#dce8df':'#173c3b',defaultColorLabel:lastDark?'#dce8df':'#173c3b'});
 document.body.style.background=lastDark?'#142421':'#fffefb';document.documentElement.style.background=document.body.style.background;
-osmd.render();indexNotes();lastLayoutWidth=document.documentElement.clientWidth;scroller.restore(anchor,entries);
+osmd.render();indexNotes();lastLayoutWidth=scrollRoot.clientWidth;scroller.restore(anchor,entries);
 }
 async function init(){try{
 osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay('score',{autoResize:false,backend:'svg',drawTitle:false,drawSubtitle:false,drawComposer:false,drawPartNames:false,drawMeasureNumbers:true,drawFingerings:true,followCursor:false});
@@ -62,8 +62,8 @@ function beatAtClient(clientX,clientY){
 function atBeatPosition(beat){
  const loc=locateBeat(beat,1);if(!loc)return null;
  const bounds=systemBounds.get(loc.e.system),top=scorePoint(loc.e.svg,loc.x,bounds.top),bottom=scorePoint(loc.e.svg,loc.x,bounds.bottom);
- const root=document.getElementById('score').getBoundingClientRect();
- return {x:top.x-scrollX-root.left,y:top.y-scrollY-root.top,h:bottom.y-top.y,frame:{system:loc.e.system,x:top.x,top:top.y,bottom:bottom.y}};
+ const root=document.getElementById('score');
+ return {x:top.x-root.offsetLeft,y:top.y-root.offsetTop,h:bottom.y-top.y,frame:{system:loc.e.system,x:top.x,top:top.y,bottom:bottom.y}};
 }
 function xAt(m,beat){
  const ps=[...m.points].sort((a,b)=>a[0]-b[0]);let left=ps[0],right=ps[ps.length-1];
@@ -192,7 +192,7 @@ window.addEventListener('resize',()=>{
  // Native pinch zoom changes the visual viewport, not the engraving width.
  // Height-only changes (controls/keyboard) must not repeatedly rebuild the score.
  resizeTimer=setTimeout(function reflow(){
-  if(!ready||Math.abs(document.documentElement.clientWidth-lastLayoutWidth)<2)return;
+  if(!ready||Math.abs(scrollRoot.clientWidth-lastLayoutWidth)<2)return;
   if(scroller.paused()){resizeTimer=setTimeout(reflow,120);return;}
   layout();if(lastArgs)progress(...lastArgs);
  },120);

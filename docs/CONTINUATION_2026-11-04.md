@@ -123,3 +123,7 @@ Signing root cause confirmed by CI `signingReport`: AGP uses `/home/runner/.conf
 
 
 First source emulator run: 15/16 tests passed on both API35 tablet and API36 phone. The new scroll test caught WebView reporting an entire 2026px horizontal score as its viewport (zero horizontal travel). Enable `useWideViewPort` and disable overview fitting so the device-width meta viewport is honored. Rerun native tests on this fix before claiming 16/16 passed.
+
+The device-width setting alone did not resolve Android's oversized document viewport. Native diagnostics reported a 2026px layout viewport but a 684px/1280px visual viewport. The score now owns an explicit bounded scrolling container; all following, anchoring and pointer geometry use that container instead of WebView's ambiguous document scroll range. The native regression reads the real container offset and still requires actual horizontal travel.
+
+Owner reports the phone is on dev.2/build5/revision a0478842, not dev.3. That earlier workflow did not retain its generated key. The APK can identify the public signer but cannot restore its private key. Preserve the installed app/data; neither the unused cached key nor the dev.3 pin establishes upgrade compatibility for this device.

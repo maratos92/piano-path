@@ -107,7 +107,7 @@ class AppSmokeTest {
                   for(let beat=0;beat<end;beat+=.5){
                     progress(beat,[],[],0,end,1.6,true,[],[],180,4,false,80,"BOTH",true,true,true,end,true);
                     await new Promise(requestAnimationFrame);
-                    samples.push({x:scrollX,y:scrollY,height:parseFloat(document.getElementById('playhead').style.height)});
+                    samples.push({x:scrollRoot.scrollLeft,y:scrollRoot.scrollTop,height:parseFloat(document.getElementById('playhead').style.height)});
                   }
                   const spread=key=>Math.max(...samples.map(s=>s[key]))-Math.min(...samples.map(s=>s[key]));
                   window.scrollCheck={done:true,count:samples.length,measures:new Set(entries.map(e=>e.measure)).size,

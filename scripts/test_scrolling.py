@@ -39,11 +39,11 @@ def snapshot(page, beat):
       const loc=locateBeat(beat,1), line=document.getElementById('playhead');
       const system=e=>e.system || e.g.parentVoiceEntry.parentStaffEntry.parentMeasure.parentMusicSystem;
       const systems=[...new Set(entries.map(system))], r=line.getBoundingClientRect();
-      return {beat,x:scrollX,y:scrollY,left:r.left,right:r.right,top:r.top,height:r.height,
+      return {beat,x:scrollRoot.scrollLeft,y:scrollRoot.scrollTop,left:r.left,right:r.right,top:r.top,height:r.height,
         documentTop:parseFloat(line.style.top),width:innerWidth,viewportHeight:innerHeight,
         system:systems.indexOf(system(loc.e)),systems:systems.length,
-        maxX:document.scrollingElement.scrollWidth-innerWidth,
-        maxY:document.scrollingElement.scrollHeight-innerHeight};
+        maxX:scrollRoot.scrollWidth-scrollRoot.clientWidth,
+        maxY:scrollRoot.scrollHeight-scrollRoot.clientHeight};
     }""", beat)
 
 
@@ -104,7 +104,7 @@ def run_wrapped(browser):
 def run_manual_and_idle(browser):
     page = open_score(browser)
     progress(page, 0, zoom=1.3, follow=False)
-    page.evaluate("window.scrollTo(700,90)")
+    page.evaluate("scrollRoot.scrollTo(700,90)")
     manual = snapshot(page, 0)
     for beat in (4, 8, 12, 16):
         state = progress(page, beat, zoom=1.3, follow=False)
@@ -115,7 +115,7 @@ def run_manual_and_idle(browser):
     # Touch panning temporarily owns the viewport, even during active playback.
     page.evaluate("""() => {
       document.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',bubbles:true}));
-      window.scrollTo(1100,120);
+      scrollRoot.scrollTo(1100,120);
       document.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',bubbles:true}));
     }""")
     manual = snapshot(page, 16)
@@ -130,7 +130,7 @@ def run_manual_and_idle(browser):
     # Wheel/trackpad gestures need the same protection as touch panning.
     page.evaluate("""() => {
       document.dispatchEvent(new WheelEvent('wheel',{deltaY:40,bubbles:true}));
-      window.scrollTo(1400,150);
+      scrollRoot.scrollTo(1400,150);
     }""")
     wheel = snapshot(page, 20)
     state = progress(page, 21, zoom=1.3)
@@ -145,7 +145,7 @@ def run_zoom_and_resize(browser):
     # Keep a specific rendered note in view while changing engraving scale.
     page.evaluate("""() => {
       const e=entries.find(e=>e.beat===32&&e.staff===1), r=e.g.getSVGGElement().getBoundingClientRect();
-      window.scrollTo(scrollX+r.left-innerWidth*.5,scrollY+r.top-innerHeight*.5);
+      scrollRoot.scrollTo(scrollRoot.scrollLeft+r.left-innerWidth*.5,scrollRoot.scrollTop+r.top-innerHeight*.5);
     }""")
     anchor_before = page.evaluate("""() => {
       const e=entries.find(e=>e.beat===32&&e.staff===1), r=e.g.getSVGGElement().getBoundingClientRect();
@@ -178,7 +178,7 @@ def run_gestures(browser):
     page = open_score(browser, 1000, 400)
     page.evaluate('progress(4,[],[],4,8,.7,true,[],[],180,4,false,80,"BOTH",true,true,true,64,false)')
     def position(beat):
-        return page.evaluate('b=>{const p=atBeatPosition(b);return {x:p.x-scrollX,y:p.y-scrollY}}', beat)
+        return page.evaluate('b=>{const p=atBeatPosition(b);return {x:p.x-scrollRoot.scrollLeft,y:p.y-scrollRoot.scrollTop}}', beat)
     start, target = position(4), position(6)
     page.mouse.move(start['x'], start['y']+8)
     page.mouse.down()

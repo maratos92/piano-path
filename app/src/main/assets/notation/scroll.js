@@ -33,18 +33,15 @@ class ScoreScroller {
   paused() { return this.activeTouches > 0 || this.pointers.size > 0 || performance.now() < this.pauseUntil; }
 
   viewport() {
-    const v = window.visualViewport;
-    return {left: v?.pageLeft ?? scrollX, top: v?.pageTop ?? scrollY,
-      width: v?.width ?? innerWidth, height: v?.height ?? innerHeight};
+    return {left: scrollRoot.scrollLeft, top: scrollRoot.scrollTop,
+      width: scrollRoot.clientWidth, height: scrollRoot.clientHeight};
   }
 
   move(left, top) {
-    const v = this.viewport(), root = document.scrollingElement;
-    const x = Math.max(0, Math.min(root.scrollWidth - root.clientWidth, scrollX + left - v.left));
-    const y = Math.max(0, Math.min(root.scrollHeight - root.clientHeight, scrollY + top - v.top));
-    // Fractional SVG rounding must never cause repeated one-pixel corrections.
-    if (Math.abs(x - scrollX) > 1 || Math.abs(y - scrollY) > 1) {
-      window.scrollTo({left: x, top: y, behavior: 'instant'});
+    const x = Math.max(0, Math.min(scrollRoot.scrollWidth - scrollRoot.clientWidth, left));
+    const y = Math.max(0, Math.min(scrollRoot.scrollHeight - scrollRoot.clientHeight, top));
+    if (Math.abs(x - scrollRoot.scrollLeft) > 1 || Math.abs(y - scrollRoot.scrollTop) > 1) {
+      scrollRoot.scrollTo({left: x, top: y, behavior: 'instant'});
     }
   }
 
@@ -108,5 +105,6 @@ class ScoreScroller {
 function scorePoint(svg, x, y) {
   const p = svg.createSVGPoint(); p.x = x; p.y = y;
   const screen = p.matrixTransform(svg.getScreenCTM());
-  return {x: screen.x + scrollX, y: screen.y + scrollY};
+  const viewport = scrollRoot.getBoundingClientRect();
+  return {x: screen.x - viewport.left + scrollRoot.scrollLeft, y: screen.y - viewport.top + scrollRoot.scrollTop};
 }
