@@ -56,11 +56,14 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     val message = MutableStateFlow<String?>(null)
     /** Keeps a rolling sequence of physical MIDI and touch key presses, with their key-down durations. */
     val playedSequence = MutableStateFlow<List<NoteCapture>>(emptyList())
+    val playedIdle = MutableStateFlow(false)
+    private var idleMarkerJob: Job? = null
     private val activeKeyStarts=mutableMapOf<Pair<Int,Int>,Long>()
     private fun captureKey(event: MidiEvent) {
         when(event) {
             is MidiEvent.On -> {
                 if(event.velocity<=0)return
+                idleMarkerJob?.cancel();playedIdle.value=false
                 val key=event.channel to event.pitch
                 activeKeyStarts[key]=event.timestamp
                 playedSequence.value=(playedSequence.value+NoteCapture(event.pitch,event.channel,event.timestamp)).takeLast(128)
@@ -71,11 +74,18 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                 val old=playedSequence.value.toMutableList()
                 val i=old.indexOfLast {it.channel==event.channel && it.pitch==event.pitch && it.startedNs==start && it.durationMs==null}
                 if(i>=0){old[i]=old[i].copy(durationMs=length);playedSequence.value=old}
+                if(activeKeyStarts.isEmpty()) {
+                    idleMarkerJob?.cancel()
+                    idleMarkerJob=viewModelScope.launch {
+                        delay(settings.value.noteGapMs.toLong())
+                        if(activeKeyStarts.isEmpty())playedIdle.value=true
+                    }
+                }
             }
             else -> Unit
         }
     }
-    fun clearPlayedSequence(){activeKeyStarts.clear();playedSequence.value=emptyList()}
+    fun clearPlayedSequence(){idleMarkerJob?.cancel();playedIdle.value=false;activeKeyStarts.clear();playedSequence.value=emptyList()}
     val ear = MutableStateFlow(EarUi(correct=preferences.getInt("earCorrect",0),
         attempts=preferences.getInt("earAttempts",0),streak=preferences.getInt("earStreak",0),
         bestStreak=preferences.getInt("earBestStreak",0)))
@@ -539,5 +549,5 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             calibrating.value=false
         }
     }
-    override fun onCleared() { playback?.cancel();earPlayback?.cancel();audio.stop();midi.close(); tone?.release(); database.close(); super.onCleared() }
+    override fun onCleared() { playback?.cancel();earPlayback?.cancel();idleMarkerJob?.cancel();audio.stop();midi.close(); tone?.release(); database.close(); super.onCleared() }
 }
