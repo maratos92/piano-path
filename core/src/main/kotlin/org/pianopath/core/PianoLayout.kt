@@ -32,6 +32,16 @@ object PianoLayout {
 
 data class PlaybackNoteEvent(val beat: Double,val pitch: Int,val down: Boolean,val channel: Int,val velocity: Int=80)
 object PlaybackPlan {
+    /** Reconstruct held voices at a seek/resume boundary, retaining channel and velocity. */
+    fun activeBefore(events: List<PlaybackNoteEvent>, nextEvent: Int): List<PlaybackNoteEvent> {
+        val active=mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<PlaybackNoteEvent>>()
+        for(index in 0 until nextEvent.coerceIn(0,events.size)) {
+            val e=events[index];val key=e.channel to e.pitch
+            if(e.down)active.getOrPut(key){java.util.ArrayDeque()}.addLast(e)
+            else active[key]?.pollFirst()
+        }
+        return active.values.flatMap {it.toList()}
+    }
     fun create(score: Score,start: Double,end: Double,hand: Hand=Hand.BOTH): List<PlaybackNoteEvent> {
         require(start>=0 && end>start && end<=score.endBeat+.0001)
         return score.selected(start,end,hand).flatMap { note ->

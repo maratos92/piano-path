@@ -36,7 +36,7 @@ import org.pianopath.PracticeUi
             loadUrl("file:///android_asset/notation/index.html"); web=this
         } },onRelease={ it.removeJavascriptInterface("Android");it.stopLoading();it.destroy();web=null })
     }
-    LaunchedEffect(ready,p.transportBeat,p.beat,p.reviewBeat,p.review,p.running,p.matched,p.missed,p.take,p.startMeasure,p.endMeasure,p.startOffset,p.endOffset,p.zoom,p.horizontal,p.sheetMargin,dark,p.hand,p.loop) {
+    LaunchedEffect(ready,p.transportBeat,p.beat,p.reviewBeat,p.review,p.running,p.listening,p.paused,p.bpm,p.visualTolerance,p.matched,p.missed,p.take,p.startMeasure,p.endMeasure,p.startOffset,p.endOffset,p.zoom,p.horizontal,p.sheetMargin,dark,p.hand,p.loop) {
         if(!ready) return@LaunchedEffect
         val score=p.score ?: return@LaunchedEffect
         fun json(ids: Set<Int>)=JSONArray(score.notes.filter { it.id in ids }.map { JSONArray(listOf(it.beat,it.midi)) }).toString()
@@ -45,6 +45,6 @@ import org.pianopath.PracticeUi
         val take=JSONArray(p.take.map{n->JSONObject().put("id",n.id).put("pitch",n.pitch).put("beat",n.beat).put("duration",n.duration ?: JSONObject.NULL).put("expectedId",n.expectedId ?: JSONObject.NULL).put("onsetMs",n.onsetMs ?: JSONObject.NULL)})
         val expected=JSONArray(score.notes.filter{!it.rest}.map{n->JSONObject().put("id",n.id).put("midi",n.midi).put("beat",n.beat).put("staff",n.staff)})
         val beat=if(p.review && !p.running)p.reviewBeat else if(p.listening || p.running)p.transportBeat else p.beat
-        web?.evaluateJavascript("progress($beat,${json(p.matched)},${json(p.missed)},$start,$end,${p.zoom},${p.horizontal},$take,$expected,${p.visualTolerance},${p.sheetMargin},$dark,${p.bpm},'${p.hand.name}',true,${p.loop},${!p.running && !p.listening},${score.endBeat})",null)
+        web?.evaluateJavascript("progress($beat,${json(p.matched)},${json(p.missed)},$start,$end,${p.zoom},${p.horizontal},$take,$expected,${p.visualTolerance},${p.sheetMargin},$dark,${p.bpm},'${p.hand.name}',true,${p.loop},${!p.running && !p.listening},${score.endBeat},${!p.paused && (p.running || p.listening || p.review)})",null)
     }
 }

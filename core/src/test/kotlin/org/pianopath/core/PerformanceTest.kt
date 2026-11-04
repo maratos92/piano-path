@@ -22,6 +22,53 @@ class PerformanceTest {
         assertEquals(2,result.correct)
         assertEquals(0.0,result.meanOnsetMs!!,.01)
     }
+    @Test fun heldNotesAndRecordedExtrasExcludeMultiplePauses() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1)))
+        e.accept(MidiEvent.On(60,80,base))
+        e.accept(MidiEvent.On(61,60,at(100)))
+        e.pause(at(150))
+        assertEquals(.3,e.clockBeat(at(1100)),.001)
+        e.resume(at(1150))
+        e.pause(at(1250))
+        assertEquals(.5,e.clockBeat(at(3200)),.001)
+        e.resume(at(3250))
+        e.accept(MidiEvent.Off(60,0,at(3500)))
+        e.accept(MidiEvent.Off(61,0,at(3500)))
+        e.accept(MidiEvent.On(62,80,at(3500)))
+        e.accept(MidiEvent.Off(62,0,at(4000)))
+        val result=e.finish(at(4100))
+        assertEquals(0.0,result.meanDurationMs!!,.001)
+        assertEquals(0.0,result.meanOnsetMs!!,.001)
+        assertEquals(1.0,result.take.first {it.pitch==60}.duration!!,.001)
+        assertEquals(.8,result.take.first {it.pitch==61}.duration!!,.001)
+    }
+    @Test fun releaseDuringPauseClosesTheNoteBeforeARepeatedStrike() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,60,1.0,1.0,1)))
+        e.accept(MidiEvent.On(60,80,base))
+        e.pause(at(500))
+        e.accept(MidiEvent.Off(60,0,at(900)))
+        e.accept(MidiEvent.On(60,80,at(1000))) // an unscored paused attack
+        e.accept(MidiEvent.Off(60,0,at(1100)))
+        assertEquals(1.0,e.take.single().duration!!,.001)
+        assertEquals(0.0,e.summary().details.first().durationErrorMs!!,.001)
+        e.resume(at(1500))
+        e.accept(MidiEvent.On(60,80,at(1500)))
+        e.accept(MidiEvent.Off(60,0,at(2000)))
+        val result=e.finish(at(2100))
+        assertEquals(2,result.correct)
+        assertEquals(0,result.extra)
+        assertEquals(100.0,result.rhythm!!,.001)
+        assertEquals(listOf(1.0,1.0),result.take.map{it.duration})
+    }
+    @Test fun releaseDuringPauseUsesFrozenTimeEvenWhenFinishingPaused() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1)))
+        e.accept(MidiEvent.On(60,80,base))
+        e.pause(at(250))
+        e.accept(MidiEvent.Off(60,0,at(4000)))
+        val result=e.finish(at(5000))
+        assertEquals(-250.0,result.details.single().durationErrorMs!!,.001)
+        assertEquals(.5,result.take.single().duration!!,.001)
+    }
     @Test fun simultaneousChordIsMatchedIndividually() {
         val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,64,0.0,1.0,1),ScoreNote(2,67,0.0,1.0,1)))
         listOf(60,64,67).forEach{e.accept(MidiEvent.On(it,80,base))};listOf(60,64,67).forEach{e.accept(MidiEvent.Off(it,0,at(500)))}

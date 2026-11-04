@@ -1,22 +1,30 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"><meta charset="utf-8"><style>
-html,body{margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:#369dbe;box-shadow:0 0 0 3px #369dbe18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:7px;background:#369dbe}#playhead{transition:left 50ms linear}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:6px;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
-</style></head><body><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div><script src="opensheetmusicdisplay.min.js"></script><script>
+html,body{overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:#369dbe;box-shadow:0 0 0 3px #369dbe18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:7px;background:#369dbe}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:6px;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
+</style></head><body><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
 let osmd,ready=false,entries=[],hitGroups=[],lastBeat=-1,lastState='',lastSelection='',lastZoom=1,lastHorizontal=false,lastMargin=4,lastDark=false,lastArgs=null,canSeek=false,dragging=false,dragPointer=null,dragBeat=null,loopEnabled=true,loopEditable=true,loopDragging=null,loopPointer=null,loopStart=0,loopEnd=0,scoreEnd=0;
+let lastLayoutWidth=0;const scroller=new ScoreScroller(),systemBounds=new Map();
 const NS='http://www.w3.org/2000/svg';
 function fail(e){document.getElementById('loading').style.display='none';document.getElementById('error').textContent='Notation could not be rendered. '+e;if(window.Android)Android.error(String(e));}
-function layout(){const r=osmd.EngravingRules;r.PageLeftMargin=lastMargin/(10*lastZoom);r.PageRightMargin=r.PageLeftMargin;r.SystemLeftMargin=0;r.PageTopMargin=1.5;osmd.Zoom=lastZoom;osmd.setOptions({renderSingleHorizontalStaffline:lastHorizontal,defaultColorMusic:lastDark?'#dce8df':'#173c3b',defaultColorLabel:lastDark?'#dce8df':'#173c3b'});document.body.style.background=lastDark?'#142421':'#fffefb';document.documentElement.style.background=document.body.style.background;osmd.render();indexNotes();}
+function layout(){
+const anchor=scroller.capture(entries),line=document.getElementById('playhead');if(line)line.style.display='none';
+const r=osmd.EngravingRules;r.PageLeftMargin=lastMargin/(10*lastZoom);r.PageRightMargin=r.PageLeftMargin;r.SystemLeftMargin=0;r.PageTopMargin=1.5;osmd.Zoom=lastZoom;
+osmd.setOptions({autoResize:false,renderSingleHorizontalStaffline:lastHorizontal,defaultColorMusic:lastDark?'#dce8df':'#173c3b',defaultColorLabel:lastDark?'#dce8df':'#173c3b'});
+document.body.style.background=lastDark?'#142421':'#fffefb';document.documentElement.style.background=document.body.style.background;
+osmd.render();indexNotes();lastLayoutWidth=document.documentElement.clientWidth;scroller.restore(anchor,entries);
+}
 async function init(){try{
 osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay('score',{autoResize:false,backend:'svg',drawTitle:false,drawSubtitle:false,drawComposer:false,drawPartNames:false,drawMeasureNumbers:true,drawFingerings:true,followCursor:false});
-await osmd.load(Android.score());layout();installScrubber();ready=true;document.getElementById('loading').style.display='none';Android.ready();
+await osmd.load(Android.score());document.getElementById('loading').style.display='none';layout();installScrubber();ready=true;Android.ready();
 }catch(e){fail(e)}}
-function indexNotes(){entries=[];const c=osmd.cursor;c.reset();let guard=0;
+function indexNotes(){entries=[];systemBounds.clear();const c=osmd.cursor;c.reset();let guard=0;
 while(!c.Iterator.EndReached&&guard++<100000){const beat=c.Iterator.currentTimeStamp.RealValue*4;
 for(const g of c.GNotesUnderCursor()){
  const n=g.sourceNote,element=g.getSVGGElement?.(),svg=element?.ownerSVGElement;if(!svg)continue;
  const head=element.querySelectorAll('.vf-notehead')[g.vfnoteIndex||0] || element;
  const rect=head.getBoundingClientRect(),pt=svg.createSVGPoint();pt.x=rect.left+rect.width/2;pt.y=rect.top+rect.height/2;const xy=pt.matrixTransform(svg.getScreenCTM().inverse());
- const m=g.parentVoiceEntry.parentStaffEntry.parentMeasure,source=m.parentSourceMeasure;
- entries.push({g,beat,pitch:n.Pitch?n.Pitch.getHalfTone()+12:-1,staff:n.parentStaffEntry.ParentStaff.idInMusicSheet+1,x:xy.x,y:n.Pitch?xy.y:g.PositionAndShape.AbsolutePosition.y*10,svg,
+ const m=g.parentVoiceEntry.parentStaffEntry.parentMeasure,source=m.parentSourceMeasure,system=m.ParentMusicSystem;
+ if(!systemBounds.has(system)){const b=system.PositionAndShape;systemBounds.set(system,{top:(b.AbsolutePosition.y+b.BorderTop)*10,bottom:(b.AbsolutePosition.y+b.BorderBottom)*10});}
+ entries.push({g,beat,system,pitch:n.Pitch?n.Pitch.getHalfTone()+12:-1,staff:n.parentStaffEntry.ParentStaff.idInMusicSheet+1,x:xy.x,y:n.Pitch?xy.y:g.PositionAndShape.AbsolutePosition.y*10,svg,
  measure:source.MeasureNumber,start:source.AbsoluteTimestamp.RealValue*4,end:(source.AbsoluteTimestamp.RealValue+source.Duration.RealValue)*4,right:(m.PositionAndShape.AbsolutePosition.x+m.PositionAndShape.Size.width)*10});
 }c.next();}c.reset();c.hide();lastBeat=-1;lastState='';lastSelection='';
 for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);svg.appendChild(layer);}}
@@ -53,8 +61,9 @@ function beatAtClient(clientX,clientY){
 }
 function atBeatPosition(beat){
  const loc=locateBeat(beat,1);if(!loc)return null;
- const svg=loc.e.svg,rect=svg.getBoundingClientRect(),root=document.getElementById('score').getBoundingClientRect(),scale=rect.width/svg.viewBox.baseVal.width,ys=loc.group.map(e=>e.y);
- return {x:rect.left-root.left+loc.x*scale,y:rect.top-root.top+(Math.min(...ys)-45)*scale,h:(Math.max(...ys)-Math.min(...ys)+80)*scale};
+ const bounds=systemBounds.get(loc.e.system),top=scorePoint(loc.e.svg,loc.x,bounds.top),bottom=scorePoint(loc.e.svg,loc.x,bounds.bottom);
+ const root=document.getElementById('score').getBoundingClientRect();
+ return {x:top.x-scrollX-root.left,y:top.y-scrollY-root.top,h:bottom.y-top.y,frame:{system:loc.e.system,x:top.x,top:top.y,bottom:bottom.y}};
 }
 function xAt(m,beat){
  const ps=[...m.points].sort((a,b)=>a[0]-b[0]);let left=ps[0],right=ps[ps.length-1];
@@ -80,14 +89,11 @@ function moveLoopHandles(start,end,enabled,editable){
   el.setAttribute('aria-disabled',editable?'false':'true');el.setAttribute('aria-valuenow',beat.toFixed(2));
  }
 }
-function moveCursor(beat,start,end){
- const loc=locateBeat(Math.max(start,Math.min(end,beat)),1);if(!loc)return;
- const svg=loc.e.svg,rect=svg.getBoundingClientRect(),root=document.getElementById('score').getBoundingClientRect(),scale=rect.width/svg.viewBox.baseVal.width;
- const ys=loc.group.map(e=>e.y),line=document.getElementById('playhead');
- line.style.left=(rect.left-root.left+loc.x*scale)+'px';
- line.style.top=(rect.top-root.top+(Math.min(...ys)-45)*scale)+'px';
- line.style.height=((Math.max(...ys)-Math.min(...ys)+80)*scale)+'px';
- if(!dragging){const viewport=line.getBoundingClientRect();if(viewport.left<0||viewport.right>window.innerWidth||viewport.top<0||viewport.bottom>window.innerHeight)line.scrollIntoView({block:'nearest',inline:'nearest'});}
+function moveCursor(beat,start,end,follow=false){
+ const pos=atBeatPosition(Math.max(start,Math.min(end,beat)));if(!pos)return;
+ const line=document.getElementById('playhead');line.style.display='block';
+ line.style.left=pos.x+'px';line.style.top=pos.y+'px';line.style.height=pos.h+'px';
+ if(!dragging&&!loopDragging)scroller.follow(pos.frame,beat,follow);
 }
 function installScrubber(){
  const score=document.getElementById('score'),line=document.getElementById('playhead');
@@ -101,7 +107,7 @@ function installScrubber(){
   el.addEventListener('pointerup',event=>finish(event,true));el.addEventListener('pointercancel',event=>finish(event,false));
  }
 
- function preview(event){const beat=beatAtClient(event.clientX,event.clientY);if(beat!==null){dragBeat=beat;if(lastArgs)moveCursor(beat,lastArgs[3],lastArgs[4]);}}
+ function preview(event){const beat=beatAtClient(event.clientX,event.clientY);if(beat!==null){dragBeat=beat;if(lastArgs)moveCursor(beat,0,lastArgs[18]);}}
  line.addEventListener('pointerdown',event=>{
   if(!canSeek)return;dragging=true;dragPointer=event.pointerId;
   line.setPointerCapture(event.pointerId);preview(event);event.preventDefault();event.stopPropagation();
@@ -121,7 +127,7 @@ function installScrubber(){
  line.addEventListener('pointercancel',event=>finish(event,false));
  // A simple tap on a note/measure also moves the playhead, but never steals scrolling.
  score.addEventListener('click',event=>{
-  if(!canSeek||event.target===line||line.contains(event.target))return;
+  if(!canSeek||event.target===line||line.contains(event.target)||event.target.closest('.loop-handle'))return;
   const beat=beatAtClient(event.clientX,event.clientY);
   if(beat!==null)Android.seek(beat);
  });
@@ -160,9 +166,9 @@ function drawTake(take,expected,tolerance,beat,bpm){
  append(pos.e.svg,'line',{x1:pos.x,y1:traceY,x2:Math.max(pos.x+2,last.x),y2:traceY,stroke:color,'stroke-width':2.4,opacity:.7,'data-hold-id':n.id},label);cursor=until+.001;}
  }
 }
-function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end){if(!ready)return;
+function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end,follow=true){if(!ready)return;
 try{
-lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm,hand,seekEnabled,loopOn,loopEdit,fullEnd];canSeek=seekEnabled;loopEditable=loopEdit;scoreEnd=fullEnd;if(!loopDragging){loopStart=start;loopEnd=end;loopEnabled=loopOn;}const cursor=document.getElementById('playhead');cursor.setAttribute('aria-disabled',seekEnabled?'false':'true');cursor.setAttribute('aria-valuenow',beat.toFixed(2));
+lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm,hand,seekEnabled,loopOn,loopEdit,fullEnd,follow];canSeek=seekEnabled;loopEditable=loopEdit;scoreEnd=fullEnd;if(!loopDragging){loopStart=start;loopEnd=end;loopEnabled=loopOn;}const cursor=document.getElementById('playhead');cursor.setAttribute('aria-disabled',seekEnabled?'false':'true');cursor.setAttribute('aria-valuenow',beat.toFixed(2));
 if(zoom!==lastZoom||horizontal!==lastHorizontal||margin!==lastMargin||dark!==lastDark){lastZoom=zoom;lastHorizontal=horizontal;lastMargin=margin;lastDark=dark;layout();}
 const state=JSON.stringify([matched,missed,start,end,take,hand]);
 if(state!==lastState){lastState=state;for(const e of entries){let color=e.beat>=start-.001&&e.beat<end-.001?(lastDark?'#dce8df':'#173c3b'):'#86958d';
@@ -175,9 +181,19 @@ if(missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))append(e.svg,'elli
 // The overlay is redrawn as an unreleased note grows with the transport.
 drawTake(take,expected,tolerance,beat,bpm);
 for(const e of entries.filter(e=>missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch)))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');
-moveCursor(dragging&&dragBeat!==null?dragBeat:beat,start,end);
+moveCursor(dragging&&dragBeat!==null?dragBeat:beat,0,fullEnd,follow);
  moveLoopHandles(loopStart,loopEnd,loopEnabled,loopEditable);
  lastBeat=beat;
 }catch(e){console.warn(e)}}
-window.addEventListener('resize',()=>{if(ready){layout();if(lastArgs)progress(...lastArgs);}});init();
+let resizeTimer;
+window.addEventListener('resize',()=>{
+ clearTimeout(resizeTimer);
+ // Native pinch zoom changes the visual viewport, not the engraving width.
+ // Height-only changes (controls/keyboard) must not repeatedly rebuild the score.
+ resizeTimer=setTimeout(function reflow(){
+  if(!ready||Math.abs(document.documentElement.clientWidth-lastLayoutWidth)<2)return;
+  if(scroller.paused()){resizeTimer=setTimeout(reflow,120);return;}
+  layout();if(lastArgs)progress(...lastArgs);
+ },120);
+});init();
 </script></body></html>

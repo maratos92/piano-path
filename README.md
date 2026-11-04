@@ -6,13 +6,13 @@
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**Current build: 0.4.0-dev.3 (code 6).** In the app, open **Settings → About → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+**Current build: 0.4.0-dev.4 (code 6).** In the app, open **Settings → About → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
 
 > **Update/signature note:** CI now caches a personal-test debug signing certificate so successive APKs should install over one another. The first switch from the old signing certificate may still require one uninstall, and GitHub may eventually evict the cache. For reliable long-term updates use a permanent privately stored signing key. Uninstalling can delete local scores/history; back them up first.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The current development app is version 0.4.0-dev.3: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The current development app is version 0.4.0-dev.4: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
@@ -100,3 +100,6 @@ GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone a
 ## Licence
 
 App source: [MIT](LICENSE). Piano sound samples: Alexander Holm, Salamander Grand Piano, [CC BY 3.0](licenses/CC-BY-3.0.txt), adapted from [Tone.js/audio](https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander); see the bundled provenance and [notices](docs/DEPENDENCIES.md). OSMD: BSD-3-Clause plus upstream notices. Imported scores remain private and are never uploaded by the app.
+
+
+The dev.4 continuation fixes score scrolling around slurs/ties and pause/release accounting while preserving the new draggable score and A/B controls. APK publication is gated by the current signing-certificate pin and phone/tablet data-preserving update checks. If the signing cache is lost, CI stops; the owner must restore the same private key using `PIANO_DEBUG_KEYSTORE_BASE64`. Do not uninstall the app as an update workaround. See `docs/CONTINUATION_2026-11-04.md` for remaining features and verification limits.

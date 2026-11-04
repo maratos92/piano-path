@@ -41,16 +41,35 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     fun start(now: Long) { origin = now; started = true; pausedAt = null; anchored = config.mode == PracticeMode.RHYTHM }
     /** Freezes the musical clock without changing note-matching results. */
     fun pause(now: Long) { if(started && pausedAt == null) pausedAt = now }
-    /** Move the clock origin by the paused interval so notes remain aligned on resume. */
-    fun resume(now: Long) { pausedAt?.let { origin += (now-it).coerceAtLeast(0L); pausedAt = null } }
-    private fun elapsedMs(now: Long) = (now - origin) / 1e6 - config.latencyMs
+    /** Exclude paused wall time from both onset timing and still-held key durations. */
+    fun resume(now: Long) { pausedAt?.let { paused ->
+        val delay = (now-paused).coerceAtLeast(0L)
+        origin += delay
+        active.values.forEach { queue ->
+            val shifted = queue.map { it.first to it.second+delay }
+            queue.clear(); queue.addAll(shifted)
+        }
+        recordingActive.values.forEach { queue ->
+            val shifted = queue.map { it.first to it.second+delay }
+            queue.clear(); queue.addAll(shifted)
+        }
+        pausedAt = null
+    } }
+    private fun elapsedMs(now: Long) = ((pausedAt?.let { min(now,it) } ?: now) - origin) / 1e6 - config.latencyMs
     private fun expectedMs(note: ScoreNote) = (note.beat - config.startBeat) * 60000.0 / config.bpm + phaseMs
     fun clockBeat(now: Long) = config.startBeat + (elapsedMs(now) - phaseMs) * config.bpm / 60000.0
     private val recorded = mutableListOf<PlayedNote>()
     private val recordingActive = mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<Pair<Int,Long>>>()
     val take: List<PlayedNote> get() = recorded.toList()
-    fun accept(e: MidiEvent) {
-        if(!started || pausedAt != null || config.mode == PracticeMode.FREE)return
+    fun accept(event: MidiEvent) {
+        if(!started || config.mode == PracticeMode.FREE)return
+        // New attacks during a pause are not scored, but releases must still close
+        // pre-pause notes. Their duration ends at the frozen musical clock.
+        val e = pausedAt?.let { paused -> when(event) {
+            is MidiEvent.On -> return
+            is MidiEvent.Off -> event.copy(timestamp=min(event.timestamp,paused))
+            is MidiEvent.Control -> event.copy(timestamp=min(event.timestamp,paused))
+        } } ?: event
         val before=matchedIds
         val clockBefore=if(config.mode==PracticeMode.WAIT || !anchored)currentBeat else clockBeat(e.timestamp)
         val releaseIsExtra=e is MidiEvent.Off && recordingActive[e.channel to e.pitch]?.peekFirst()?.first?.let{recorded[it].expectedId==null}==true

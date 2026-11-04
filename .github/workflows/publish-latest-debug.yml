@@ -23,6 +23,13 @@ jobs:
           github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Refuse to replace the download with an older main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/main" --jq '.object.sha')
+          test "$current_sha" = "$TESTED_SHA" || { echo 'A newer main commit exists; its successful run will publish.'; exit 1; }
       - name: Check out the tested commit, not a newer main
         uses: actions/checkout@v4
         with:
@@ -46,17 +53,18 @@ jobs:
           set -euo pipefail
           test -s build-artifact/app-debug.apk
           cp build-artifact/app-debug.apk piano-path-latest-debug.apk
+          sha256sum piano-path-latest-debug.apk > SHA256SUMS
           VERSION="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
           test -n "$VERSION"
           {
             echo "# Piano Path ${VERSION} · latest passing debug APK"
             echo
-            echo "Automatically published after **unit tests, lint, APK build, and both Android emulator test jobs passed** on `main`."
+            printf '%s\n' 'Published after unit tests, lint, APK build, and phone/tablet update and emulator tests passed on main.'
             echo
-            echo "- Source commit: `$SOURCE_SHA`"
+            printf -- '- Source commit: %s\n' "$SOURCE_SHA"
             echo "- [Successful test run]($SOURCE_RUN_URL)"
             echo "- This is a debug-signed testing APK, not a Play Store signed release."
-            echo "- CI debug-signing certificates may differ across builds: Android might require uninstalling an existing debug install, which deletes locally stored data. Back up your data first."
+            echo '- This update preserves the pinned latest-debug certificate. Builds fail if that certificate changes; do not uninstall your app to work around an update error.'
           } > release-notes.md
 
       - name: Publish one stable download link after full test success
@@ -68,9 +76,9 @@ jobs:
           if gh release view latest-debug --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest-debug" -f sha="$SOURCE_SHA" -F force=true >/dev/null
             gh release edit latest-debug --repo "$GITHUB_REPOSITORY" --title 'Piano Path · latest passing debug APK' --notes-file release-notes.md --prerelease
-            gh release upload latest-debug piano-path-latest-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload latest-debug piano-path-latest-debug.apk SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create latest-debug piano-path-latest-debug.apk --repo "$GITHUB_REPOSITORY" \
+            gh release create latest-debug piano-path-latest-debug.apk SHA256SUMS --repo "$GITHUB_REPOSITORY" \
               --target "$SOURCE_SHA" --title 'Piano Path · latest passing debug APK' \
               --notes-file release-notes.md --prerelease
           fi

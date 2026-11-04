@@ -99,3 +99,16 @@ octaves, saved game accuracy, better settings and navigation, and installable AP
 Commits should continue to include what was changed, the reason, tests and limitations.
 Merge only when a build on the exact head commit is fully green; merging to `main`
 triggers the second full test suite and then the stable `latest-debug` APK release.
+
+
+## Codex reconciliation after the handoff — dev.4
+
+Inspected merged PRs #1–#3 against main `42282d0`; older interrupted local work is checkpointed on `fix/install-and-scrolling` and was not merged wholesale. In particular the removed library and new navigation/score gestures remain intact.
+
+The focused continuation fixes pause-clock/release durations (including key-up during pause), restores sounding voices after Listen resume/seek, restarts audio after long rests, freezes preview/inter-loop countdown while paused and starts later Listen repetitions at A. System-based cursor geometry replaces the changing measure-based scroll target, with gesture priority and width-only debounced re-engraving. Pointer events are observed in capture phase so score handles cannot leave auto-follow permanently paused; releasing an A/B handle no longer also seeks the blue cursor.
+
+Version is `0.4.0-dev.4`, code7. Signing is pinned to the current dev.3 certificate (full digest in `config/debug-certificate.sha256`). Cache loss now fails closed. Optional `PIANO_DEBUG_KEYSTORE_BASE64` restores the SAME private key with the Android debug alias/password; do not create a replacement. No private key is committed or requested in chat. Durable secret provisioning is still an owner task: this patch does not claim a cache is permanent storage, or that the dev.3 signer can update old 0.3 previews signed with another key.
+
+Phone/tablet CI first installs the published APK, writes a private marker and updates to the exact candidate artifact before running instrumentation. Publication refuses stale-main runs and supplies an APK checksum. Follow the actual run outcomes before calling runtime tests or publication complete.
+
+Free-play recording, video export, dated ear analytics, richer monitor quantisation and variable-tempo assessment remain open. This continuation concentrates on the highest-priority delivery and scrolling defects.
