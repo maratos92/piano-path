@@ -187,7 +187,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             val b=(kotlin.math.round(end*4)/4).coerceIn(a+.25,full)
             val from=measures.last { it.start<=a+.0001 }
             val through=measures.last { it.start<b-.0001 }
-            p.copy(startMeasure=from.number,endMeasure=through.number,startOffset=a-from.start,endOffset=b-through.start)
+            p.copy(startMeasure=from.number,endMeasure=through.number,startOffset=a-from.start,endOffset=b-through.start,loop=true)
         }
     }
     fun enableTouch() {setSettings {it.copy(simulator=true)};audio.start()}
