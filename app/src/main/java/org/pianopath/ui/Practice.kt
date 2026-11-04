@@ -2,6 +2,8 @@
 package org.pianopath.ui
 
 import androidx.compose.foundation.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,9 +37,23 @@ import kotlin.math.*
     var controls by remember {mutableStateOf(false)}
     var result by remember {mutableStateOf(false)}
     var scorePopup by remember {mutableStateOf(false)}
+    var replaying by remember {mutableStateOf(false)}
     var scoreFraction by androidx.compose.runtime.saveable.rememberSaveable {mutableFloatStateOf(.55f)}
     val landscape=LocalConfiguration.current.screenWidthDp>LocalConfiguration.current.screenHeightDp
     val score=p.score
+    LaunchedEffect(replaying,p.key) {
+        if(!replaying || !p.review || !p.performedRoll)return@LaunchedEffect
+        val musicalEnd=p.score?.endBeat ?: return@LaunchedEffect
+        val initial=p.reviewBeat
+        val origin=System.nanoTime()
+        while(isActive && replaying && vm.ui.value.review && vm.ui.value.performedRoll) {
+            val position=initial+(System.nanoTime()-origin)/1e9*p.bpm/60
+            vm.seekReview(position.coerceAtMost(musicalEnd))
+            if(position>=musicalEnd)break
+            delay(16)
+        }
+        replaying=false
+    }
     if(score==null) {Column(Modifier.padding(24.dp)){PageTitle("Your practice space","Choose your music.");Button(onClick={vm.screen.value="Library"}){Text("Open library")}};return}
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(if(landscape)44.dp else 54.dp).padding(horizontal=6.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -68,7 +84,17 @@ import kotlin.math.*
         }
         if(p.review && !p.running && !p.listening) {
             Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-                Text("Visual review",fontSize=11.sp)
+                FilterChip(!p.performedRoll,{replaying=false;vm.showPerformedRoll(false)},label={Text("Score",fontSize=11.sp)})
+                FilterChip(p.performedRoll,{replaying=false;vm.showPerformedRoll(true)},label={Text("Recorded",fontSize=11.sp)})
+                if(p.performedRoll)IconButton(onClick={
+                    if(replaying)replaying=false else {
+                        if(p.reviewBeat>=score.endBeat-.01)vm.seekReview(score.measures[p.startMeasure-1].start+p.startOffset)
+                        replaying=true
+                    }
+                }){Icon(if(replaying)Icons.Outlined.Pause else Icons.Outlined.PlayArrow,if(replaying)"Pause replay" else "Animate recorded notes")}
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                Text("Review",fontSize=11.sp)
                 Slider(p.reviewBeat.toFloat(),{vm.seekReview(it.toDouble())},Modifier.weight(1f),valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f))
                 TextButton(onClick={vm.edit{it.copy(review=false)}}){Text("Close",fontSize=11.sp)}
             }
@@ -78,11 +104,11 @@ import kotlin.math.*
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
                     ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage){vm.message.value="Notation: $it"}
-                    ScoreView.FALLING -> FallingNotes(p,1f,0f,Modifier.fillMaxSize())
+                    ScoreView.FALLING -> if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize())
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}}
+                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage){vm.message.value="Notation: $it"}}
                         HorizontalDivider()
-                        Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())}
+                        Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize())}
                     }
                 }
                 if(p.hidden)Box(Modifier.matchParentSize().background(Color(0xfffffefb))) {
@@ -93,7 +119,7 @@ import kotlin.math.*
                 }
             }
             KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,true,vm::key,
-                if(landscape)64 else 100,1f,0f,p.playbackHeld)
+                if(landscape)64 else 100,1f,0f,if(p.review && p.performedRoll)p.take.filter {n->p.reviewBeat>=n.beat && p.reviewBeat<=n.beat+(n.duration ?: .12)}.map {it.pitch}.toSet() else p.playbackHeld)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
