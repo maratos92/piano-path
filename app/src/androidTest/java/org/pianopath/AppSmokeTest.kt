@@ -84,7 +84,7 @@ class AppSmokeTest {
         compose.onNodeWithText("Both").assertIsDisplayed()
         compose.onNodeWithContentDescription("88-key piano, A0 to C8").assertIsDisplayed()
         compose.onNodeWithContentDescription("Falling notes aligned to the 88-key piano").assertIsDisplayed()
-        compose.onNodeWithText("Fit all 88").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Played notes").assertIsDisplayed()
         compose.onNodeWithText("Listen").assertIsDisplayed()
     }
     @Test fun sheetScoreTapMovesBlueCursorToTouchedMeasure() {
@@ -251,12 +251,13 @@ class AppSmokeTest {
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
         compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Note monitor").performScrollTo().assertIsDisplayed().performClick()
-        compose.onNodeWithText("Live note monitor").assertIsDisplayed()
+        compose.onNodeWithText("Played notes").assertIsDisplayed()
     }
 
     @Test fun voluntarySupportExplainsTheExternalProviderWithoutLaunchingPayment() {
         assertTrue(BuildConfig.SUPPORT_URL.startsWith("https://ko-fi.com/"))
         compose.onNodeWithContentDescription("Settings",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("About").performClick()
         compose.onNodeWithText("Support Piano Path").performScrollTo().performClick()
         compose.onNodeWithText("Open Ko-fi").assertIsDisplayed()
         compose.onNodeWithText("Maybe later").assertIsDisplayed().performClick()
