@@ -253,50 +253,77 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Text(remember{context.assets.open("piano/LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
         }
     })
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        PageTitle("Make it yours","Practice settings")
-        Panel(Modifier.fillMaxWidth()) {
-            Text("Piano sound",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                PianoSound.entries.forEach { sound -> FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)}) }
+    var section by remember {mutableStateOf("General")}
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Text("Settings",fontFamily=FontFamily.Serif,fontSize=29.sp)
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+            listOf("General","Practice","MIDI","About").forEach { tab ->
+                FilterChip(section==tab,{section=tab},modifier=Modifier.weight(1f),label={Text(tab,fontSize=11.sp,maxLines=1)})
             }
         }
-        Panel(Modifier.fillMaxWidth()) {
-            Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
-            Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
-            Text("Notes inside this onset window are on time. Chord notes may spread over a short interval.",fontSize=13.sp)
-            Text("Input latency compensation · ${s.latency.toInt()} ms",fontWeight=FontWeight.SemiBold)
-            Slider(s.latency.toFloat(),{v->vm.setSettings{it.copy(latency=v.toDouble())}},valueRange=-300f..300f,steps=119)
-            Text("Positive compensation subtracts input delay. Tap a piano key with the 12 clicks to estimate your combined input and tapping offset; use headphones or a low-volume piano.",fontSize=13.sp)
-            OutlinedButton(onClick={vm.calibrate()},enabled=!calibrating){Text(if(calibrating)"Tap with each click…" else "Calibrate with MIDI taps")}
-        }
-        Panel(Modifier.fillMaxWidth()) {
-            Text("Appearance",fontWeight=FontWeight.SemiBold)
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { ThemeMode.entries.forEach { mode ->
-                FilterChip(s.theme==mode,{vm.setSettings{it.copy(theme=mode)}},label={Text(mode.name.lowercase().replaceFirstChar{it.uppercase()})})
-            } }
-            Toggle("Touch piano with sound",s.simulator,{v->vm.setSettings{it.copy(simulator=v)}})
-            Text("Play on the phone without an instrument. Listen plays scores aloud; touch keys use a offline sampled grand piano. Touch practice is marked in history.",fontSize=13.sp)
-            TextButton(onClick={notices=true}){Text("Sound attribution and licence")}
-            TextButton(onClick={vm.screen.value="Note monitor"}){Text("Live note monitor")}
-            TextButton(onClick={vm.screen.value="Diagnostics"}){Text("MIDI diagnostics")}
-            TextButton(onClick={vm.screen.value="History"}){Text("Practice history")}
-        }
-        if(BuildConfig.SUPPORT_URL.isNotBlank())Panel(Modifier.fillMaxWidth()) {
-            Text("Help keep music accessible",fontWeight=FontWeight.SemiBold)
-            Text("Piano Path is free and has no ads. Voluntary support helps its continued development.",fontSize=13.sp)
-            OutlinedButton(onClick={support=true}){Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")}
-        }
-        Panel(Modifier.fillMaxWidth()) {
-            Text("About Piano Path",fontWeight=FontWeight.SemiBold)
-            Text("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",fontWeight=FontWeight.SemiBold)
-            Text(if(BuildConfig.DEBUG)"Development / debug APK" else "Release APK",
-                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Open source under MIT · Offline by design. No account, analytics, or network permission.",
-                fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Piano sound: Alexander Holm, Salamander Grand (CC BY 3.0)\nNotation: OpenSheetMusicDisplay 1.9.2 (BSD-3-Clause)",
-                fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        when(section) {
+            "General" -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Appearance",fontWeight=FontWeight.SemiBold)
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        ThemeMode.entries.forEach {mode ->
+                            FilterChip(s.theme==mode,{vm.setSettings{it.copy(theme=mode)}},label={Text(mode.name.lowercase().replaceFirstChar{it.uppercase()})})
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("Piano sound",fontWeight=FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        PianoSound.entries.forEach {sound ->
+                            FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)})
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("Score padding · ${s.sheetMargin} px",fontWeight=FontWeight.SemiBold)
+                    Slider(s.sheetMargin.toFloat(),{v->vm.setSettings{it.copy(sheetMargin=v.toInt())}},valueRange=0f..32f)
+                }
+            }
+            "Practice" -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
+                    Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
+                    HorizontalDivider()
+                    Text("Input delay · ${s.latency.toInt()} ms",fontWeight=FontWeight.SemiBold)
+                    Slider(s.latency.toFloat(),{v->vm.setSettings{it.copy(latency=v.toDouble())}},valueRange=-300f..300f,steps=119)
+                    OutlinedButton(onClick={vm.calibrate()},enabled=!calibrating){Text(if(calibrating)"Calibrating…" else "Calibrate with MIDI")}
+                }
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Played-note history",fontWeight=FontWeight.SemiBold)
+                    Text("Visible notes · ${s.playedNoteCount} (maximum 32)",fontSize=13.sp)
+                    Slider(s.playedNoteCount.toFloat(),{v->vm.setSettings{it.copy(playedNoteCount=v.toInt())}},valueRange=1f..32f,steps=30)
+                    HorizontalDivider()
+                    Text("Insert pause after · ${"%.1f".format(s.noteGapMs/1000.0)} s",fontSize=13.sp)
+                    Slider(s.noteGapMs.toFloat(),{v->vm.setSettings{it.copy(noteGapMs=(v/500).toInt()*500)}},valueRange=500f..10000f,steps=18)
+                    Text("Durations appear after releasing a key; note values are approximate.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            "MIDI" -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("Your piano",fontWeight=FontWeight.SemiBold)
+                    Text(if(vm.midi.state.collectAsStateWithLifecycle().value.connected)"Connected" else "Disconnected")
+                    OutlinedButton(onClick={vm.screen.value="Connect"},modifier=Modifier.fillMaxWidth()){Text("Connection")}
+                    OutlinedButton(onClick={vm.screen.value="Note monitor"},modifier=Modifier.fillMaxWidth()){Text("Played notes")}
+                    OutlinedButton(onClick={vm.screen.value="Diagnostics"},modifier=Modifier.fillMaxWidth()){Text("MIDI diagnostics")}
+                }
+                Text("The on-screen piano is always playable.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            else -> {
+                Panel(Modifier.fillMaxWidth()) {
+                    Text("About Piano Path",fontWeight=FontWeight.SemiBold)
+                    Text("Version ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}",fontWeight=FontWeight.SemiBold)
+                    Text(if(BuildConfig.DEBUG)"Development APK" else "Release APK",fontSize=12.sp)
+                    Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp)
+                    Text("Open source · offline · no account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick={notices=true}){Text("Sound attribution and licences")}
+                }
+                if(BuildConfig.SUPPORT_URL.isNotBlank())OutlinedButton(onClick={support=true}) {
+                    Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")
+                }
+            }
         }
     }
 }
