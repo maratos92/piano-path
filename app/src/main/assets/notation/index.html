@@ -30,7 +30,7 @@ for(const g of c.GNotesUnderCursor()){
 for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);svg.appendChild(layer);}}
 let line=document.getElementById('playhead');if(!line){line=document.createElement('div');line.id='playhead';line.setAttribute('role','slider');line.setAttribute('tabindex','0');line.setAttribute('aria-label','Blue score cursor. Drag to seek');document.getElementById('score').appendChild(line);}
 for(const [id,label] of [['loop-start','A'],['loop-end','B']]){if(!document.getElementById(id)){const marker=document.createElement('div');marker.id=id;marker.className='loop-handle';marker.setAttribute('role','slider');marker.setAttribute('aria-label',label==='A'?'Loop start':'Loop end');const cap=document.createElement('b');cap.textContent=label;marker.appendChild(cap);document.getElementById('score').appendChild(marker);}}
-indexHitGroups();}
+indexHitGroups();installScrubber();}
 // Index measure positions for inverse mouse/touch hit-testing. Layout uses SVG coordinates.
 function indexHitGroups(){
  hitGroups=[];const svgs=new Map();
@@ -42,7 +42,7 @@ function indexHitGroups(){
   const firstX=Math.min(...notes.map(e=>e.x)),lastX=Math.max(...notes.map(e=>e.right-5));
   if(!points.has(start))points.set(start,firstX-12);points.set(end,lastX);
   hitGroups.push({svg,measure,start,end,points:[...points.entries()].sort((a,b)=>a[1]-b[1]),
-   left:firstX-18,right:Math.max(lastX,firstX+15),top:Math.min(...notes.map(e=>e.y))-40,bottom:Math.max(...notes.map(e=>e.y))+40});
+   left:firstX-18,right:Math.max(lastX,firstX+15),top:systemBounds.get(notes[0].system).top,bottom:systemBounds.get(notes[0].system).bottom});
  }
 }
 // Get the closest measure *on the touched system*, then interpolate between noteheads.
@@ -97,14 +97,15 @@ function moveCursor(beat,start,end,follow=false){
 }
 function installScrubber(){
  const score=document.getElementById('score'),line=document.getElementById('playhead');
+ if(line.dataset.bound)return;line.dataset.bound='true';
  for(const [id,which] of [['loop-start','start'],['loop-end','end']]){
   const el=document.getElementById(id);
   el.addEventListener('pointerdown',event=>{if(!loopEditable)return;loopDragging=which;loopPointer=event.pointerId;el.setPointerCapture(event.pointerId);event.preventDefault();event.stopPropagation();});
   el.addEventListener('pointermove',event=>{if(loopDragging!==which||loopPointer!==event.pointerId)return;let beat=beatAtClient(event.clientX,event.clientY);if(beat===null)return;
    beat=Math.round(beat*4)/4;if(which==='start')loopStart=Math.max(0,Math.min(loopEnd-.25,beat));else loopEnd=Math.max(loopStart+.25,Math.min(scoreEnd,beat));
    loopEnabled=true;lastSelection='';moveLoopHandles(loopStart,loopEnd,true,true);event.preventDefault();});
-  function finish(event,commit){if(loopDragging!==which||loopPointer!==event.pointerId)return;const a=loopStart,b=loopEnd;loopDragging=null;loopPointer=null;if(el.hasPointerCapture(event.pointerId))el.releasePointerCapture(event.pointerId);if(commit&&b>a)Android.setLoop(a,b);event.preventDefault();event.stopPropagation();}
-  el.addEventListener('pointerup',event=>finish(event,true));el.addEventListener('pointercancel',event=>finish(event,false));
+  function finishLoop(event,commit){if(loopDragging!==which||loopPointer!==event.pointerId)return;const a=loopStart,b=loopEnd;loopDragging=null;loopPointer=null;if(el.hasPointerCapture(event.pointerId))el.releasePointerCapture(event.pointerId);if(commit&&b>a)Android.setLoop(a,b);event.preventDefault();event.stopPropagation();}
+  el.addEventListener('pointerup',event=>finishLoop(event,true));el.addEventListener('pointercancel',event=>finishLoop(event,false));
  }
 
  function preview(event){const beat=beatAtClient(event.clientX,event.clientY);if(beat!==null){dragBeat=beat;if(lastArgs)moveCursor(beat,0,lastArgs[18]);}}
@@ -115,7 +116,7 @@ function installScrubber(){
  line.addEventListener('pointermove',event=>{
   if(!dragging||dragPointer!==event.pointerId)return;preview(event);event.preventDefault();
  });
- function finish(event,commit){
+ function finishCursor(event,commit){
   if(!dragging||dragPointer!==event.pointerId)return;
   if(commit)preview(event);
   const target=dragBeat;dragging=false;dragPointer=null;dragBeat=null;
@@ -123,14 +124,14 @@ function installScrubber(){
   if(commit&&target!==null)Android.seek(target);
   event.preventDefault();event.stopPropagation();
  }
- line.addEventListener('pointerup',event=>finish(event,true));
- line.addEventListener('pointercancel',event=>finish(event,false));
+ line.addEventListener('pointerup',event=>finishCursor(event,true));
+ line.addEventListener('pointercancel',event=>finishCursor(event,false));
  // A simple tap on a note/measure also moves the playhead, but never steals scrolling.
- score.addEventListener('click',event=>{
-  if(!canSeek||event.target===line||line.contains(event.target)||event.target.closest('.loop-handle'))return;
+ if(!score.dataset.tapBound){score.dataset.tapBound='true';score.addEventListener('click',event=>{
+  if(!canSeek||event.target.closest('#playhead,.loop-handle'))return;
   const beat=beatAtClient(event.clientX,event.clientY);
   if(beat!==null)Android.seek(beat);
- });
+ });}
  line.addEventListener('keydown',event=>{
   if(!canSeek||!lastArgs||!['ArrowLeft','ArrowRight'].includes(event.key))return;
   const delta=event.key==='ArrowRight'?.25:-.25;
