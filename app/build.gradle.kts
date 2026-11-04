@@ -16,8 +16,8 @@ android {
         applicationId = "org.pianopath"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.0-dev.4"
+        versionCode = 8
+        versionName = "0.4.0-dev.5"
         // The Actions runner supplies GITHUB_SHA; local builds are intentionally labelled "local".
         val revision = providers.environmentVariable("GITHUB_SHA").orNull
             ?.take(8)?.takeIf { it.matches(Regex("[a-fA-F0-9]{8}")) } ?: "local"

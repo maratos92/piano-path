@@ -59,6 +59,12 @@ jobs:
           keytool -exportcert -rfc -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android | openssl x509 -noout -fingerprint -sha256
           ./gradlew :app:signingReport
           test "$certificate" = "$(cat config/debug-certificate.sha256)" || { echo 'Debug signer changed. Refusing to distribute an incompatible update.'; exit 1; }
+      - name: Prepare the same-key upgrade test fixture
+        run: bash scripts/prepare_upgrade_baseline.sh app/build/outputs/apk/debug/app-debug.apk upgrade-baseline.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: piano-path-upgrade-baseline-test-only
+          path: upgrade-baseline.apk
       - name: Check 16 KB native and APK alignment
         run: |
           python3 scripts/check_native_alignment.py app/build/outputs/apk/debug/app-debug.apk
@@ -128,6 +134,10 @@ jobs:
         with:
           name: piano-path-debug-apk
           path: upgrade-artifact
+      - uses: actions/download-artifact@v4
+        with:
+          name: piano-path-upgrade-baseline-test-only
+          path: upgrade-fixture
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -140,4 +150,4 @@ jobs:
           target: default
           profile: pixel_2
           disable-animations: true
-          script: bash scripts/test_debug_upgrade.sh upgrade-artifact/app-debug.apk
+          script: bash scripts/test_debug_upgrade.sh upgrade-artifact/app-debug.apk upgrade-fixture/upgrade-baseline.apk

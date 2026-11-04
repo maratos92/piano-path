@@ -1,4 +1,6 @@
-# Preserve the installed app before changing signing identity
+# Historical signing recovery notes
+
+**Superseded on 2026-11-04:** the owner explicitly authorised discarding the old history/scores and a fresh installation. These backup steps are optional historical guidance, not a release blocker. Build 8 uses the pinned retained preview key.
 
 The owner reports dev.2, build5, revision a0478842. That workflow used a temporary debug key without retaining it. The saved APK holds the public certificate, not the private signing key. A version bump, GitHub token or Google identity verification cannot recreate that key.
 

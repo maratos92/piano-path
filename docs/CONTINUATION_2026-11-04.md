@@ -130,3 +130,12 @@ Owner reports the phone is on dev.2/build5/revision a0478842, not dev.3. That ea
 
 
 Final application-code validation at remote commit `2b263485700f3d04c9ac64a045291366c110ed0c`: **16/16 Android tests passed on API36 phone and 16/16 on API35 tablet**, run https://github.com/maratos92/piano-path/actions/runs/41761292976. Local 83 JVM tests, debug/instrumentation build, lint, notation and scroll/drag browser checks passed. The overall workflow remains failed solely at the intentional certificate-continuity gate; the upgrade job was skipped. **Not merged; not published.** The following commit changes documentation only. See SIGNING_RECOVERY.md for non-destructive backup preparation; no phone data was accessed, cleared or migrated.
+
+
+## Current instruction: authorised signing reset and integration release
+
+The owner explicitly waived old scores/history and asked for a fresh version, prioritising clean integration and regression testing. This supersedes the earlier migration blocker. Target `0.4.0-dev.5`, code8, selects and pins the retained cached key `d9adde74…81e9415e`. No private key is committed. Durable secret/backup storage is still required beyond cache; missing or changed keys stop builds.
+
+Build 8 has an explicit, bounded transition: if the published APK uses a legacy signer and has code <8, CI re-signs it ONLY as an emulator fixture. The candidate then must install cleanly and update that same-key fixture with app-private data retained. It does not upgrade the owner's differently signed old app. Future mismatched published signers are rejected. The owner may uninstall the old app once and install the new README APK.
+
+Before merge: exact PR head must pass core tests, lint/build, certificate pin, phone/tablet source tests and installation/update tests. After merge: wait for the main-commit suite and publication, then verify the public APK's version/certificate/checksum. No conflict-free merge is treated as proof of semantic compatibility. Preserve all merged practice features and the owner's library cleanup.

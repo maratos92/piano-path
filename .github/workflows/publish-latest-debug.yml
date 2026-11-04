@@ -53,18 +53,20 @@ jobs:
           set -euo pipefail
           test -s build-artifact/app-debug.apk
           cp build-artifact/app-debug.apk piano-path-latest-debug.apk
-          sha256sum piano-path-latest-debug.apk > SHA256SUMS
           VERSION="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)"
           test -n "$VERSION"
+          cp build-artifact/app-debug.apk "piano-path-${VERSION}-debug.apk"
+          sha256sum piano-path-latest-debug.apk "piano-path-${VERSION}-debug.apk" > SHA256SUMS
+          printf 'APK_VERSION=%s\n' "$VERSION" >> "$GITHUB_ENV"
           {
             echo "# Piano Path ${VERSION} · latest passing debug APK"
             echo
-            printf '%s\n' 'Published after unit tests, lint, APK build, and phone/tablet update and emulator tests passed on main.'
+            printf '%s\n' 'Published after unit tests, lint, APK build, phone/tablet emulator tests, clean install and same-key update tests passed on main.'
             echo
             printf -- '- Source commit: %s\n' "$SOURCE_SHA"
             echo "- [Successful test run]($SOURCE_RUN_URL)"
             echo "- This is a debug-signed testing APK, not a Play Store signed release."
-            echo '- This update preserves the pinned latest-debug certificate. Builds fail if that certificate changes; do not uninstall your app to work around an update error.'
+            echo '- Build 8 starts a new pinned signing identity. Older dev.2/dev.3 installs need one uninstall and fresh installation, as authorised by the owner. Future builds retain this key; missing or changed keys fail the build. The upgrade check uses a same-key fixture and does not claim legacy certificate compatibility.'
           } > release-notes.md
 
       - name: Publish one stable download link after full test success
@@ -76,9 +78,9 @@ jobs:
           if gh release view latest-debug --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest-debug" -f sha="$SOURCE_SHA" -F force=true >/dev/null
             gh release edit latest-debug --repo "$GITHUB_REPOSITORY" --title 'Piano Path · latest passing debug APK' --notes-file release-notes.md --prerelease
-            gh release upload latest-debug piano-path-latest-debug.apk SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload latest-debug piano-path-latest-debug.apk "piano-path-${APK_VERSION}-debug.apk" SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create latest-debug piano-path-latest-debug.apk SHA256SUMS --repo "$GITHUB_REPOSITORY" \
+            gh release create latest-debug piano-path-latest-debug.apk "piano-path-${APK_VERSION}-debug.apk" SHA256SUMS --repo "$GITHUB_REPOSITORY" \
               --target "$SOURCE_SHA" --title 'Piano Path · latest passing debug APK' \
               --notes-file release-notes.md --prerelease
           fi

@@ -39,3 +39,10 @@ A release APK signed with your key cannot upgrade the delivered debug APK under 
 For Google Play preparation and remaining owner tasks, see STORE_READINESS.md. A locally unsigned release bundle is not a production submission artifact.
 
 The development `v0.3.0-preview` tag may advance to a newer verified preview commit. Its APK and source ZIP are republished together, with an updated checksum. Pin a commit/checksum when reproducing a particular preview; production release tags should be immutable.
+
+
+## Consistent preview signing (build 8 onward)
+
+The owner authorised a one-time fresh installation, so build8 starts a new preview signing generation. The private test key is retained by CI cache and selected explicitly with `PIANO_DEBUG_KEYSTORE_PATH`; the public certificate is pinned in `config/debug-certificate.sha256`. Cache is a temporary fallback, not durable backup. Configure repository secret `PIANO_DEBUG_KEYSTORE_BASE64` with a private backup of THIS key (debug alias/password), and retain an offline backup. No secrets API is available to this development connector, so secret provisioning cannot be silently claimed complete. Do not put private keystores in Git or public artifacts.
+
+The install regression re-signs a pre-build8 APK as an emulator-only fixture for the authorised transition. Future updates use the published same-key APK directly. Both a clean install and same-key update must pass; no legacy signer compatibility is claimed.
