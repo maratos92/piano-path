@@ -36,8 +36,6 @@ import kotlin.math.*
     var result by remember {mutableStateOf(false)}
     var scorePopup by remember {mutableStateOf(false)}
     var scoreFraction by androidx.compose.runtime.saveable.rememberSaveable {mutableFloatStateOf(.55f)}
-    var keyZoom by androidx.compose.runtime.saveable.rememberSaveable {mutableFloatStateOf(1f)}
-    var keyPan by androidx.compose.runtime.saveable.rememberSaveable {mutableFloatStateOf(0f)}
     val landscape=LocalConfiguration.current.screenWidthDp>LocalConfiguration.current.screenHeightDp
     val score=p.score
     if(score==null) {Column(Modifier.padding(24.dp)){PageTitle("Your practice space","Choose your music.");Button(onClick={vm.screen.value="Library"}){Text("Open library")}};return}
@@ -46,8 +44,9 @@ import kotlin.math.*
             IconButton(onClick=openMenu){Icon(Icons.Outlined.Menu,"Open navigation menu")}
             Column(Modifier.weight(1f)) {
                 Text(score.title,fontFamily=FontFamily.Serif,fontSize=if(landscape)18.sp else 22.sp,maxLines=1)
-                Text("${p.bpm.toInt()} BPM · ${handName(p.hand)} · m. ${p.startMeasure}–${p.endMeasure} · ${if(midi.connected) "MIDI connected" else if(settings.simulator) "Touch" else "No MIDI"}",fontSize=11.sp,maxLines=1)
+                Text("${p.bpm.toInt()} BPM · ${handName(p.hand)} · m. ${p.startMeasure}–${p.endMeasure}",fontSize=11.sp,maxLines=1)
             }
+            Icon(Icons.Outlined.Piano,if(midi.connected)"MIDI piano connected" else "MIDI piano disconnected",Modifier.size(16.dp),tint=if(midi.connected)Color(0xff2a9a6a) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.38f))
             if(p.view!=ScoreView.FALLING) {
                 IconButton(onClick={vm.zoom(-.15)}){Icon(Icons.Outlined.ZoomOut,"Zoom out sheet")}
                 IconButton(onClick={vm.zoom(.15)}){Icon(Icons.Outlined.ZoomIn,"Zoom in sheet")}
@@ -59,16 +58,10 @@ import kotlin.math.*
             FilterChip(p.view==ScoreView.FALLING,{vm.setView(ScoreView.FALLING)},label={Text("Falling",fontSize=12.sp)})
             FilterChip(p.view==ScoreView.COMBINED,{vm.setView(ScoreView.COMBINED)},label={Text("Both",fontSize=12.sp)})
             Spacer(Modifier.weight(1f))
+            IconButton(onClick={monitor=!monitor},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.QueueMusic,"Played notes",Modifier.size(19.dp),tint=if(monitor)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
             IconButton(onClick={scorePopup=true},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.OpenInNew,"Floating score window",Modifier.size(18.dp))}
         }
-        Row(Modifier.fillMaxWidth().height(40.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-            FilterChip(monitor,{monitor=!monitor},label={Text("Played notes",fontSize=12.sp)})
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick={if(settings.simulator)vm.setSettings{it.copy(simulator=false)} else vm.enableTouch()},contentPadding=PaddingValues(horizontal=6.dp)) {
-                Text(if(settings.simulator)"Touch piano ✓" else "Touch piano",fontSize=12.sp)
-            }
-        }
-        if(monitor)LiveNotes(midi,Modifier.fillMaxWidth().padding(horizontal=12.dp))
+        if(monitor)LiveNotes(vm,Modifier.fillMaxWidth().padding(horizontal=12.dp))
         if(p.view==ScoreView.COMBINED)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("Score height",fontSize=11.sp)
             Slider(scoreFraction,{scoreFraction=it},Modifier.weight(1f).padding(horizontal=10.dp),valueRange=.25f..0.75f)
@@ -81,12 +74,11 @@ import kotlin.math.*
             }
         }
         if(p.view==ScoreView.SHEET && (p.running || p.review))Text("● correct   ● early/late   ● extra   ○ missing · traces show key holds",fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
-        KeyboardControls(keyZoom,keyPan,{keyZoom=it},{keyPan=it})
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
                     ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage){vm.message.value="Notation: $it"}
-                    ScoreView.FALLING -> FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())
+                    ScoreView.FALLING -> FallingNotes(p,1f,0f,Modifier.fillMaxSize())
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
                         Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}}
                         HorizontalDivider()
@@ -100,13 +92,13 @@ import kotlin.math.*
                     Text(p.counting.toString(),fontSize=48.sp,color=Color.White,modifier=Modifier.padding(horizontal=30.dp,vertical=8.dp))
                 }
             }
-            KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,settings.simulator || p.listening,vm::key,
-                if(landscape)64 else 100,keyZoom,keyPan,p.playbackHeld)
+            KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else p.expected,true,vm::key,
+                if(landscape)64 else 100,1f,0f,p.playbackHeld)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(p.feedback,fontSize=12.sp,maxLines=1)
-                if(!landscape)Text(if(p.listening)"Tap keys to play along" else if(midi.connected)"MIDI connected" else if(settings.simulator)"Touch piano ready" else "Connect a piano or tap Touch piano",fontSize=10.sp,maxLines=1)
+
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.listening)Icons.Outlined.Stop else Icons.Outlined.VolumeUp,null,Modifier.size(18.dp))
@@ -119,10 +111,15 @@ import kotlin.math.*
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text("Piece",fontSize=11.sp)
+            val start=score.measures[p.startMeasure-1].start+p.startOffset
+            val end=score.measures[p.endMeasure-1].start+p.endOffset
+            Text("A ${"%.1f".format(start)}",fontSize=10.sp)
             Slider(value=p.transportBeat.toFloat().coerceIn(0f,score.endBeat.toFloat()),onValueChange={vm.seek(it.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f),modifier=Modifier.weight(1f).height(34.dp))
-            Text("m.${score.measures.lastOrNull {it.start<=p.transportBeat+.0001}?.number ?: 1}/${score.measures.size}",fontSize=11.sp)
+            Text("B ${"%.1f".format(end)}",fontSize=10.sp)
+            IconButton(onClick={vm.edit{it.copy(loop=!it.loop)}},enabled=!(p.running||p.listening),modifier=Modifier.size(34.dp)){
+                Icon(Icons.Outlined.Repeat,if(p.loop)"Loop enabled" else "Enable loop",Modifier.size(19.dp),tint=if(p.loop)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         if(p.result!=null)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick={vm.review()},contentPadding=PaddingValues(0.dp)){Text("Review on score",fontSize=11.sp)}
