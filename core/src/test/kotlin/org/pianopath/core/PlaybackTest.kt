@@ -34,6 +34,16 @@ class PlaybackTest {
         val plan=PlaybackPlan.create(s,1.0,2.0,Hand.LEFT)
         assertEquals(listOf(48,48),plan.map{it.pitch});assertTrue(plan.all{it.channel==2})
     }
+    @Test fun resumeRestoresOnlyStillHeldVoicesAcrossChannelsAndRepeatedPitches() {
+        val plan=listOf(PlaybackNoteEvent(0.0,60,true,1,40),PlaybackNoteEvent(0.0,60,true,2,90),
+            PlaybackNoteEvent(.5,64,true,1,70),PlaybackNoteEvent(1.0,60,false,1),
+            PlaybackNoteEvent(1.0,60,true,1,80),PlaybackNoteEvent(1.5,64,false,1),
+            PlaybackNoteEvent(2.0,60,false,1),PlaybackNoteEvent(2.0,60,false,2))
+        assertEquals(listOf(plan[0],plan[1]),PlaybackPlan.activeBefore(plan,2))
+        assertEquals(setOf(plan[1],plan[4]),PlaybackPlan.activeBefore(plan,6).toSet())
+        assertTrue(PlaybackPlan.activeBefore(plan,plan.size).isEmpty())
+        assertTrue(PlaybackPlan.activeBefore(plan,0).isEmpty())
+    }
     @Test fun barsReachStrikeLineAtOnsetAndLeaveAtRelease() {
         val roll=PianoRoll(score(ScoreNote(0,60,2.0,1.0,1)),0.0,4.0)
         assertEquals(.75,roll.visible(0.0,8.0).single().bottom,.001)

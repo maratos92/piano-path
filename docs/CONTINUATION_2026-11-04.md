@@ -99,3 +99,43 @@ octaves, saved game accuracy, better settings and navigation, and installable AP
 Commits should continue to include what was changed, the reason, tests and limitations.
 Merge only when a build on the exact head commit is fully green; merging to `main`
 triggers the second full test suite and then the stable `latest-debug` APK release.
+
+
+## Codex reconciliation after the handoff — dev.4
+
+Inspected merged PRs #1–#3 against main `42282d0`; older interrupted local work is checkpointed on `fix/install-and-scrolling` and was not merged wholesale. In particular the removed library and new navigation/score gestures remain intact.
+
+The focused continuation fixes pause-clock/release durations (including key-up during pause), restores sounding voices after Listen resume/seek, restarts audio after long rests, freezes preview/inter-loop countdown while paused and starts later Listen repetitions at A. System-based cursor geometry replaces the changing measure-based scroll target, with gesture priority and width-only debounced re-engraving. Pointer events are observed in capture phase so score handles cannot leave auto-follow permanently paused; releasing an A/B handle no longer also seeks the blue cursor.
+
+Version is `0.4.0-dev.4`, code7. Signing is pinned to the current dev.3 certificate (full digest in `config/debug-certificate.sha256`). Cache loss now fails closed. Optional `PIANO_DEBUG_KEYSTORE_BASE64` restores the SAME private key with the Android debug alias/password; do not create a replacement. No private key is committed or requested in chat. Durable secret provisioning is still an owner task: this patch does not claim a cache is permanent storage, or that the dev.3 signer can update old 0.3 previews signed with another key.
+
+Phone/tablet CI first installs the published APK, writes a private marker and updates to the exact candidate artifact before running instrumentation. Publication refuses stale-main runs and supplies an APK checksum. Follow the actual run outcomes before calling runtime tests or publication complete.
+
+Free-play recording, video export, dated ear analytics, richer monitor quantisation and variable-tempo assessment remain open. This continuation concentrates on the highest-priority delivery and scrolling defects.
+
+Browser pointer tests additionally reproduced three gesture defects: rebuilt handles lacked listeners after zoom; cursor and loop handlers shared a legacy function binding that could leave cursor dragging active on release; inverse hit-testing used per-measure pitch extents and could select the wrong measure around high/low notes. Handlers now reattach idempotently, have distinct finish functions, and use stable system bounds for hit-testing. The regression drags the blue cursor and B handle after re-engraving and verifies exact callbacks and that loop dragging does not also seek.
+
+
+Verification: 83 local JVM tests, debug/instrumentation build and debug lint passed. Browser renderer and the slur/tie/zoom/loop/pointer regression passed. The first CI run correctly failed its signing pin: the restored cached key does not sign the published dev.3 APK. Publication and upgrade checks remain blocked until the SAME published key is restored. Source phone/tablet tests run independently of that delivery gate. Public certificate/path diagnostics are provided; no private key bytes are printed or uploaded. Do not weaken the pin or claim that these changes are shipped before this is resolved.
+
+
+Signing root cause confirmed by CI `signingReport`: AGP uses `/home/runner/.config/.android/debug.keystore` while the workflow cached `/home/runner/.android/debug.keystore`. The cached key has public fingerprint `d9adde74c012f99f451d7ac2618a8bd62959deccc1b6073675745f9581e9415e`, different from published dev.3 `1b7982e8fdb44fdc9316ca57da6444e211b7788f6a04ef100580cff69f158681`. A new random candidate used yet another key. Gradle now explicitly selects `PIANO_DEBUG_KEYSTORE_PATH` supplied after restore. The pin remains unchanged; restoring the unused cached key is not enough to upgrade dev.3. An original dev.3 key backup or an owner-approved, verified data-preserving migration is required. Do not pretend to recover a private key from an APK or silently replace the pin.
+
+
+First source emulator run: 15/16 tests passed on both API35 tablet and API36 phone. The new scroll test caught WebView reporting an entire 2026px horizontal score as its viewport (zero horizontal travel). Enable `useWideViewPort` and disable overview fitting so the device-width meta viewport is honored. Rerun native tests on this fix before claiming 16/16 passed.
+
+The device-width setting alone did not resolve Android's oversized document viewport. Native diagnostics reported a 2026px layout viewport but a 684px/1280px visual viewport. The score now owns an explicit bounded scrolling container; all following, anchoring and pointer geometry use that container instead of WebView's ambiguous document scroll range. The native regression reads the real container offset and still requires actual horizontal travel.
+
+Owner reports the phone is on dev.2/build5/revision a0478842, not dev.3. That earlier workflow did not retain its generated key. The APK can identify the public signer but cannot restore its private key. Preserve the installed app/data; neither the unused cached key nor the dev.3 pin establishes upgrade compatibility for this device.
+
+
+Final application-code validation at remote commit `2b263485700f3d04c9ac64a045291366c110ed0c`: **16/16 Android tests passed on API36 phone and 16/16 on API35 tablet**, run https://github.com/maratos92/piano-path/actions/runs/41761292976. Local 83 JVM tests, debug/instrumentation build, lint, notation and scroll/drag browser checks passed. The overall workflow remains failed solely at the intentional certificate-continuity gate; the upgrade job was skipped. **Not merged; not published.** The following commit changes documentation only. See SIGNING_RECOVERY.md for non-destructive backup preparation; no phone data was accessed, cleared or migrated.
+
+
+## Current instruction: authorised signing reset and integration release
+
+The owner explicitly waived old scores/history and asked for a fresh version, prioritising clean integration and regression testing. This supersedes the earlier migration blocker. Target `0.4.0-dev.5`, code8, selects and pins the retained cached key `d9adde74…81e9415e`. No private key is committed. Durable secret/backup storage is still required beyond cache; missing or changed keys stop builds.
+
+Build 8 has an explicit, bounded transition: if the published APK uses a legacy signer and has code <8, CI re-signs it ONLY as an emulator fixture. The candidate then must install cleanly and update that same-key fixture with app-private data retained. It does not upgrade the owner's differently signed old app. Future mismatched published signers are rejected. The owner may uninstall the old app once and install the new README APK.
+
+Before merge: exact PR head must pass core tests, lint/build, certificate pin, phone/tablet source tests and installation/update tests. After merge: wait for the main-commit suite and publication, then verify the public APK's version/certificate/checksum. No conflict-free merge is treated as proof of semantic compatibility. Preserve all merged practice features and the owner's library cleanup.

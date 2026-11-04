@@ -16,8 +16,8 @@ android {
         applicationId = "org.pianopath"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.4.0-dev.3"
+        versionCode = 8
+        versionName = "0.4.0-dev.5"
         // The Actions runner supplies GITHUB_SHA; local builds are intentionally labelled "local".
         val revision = providers.environmentVariable("GITHUB_SHA").orNull
             ?.take(8)?.takeIf { it.matches(Regex("[a-fA-F0-9]{8}")) } ?: "local"
@@ -29,6 +29,15 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
     kotlinOptions { jvmTarget = "21" }
     signingConfigs {
+        // AGP may default to ~/.config/.android; select the restored CI key explicitly.
+        providers.environmentVariable("PIANO_DEBUG_KEYSTORE_PATH").orNull?.let { path ->
+            getByName("debug") {
+                storeFile = file(path)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (System.getenv("PIANO_KEYSTORE") != null) create("release") {
             storeFile = file(System.getenv("PIANO_KEYSTORE"))
             storePassword = System.getenv("PIANO_STORE_PASSWORD")

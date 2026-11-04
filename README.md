@@ -2,17 +2,17 @@
 
 ## Install the latest tested app
 
-**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-latest-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
+**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-0.4.0-dev.5-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**Current build: 0.4.0-dev.3 (code 6).** In the app, open **Settings → About → About Piano Path** to see the actual installed version, build code, build type and source revision. The older [0.3.0 preview](https://github.com/maratos92/piano-path/releases/tag/v0.3.0-preview) does not contain the practice workspace improvements. Do not use the old preview download for testing new functionality.
+**This release: 0.4.0-dev.5 (build 8).** Settings → About shows the installed version, build code and source revision.
 
-> **Update/signature note:** CI now caches a personal-test debug signing certificate so successive APKs should install over one another. The first switch from the old signing certificate may still require one uninstall, and GitHub may eventually evict the cache. For reliable long-term updates use a permanent privately stored signing key. Uninstalling can delete local scores/history; back them up first.
+> **Fresh installation for build 8:** this release starts a consistent signing identity. Uninstall an older dev.2/dev.3 app once, then install the APK above. The owner has authorised resetting the old local data. Future builds use the pinned key and can update this installation; CI stops if that key is missing or changed. The private key must also be backed up securely—Actions cache alone is not permanent storage.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The current development app is version 0.4.0-dev.3: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The source on this branch is version 0.4.0-dev.5: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
@@ -86,7 +86,7 @@ The first build needs network access for dependencies. The installed app works o
 python3 scripts/test_notation.py
 ```
 
-GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone and API 35 tablet emulator tests. The project is published at https://github.com/maratos92/piano-path. [The release-candidate run](https://github.com/maratos92/piano-path/actions/runs/41674522753) passed 77 JVM tests and 9 Android tests on each phone/tablet emulator. The preview-publishing workflow verifies the delivered APK checksum and publishes that exact development-signed binary; it does not expose any signing key. Separately rebuilt CI debug APKs use disposable CI keys, so they may require uninstalling an earlier debug build before installation. [Signed-release procedure](docs/RELEASE.md), [architecture](docs/ARCHITECTURE.md), [FP-10 testing](docs/FP10_TESTING.md), [validation](docs/VALIDATION.md), [third-party notices](docs/DEPENDENCIES.md).
+GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone and API 35 tablet emulator tests. The project is published at https://github.com/maratos92/piano-path. [The release-candidate run](https://github.com/maratos92/piano-path/actions/runs/41674522753) passed 77 JVM tests and 9 Android tests on each phone/tablet emulator. The preview-publishing workflow verifies the delivered APK checksum and publishes that exact development-signed binary; it does not expose any signing key. This is historical 0.3 evidence. The dev.4 source passed 83 local JVM tests, debug/instrumentation builds, lint and browser scrolling/gesture checks. Current source emulator results are tracked in PR #4; delivery remains blocked by the signer mismatch. [Signed-release procedure](docs/RELEASE.md), [architecture](docs/ARCHITECTURE.md), [FP-10 testing](docs/FP10_TESTING.md), [validation](docs/VALIDATION.md), [third-party notices](docs/DEPENDENCIES.md).
 
 ## Important practical limits
 
@@ -100,3 +100,9 @@ GitHub Actions runs tests/lint, uploads a debug APK, and includes API 36 phone a
 ## Licence
 
 App source: [MIT](LICENSE). Piano sound samples: Alexander Holm, Salamander Grand Piano, [CC BY 3.0](licenses/CC-BY-3.0.txt), adapted from [Tone.js/audio](https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander); see the bundled provenance and [notices](docs/DEPENDENCIES.md). OSMD: BSD-3-Clause plus upstream notices. Imported scores remain private and are never uploaded by the app.
+
+
+
+The continuation fixes score scrolling around slurs/ties, cursor and A/B dragging after zoom, paused note durations/releases and listening resume. CI tests the combined source on phone and tablet emulators before publication, verifies the pinned certificate, and checks a fresh install and same-key update. For the build-8 reset, the historical APK is re-signed only as an emulator fixture; this is not a claim that differently signed old installations can be upgraded.
+
+Private signing keys are not stored in Git. The preview key is currently retained in CI cache; `PIANO_DEBUG_KEYSTORE_BASE64` supports durable secret restoration. Back up that same key privately and never generate a new one silently. See [release signing](docs/RELEASE.md). Previous recovery notes are historical; the owner has authorised a fresh installation instead.

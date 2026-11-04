@@ -75,6 +75,68 @@ class AppSmokeTest {
         assertNotNull(result);assertEquals(100.0,result!!.pitch,0.01);assertNull(result.rhythm)
         assertTrue(vm.ui.value.simulated)
     }
+    @Test fun zoomedHorizontalScoreScrollsWithoutVerticalOscillation() {
+        compose.activity.requestedOrientation=android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {
+            vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
+            vm.scale(0,ScaleKind.MAJOR,2,Hand.BOTH,true)
+        }
+        compose.waitUntil(20_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {vm.edit{it.copy(view=ScoreView.SHEET,horizontal=true,zoom=1.6)}}
+        compose.waitForIdle()
+        fun find(view: android.view.View): WebView? {
+            if(view is WebView)return view
+            if(view is android.view.ViewGroup)for(i in 0 until view.childCount){val result=find(view.getChildAt(i));if(result!=null)return result}
+            return null
+        }
+        val rendered=AtomicBoolean(false)
+        compose.waitUntil(30_000){
+            compose.runOnUiThread {find(compose.activity.window.decorView)?.evaluateJavascript("typeof ready !== 'undefined' && ready && entries.length > 0"){rendered.set(it=="true")}}
+            rendered.get()
+        }
+        // Use the renderer's real transport path, allowing a painted frame between
+        // samples. Changing note ranges must not change the vertical scroll target.
+        val script="""
+            (() => {
+              window.scrollCheck={running:true};
+              (async () => {
+                try {
+                  const end=Math.max(...entries.map(e=>e.end));
+                  const samples=[];
+                  for(let beat=0;beat<end;beat+=.5){
+                    progress(beat,[],[],0,end,1.6,true,[],[],180,4,false,80,"BOTH",true,true,true,end,true);
+                    await new Promise(requestAnimationFrame);
+                    samples.push({x:scrollRoot.scrollLeft,y:scrollRoot.scrollTop,height:parseFloat(document.getElementById('playhead').style.height)});
+                  }
+                  const spread=key=>Math.max(...samples.map(s=>s[key]))-Math.min(...samples.map(s=>s[key]));
+                  window.scrollCheck={done:true,count:samples.length,measures:new Set(entries.map(e=>e.measure)).size,
+                    ySpread:spread('y'),heightSpread:spread('height'),xTravel:spread('x'),
+                    backwards:samples.slice(1).filter((s,i)=>s.x<samples[i].x-1).length,
+                    viewport:{width:innerWidth,height:innerHeight,visualWidth:visualViewport?.width,documentWidth:document.scrollingElement.scrollWidth}};
+                }catch(e){window.scrollCheck={done:true,error:String(e)}}
+              })();
+            })()
+        """.trimIndent()
+        compose.runOnUiThread {find(compose.activity.window.decorView)!!.evaluateJavascript(script,null)}
+        val complete=AtomicBoolean(false);var diagnostic="No scroll result"
+        var result: org.json.JSONObject?=null
+        try {compose.waitUntil(30_000){
+            compose.runOnUiThread {find(compose.activity.window.decorView)?.evaluateJavascript("JSON.stringify(window.scrollCheck)"){value->
+                diagnostic=value
+                val parsed=runCatching{org.json.JSONObject(org.json.JSONTokener(value).nextValue() as String)}.getOrNull()
+                if(parsed?.optBoolean("done")==true){result=parsed;complete.set(true)}
+            }}
+            complete.get()
+        }} finally {println("SCROLL_STATE=$diagnostic")}
+        val state=requireNotNull(result)
+        assertFalse("Renderer failed: $diagnostic",state.has("error"))
+        assertTrue("Exercise must span multiple measures: $diagnostic",state.getInt("measures")>=4)
+        assertTrue("Cursor must use a stable system height: $diagnostic",state.getDouble("heightSpread")<=1.0)
+        assertTrue("Score must not bounce vertically between measures: $diagnostic",state.getDouble("ySpread")<=1.0)
+        assertTrue("Test must actually scroll horizontally: $diagnostic",state.getDouble("xTravel")>20.0)
+        assertEquals("Forward playback must not scroll backwards: $diagnostic",0,state.getInt("backwards"))
+    }
     @Test fun fullKeyboardAndFallingNotesAreDiscoverable() {
         compose.onNodeWithText("Open practice  →").performClick()
         // The practice toolbar uses the short "Falling" label on narrow devices.

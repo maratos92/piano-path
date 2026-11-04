@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0-dev.5 (build 8)
+
+- Integrates PRs #1–#3 with fixes for score scrolling, post-zoom cursor/A/B gestures and Android viewport sizing.
+- Fixes paused note durations/releases, restored listening voices and passage-loop restart.
+- Starts an owner-authorised fresh-install signing generation using the explicitly selected retained CI key; certificate mismatch/key loss stops publication.
+- Adds fresh-install and same-key update checks alongside phone/tablet and core regressions.
+
+
 ## 0.3.0
 
 - Full-width landscape practice with a closed navigation drawer, compact score margins and system/light/dark appearance.

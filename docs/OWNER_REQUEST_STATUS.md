@@ -29,7 +29,7 @@ be confirmed on the owner's physical Android/MIDI piano.
 
 | Item | Status | Detail |
 |---|---|---|
-| In-place APK upgrades | **Partial** | Debug keystore now cached across APK builds; cache can expire. Private permanent release signing is the durable solution. |
+| In-place APK upgrades | **Partial** | Build 8 starts the owner-authorised fresh-install signing generation. The selected cached key is pinned; key loss/mismatch stops builds. Durable secret/backup provisioning remains an owner task. |
 | A/B markers on falling notes | **Implemented** | Gold A/B lines appear in the scrolling preview when their beat enters view. |
 | Keyboard touch without toggle, full 88 keys | **Implemented** | Always touch-enabled; zoom and Fit all 88 controls removed. |
 | Compact Played notes and MIDI indicator | **Implemented** | Toolbar icon replaces second row; green/grey piano icon replaces connection text. |
@@ -43,12 +43,12 @@ be confirmed on the owner's physical Android/MIDI piano.
 
 ## Shipping rules
 
-- Version `0.4.0-dev.3` (Android build code 6) adds staff A/B handles, chronological note display, MIDI-roll review, specific octave/game stats, navigation/settings restructure, debug-key caching and full-width 88-key touch. Earlier versions lack these.
+- Version `0.4.0-dev.5` (Android build code 8) adds staff A/B handles, chronological note display, MIDI-roll review, specific octave/game stats, navigation/settings restructure, debug-key caching and full-width 88-key touch. Earlier versions lack these.
 - **Settings → About Piano Path** displays the exact BuildConfig version, build code,
   Debug/Release status and source revision.
 - The root README links `latest-debug`, a rolling prerelease built **only** from a
   successful full `main` build/test workflow, including unit tests, lint, phone and
   tablet emulators. Failed or unmerged code is not published.
-- `latest-debug` is debug-signed, not the signed production/Play APK. CI now caches a debug keystore on the build job; one initial reinstall may still be necessary and cache eviction could change the certificate. Uninstalling may delete local data.
+- `latest-debug` is debug-signed, not the signed production/Play APK. The build must match the pinned current preview certificate and pass emulator update checks. Missing keys fail rather than being regenerated. Older APKs using another signer cannot be upgraded by a version bump; do not uninstall to bypass errors.
 - Future Codex sessions should update this checklist and commit rationale when
   adding features, not silently promote Partial items to Implemented.
