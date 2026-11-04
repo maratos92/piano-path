@@ -88,7 +88,7 @@ import kotlin.math.*
                     ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}
                     ScoreView.FALLING -> FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421)){vm.message.value="Notation: $it"}}
+                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}}
                         HorizontalDivider()
                         Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {FallingNotes(p,keyZoom,keyPan,Modifier.fillMaxSize())}
                     }
