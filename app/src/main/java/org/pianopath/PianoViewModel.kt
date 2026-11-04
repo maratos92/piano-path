@@ -31,7 +31,7 @@ data class PracticeUi(val score: Score? = null, val xml: String = "", val key: S
     val take: List<PlayedNote> = emptyList(), val review: Boolean = false, val reviewBeat: Double = 0.0, val visualTolerance: Double = 180.0,
     val view: ScoreView = ScoreView.FALLING, val listening: Boolean = false,
     val transportBeat: Double = 0.0, val playbackHeld: Set<Int> = emptySet(),
-    val paused: Boolean = false)
+    val paused: Boolean = false, val performedRoll: Boolean = false)
 data class EarUi(val startOctave: Int = 4, val octaves: Int = 1, val voices: Int = 1, val target: Set<Int> = emptySet(),
     val guesses: Set<Int> = emptySet(), val revealed: Boolean = false, val correct: Int = 0,
     val attempts: Int = 0, val streak: Int = 0, val bestStreak: Int = 0,
@@ -283,7 +283,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         stopListening()
         if(ui.value.running) stop()
         val score = withContext(Dispatchers.Default) { MusicXml.parse(xml) }
-        ui.value = PracticeUi(score=score,xml=xml,key=key,category=category,bpm=score.tempo,endMeasure=score.measures.size,
+        ui.value = PracticeUi(score=score,xml=xml,key=key,category=category,bpm=score.tempo,endMeasure=score.measures.size,sheetMargin=settings.value.sheetMargin,
             endOffset=score.measures.last().length,sections=dao.sections(key),guidance=guidance,previewSeconds=preview,
             hidden=category=="Sight reading",feedback="Ready · ${score.notes.count { !it.rest }} notes",expected=score.notes.filter { !it.rest && it.beat==0.0 }.map { it.midi })
         screen.value="Practice"
@@ -393,9 +393,17 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         dao.saveSession(SessionEntity(title=p.score?.title ?: "Practice",date=System.currentTimeMillis(),pitch=r.pitch,rhythm=r.rhythm,overall=r.overall,
             correct=r.correct,expected=r.expected,extra=r.extra,missing=r.missing,onsetMs=r.meanOnsetMs,durationMs=r.meanDurationMs,mode="${p.mode} · ${p.hand}",bpm=p.bpm,category=p.category,simulated=simulated,reviewFile=reviewFile))
     }
-    fun openReview(session: SessionEntity) = viewModelScope.launch {
+    fun showPerformedRoll(on: Boolean) {
+        val p=ui.value;if(!p.review || p.take.isEmpty())return
+        ui.value=p.copy(performedRoll=on,view=if(on)ScoreView.FALLING else ScoreView.SHEET)
+    }
+    fun openReview(session: SessionEntity,showRoll: Boolean = false) = viewModelScope.launch {
         stopListening();if(ui.value.running)stop()
-        try {ui.value=withContext(Dispatchers.IO){TakeArchive.load(getApplication(),session)};screen.value="Practice"}
+        try {
+            val archive=withContext(Dispatchers.IO){TakeArchive.load(getApplication(),session)}
+            ui.value=archive.copy(performedRoll=showRoll,view=if(showRoll)ScoreView.FALLING else ScoreView.SHEET)
+            screen.value="Practice"
+        }
         catch(e: Exception){message.value="Could not open visual review: ${e.message}"}
     }
     fun stop(reason: String = "Practice finished") {
