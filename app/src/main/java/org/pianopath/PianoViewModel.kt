@@ -36,7 +36,10 @@ data class EarUi(val octaves: Int = 1, val voices: Int = 1, val target: Set<Int>
     val guesses: Set<Int> = emptySet(), val revealed: Boolean = false, val correct: Int = 0,
     val attempts: Int = 0, val feedback: String = "Choose a range and hear a question.")
 
-data class AppSettings(val tolerance: Double = 180.0, val latency: Double = 0.0, val theme: ThemeMode = ThemeMode.SYSTEM, val simulator: Boolean = false, val sound: PianoSound = PianoSound.GRAND)
+data class NoteCapture(val pitch: Int, val channel: Int, val startedNs: Long, val durationMs: Long? = null)
+
+data class AppSettings(val tolerance: Double = 180.0, val latency: Double = 0.0, val theme: ThemeMode = ThemeMode.SYSTEM, val simulator: Boolean = false, val sound: PianoSound = PianoSound.GRAND,
+    val playedNoteCount: Int = 5, val noteGapMs: Int = 2000, val sheetMargin: Int = 4)
 
 class PianoViewModel(application: Application): AndroidViewModel(application) {
     val midi = BleMidi(application)
@@ -46,9 +49,32 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     val history = dao.history().stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
     val imports = dao.imports().stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
     private val preferences = application.getSharedPreferences("settings",0)
-    val settings = MutableStateFlow(AppSettings(preferences.getFloat("tolerance",180f).toDouble(),preferences.getFloat("latency",0f).toDouble(),runCatching { ThemeMode.valueOf(preferences.getString("theme",if(preferences.getBoolean("dark",false))"DARK" else "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),preferences.getBoolean("simulator",false),runCatching {PianoSound.valueOf(preferences.getString("sound","GRAND")!!)}.getOrDefault(PianoSound.GRAND)))
+    val settings = MutableStateFlow(AppSettings(preferences.getFloat("tolerance",180f).toDouble(),preferences.getFloat("latency",0f).toDouble(),runCatching { ThemeMode.valueOf(preferences.getString("theme",if(preferences.getBoolean("dark",false))"DARK" else "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),preferences.getBoolean("simulator",false),runCatching {PianoSound.valueOf(preferences.getString("sound","GRAND")!!)}.getOrDefault(PianoSound.GRAND),
+        preferences.getInt("playedNoteCount",5).coerceIn(1,32),preferences.getInt("noteGapMs",2000).coerceIn(500,10000),preferences.getInt("sheetMargin",4).coerceIn(0,32)))
     val ui = MutableStateFlow(PracticeUi())
     val message = MutableStateFlow<String?>(null)
+    /** Keeps a rolling sequence of physical MIDI and touch key presses, with their key-down durations. */
+    val playedSequence = MutableStateFlow<List<NoteCapture>>(emptyList())
+    private val activeKeyStarts=mutableMapOf<Pair<Int,Int>,Long>()
+    private fun captureKey(event: MidiEvent) {
+        when(event) {
+            is MidiEvent.On -> {
+                if(event.velocity<=0)return
+                val key=event.channel to event.pitch
+                activeKeyStarts[key]=event.timestamp
+                playedSequence.value=(playedSequence.value+NoteCapture(event.pitch,event.channel,event.timestamp)).takeLast(128)
+            }
+            is MidiEvent.Off -> {
+                val start=activeKeyStarts.remove(event.channel to event.pitch) ?: return
+                val length=((event.timestamp-start)/1_000_000).coerceIn(0L,12000L)
+                val old=playedSequence.value.toMutableList()
+                val i=old.indexOfLast {it.channel==event.channel && it.pitch==event.pitch && it.startedNs==start && it.durationMs==null}
+                if(i>=0){old[i]=old[i].copy(durationMs=length);playedSequence.value=old}
+            }
+            else -> Unit
+        }
+    }
+    fun clearPlayedSequence(){activeKeyStarts.clear();playedSequence.value=emptyList()}
     val ear = MutableStateFlow(EarUi())
     private var earPlayback: Job?=null
     val screen = MutableStateFlow("Home")
@@ -74,6 +100,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     init {
         audio.selectSound(settings.value.sound)
         midi.onEvent = { event ->
+            captureKey(event)
             if(screen.value=="Ear training" && event is MidiEvent.On) earGuess(event.pitch)
             if(calibrating.value && event is MidiEvent.On && calibrationClicks.size >= 5) {
                 val nearest = calibrationClicks.minByOrNull { abs(event.timestamp-it) }
@@ -128,7 +155,9 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         val s = settings.value
         if(previous.simulator && !s.simulator){audio.releaseTouch();midi.clearKeys()}
         if(previous.sound!=s.sound)audio.selectSound(s.sound)
-        preferences.edit().putFloat("tolerance",s.tolerance.toFloat()).putFloat("latency",s.latency.toFloat()).putString("theme",s.theme.name).putBoolean("simulator",s.simulator).putString("sound",s.sound.name).apply()
+        if(previous.sheetMargin!=s.sheetMargin)ui.value=ui.value.copy(sheetMargin=s.sheetMargin)
+        preferences.edit().putFloat("tolerance",s.tolerance.toFloat()).putFloat("latency",s.latency.toFloat()).putString("theme",s.theme.name).putBoolean("simulator",s.simulator).putString("sound",s.sound.name)
+            .putInt("playedNoteCount",s.playedNoteCount.coerceIn(1,32)).putInt("noteGapMs",s.noteGapMs.coerceIn(500,10000)).putInt("sheetMargin",s.sheetMargin).apply()
     }
     fun zoom(delta: Double) { ui.value=ui.value.copy(zoom=(ui.value.zoom+delta).coerceIn(.4,2.5)) }
     fun edit(change: (PracticeUi)->PracticeUi) { if(!ui.value.running && !ui.value.listening) ui.value = change(ui.value) }
@@ -395,7 +424,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     }
     fun key(pitch: Int, down: Boolean) {
         // Always deliver key-up: playback may finish while a finger is still down.
-        if(down && (!(settings.value.simulator || ui.value.listening) || !audio.start()))return
+        if(down && !audio.start())return
         if(!ui.value.listening && down) { simulationUsed=true; ui.value=ui.value.copy(simulated=true) }
         touchEvent(if(down) MidiEvent.On(pitch,80,System.nanoTime()) else MidiEvent.Off(pitch,0,System.nanoTime()))
     }
