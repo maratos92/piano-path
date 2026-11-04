@@ -83,19 +83,6 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Restore persistent personal-test debug signing certificate
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: piano-path-personal-debug-keystore-v1
-      - name: Create debug certificate if cache is empty
-        run: |
-          mkdir -p "$HOME/.android"
-          if [ ! -s "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" \
-              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass android -keypass android -dname "CN=Android Debug,O=Piano Path,C=GB"
-          fi
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
