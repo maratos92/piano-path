@@ -20,6 +20,7 @@ import org.pianopath.PracticeUi
         AndroidView(modifier=modifier,factory={ context -> WebView(context).apply {
             setBackgroundColor(android.graphics.Color.rgb(255,254,251))
             settings.javaScriptEnabled=true
+            settings.blockNetworkLoads=true
             settings.allowFileAccess=false; settings.allowContentAccess=false
             settings.domStorageEnabled=false
             // Respect the device-width viewport instead of scaling a long SVG to fit.

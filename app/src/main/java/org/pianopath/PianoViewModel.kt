@@ -13,6 +13,8 @@ import org.pianopath.data.*
 import org.pianopath.midi.BleMidi
 import org.pianopath.audio.PianoAudio
 import org.pianopath.audio.PianoSound
+import org.pianopath.recording.FreePlayController
+import java.util.UUID
 import java.security.MessageDigest
 import kotlin.math.*
 
@@ -31,7 +33,7 @@ data class PracticeUi(val score: Score? = null, val xml: String = "", val key: S
     val take: List<PlayedNote> = emptyList(), val review: Boolean = false, val reviewBeat: Double = 0.0, val visualTolerance: Double = 180.0,
     val view: ScoreView = ScoreView.FALLING, val listening: Boolean = false,
     val transportBeat: Double = 0.0, val playbackHeld: Set<Int> = emptySet(),
-    val paused: Boolean = false, val performedRoll: Boolean = false)
+    val focusRemainingMs: Long = 0, val paused: Boolean = false, val performedRoll: Boolean = false)
 data class EarUi(val startOctave: Int = 4, val octaves: Int = 1, val voices: Int = 1, val target: Set<Int> = emptySet(),
     val guesses: Set<Int> = emptySet(), val revealed: Boolean = false, val correct: Int = 0,
     val attempts: Int = 0, val streak: Int = 0, val bestStreak: Int = 0,
@@ -58,21 +60,24 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     val playedSequence = MutableStateFlow<List<NoteCapture>>(emptyList())
     val playedIdle = MutableStateFlow(false)
     private var idleMarkerJob: Job? = null
-    private val activeKeyStarts=mutableMapOf<Pair<Int,Int>,Long>()
+    private val activeKeyStarts=mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<Long>>()
     private fun captureKey(event: MidiEvent) {
         when(event) {
             is MidiEvent.On -> {
-                if(event.velocity<=0)return
+                if(event.velocity<=0){captureKey(MidiEvent.Off(event.pitch,0,event.timestamp,event.channel));return}
+                if(activeKeyStarts.values.sumOf{it.size}>=4096){clearPlayedSequence();message.value="Recent-note monitor reset after excessive held input."}
                 idleMarkerJob?.cancel();playedIdle.value=false
                 val key=event.channel to event.pitch
-                activeKeyStarts[key]=event.timestamp
+                activeKeyStarts.getOrPut(key){java.util.ArrayDeque()}.addLast(event.timestamp)
                 playedSequence.value=(playedSequence.value+NoteCapture(event.pitch,event.channel,event.timestamp)).takeLast(128)
             }
             is MidiEvent.Off -> {
-                val start=activeKeyStarts.remove(event.channel to event.pitch) ?: return
+                val key=event.channel to event.pitch
+                val start=activeKeyStarts[key]?.pollFirst() ?: return
+                if(activeKeyStarts[key]?.isEmpty()==true)activeKeyStarts.remove(key)
                 val length=((event.timestamp-start)/1_000_000).coerceIn(0L,12000L)
                 val old=playedSequence.value.toMutableList()
-                val i=old.indexOfLast {it.channel==event.channel && it.pitch==event.pitch && it.startedNs==start && it.durationMs==null}
+                val i=old.indexOfFirst {it.channel==event.channel && it.pitch==event.pitch && it.startedNs==start && it.durationMs==null}
                 if(i>=0){old[i]=old[i].copy(durationMs=length);playedSequence.value=old}
                 if(activeKeyStarts.isEmpty()) {
                     idleMarkerJob?.cancel()
@@ -82,7 +87,11 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                     }
                 }
             }
-            else -> Unit
+            is MidiEvent.Control -> if(event.controller==120 || event.controller==123) {
+                activeKeyStarts.keys.filter{it.first==event.channel}.toList().forEach{key->
+                    while(activeKeyStarts.containsKey(key))captureKey(MidiEvent.Off(key.second,0,event.timestamp,event.channel))
+                }
+            }
         }
     }
     fun clearPlayedSequence(){idleMarkerJob?.cancel();playedIdle.value=false;activeKeyStarts.clear();playedSequence.value=emptyList()}
@@ -93,8 +102,26 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     val screen = MutableStateFlow("Home")
     val calibrating = MutableStateFlow(false)
     private val audio=PianoAudio(application) { reason ->
-        stopListening();if(ui.value.running)stop(reason);midi.clearKeys();message.value=reason
+        handleAudioInterruption(reason)
     }
+    private val persistenceJob=SupervisorJob()
+    private val persistenceScope=CoroutineScope(persistenceJob+Dispatchers.Main.immediate)
+    val progress=LocalProgressStore(application,viewModelScope){message.value=it}
+    private val recordingSummaryIds=mutableSetOf<String>()
+    val recorder=FreePlayController(application,viewModelScope,audio,onMessage={message.value=it},onSaved=::recordingSummary)
+    private fun recordingSummary(take: MidiRecording) {
+        if(recordingSummaryIds.add(take.id))persistenceScope.launch {
+            progress.add(PracticeEntry(take.id,take.createdAt,take.title,"Free play",activeMs=take.durationUs/1000,source="MIDI / TOUCH"))
+        }
+    }
+    private val activityClock=PracticeClock()
+    private val earClock=PracticeClock()
+    private var earRound=UUID.randomUUID().toString()
+    private var earQuestions=0
+    private var loopContext: PracticeUi?=null
+    private var loopTolerance=180.0
+    private var loopLatency=0.0
+    private var foreground=true
     private var playback: Job?=null
     private var playbackGeneration=0
     private var playbackSeek: Double? = null
@@ -110,12 +137,23 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     private var tone: ToneGenerator? = null
     private var startTime = 0L
     private var lastClick = Long.MIN_VALUE
+    private var practiceGeneration = 0
     private var finishing = false
     private var simulationUsed = false
     init {
+        viewModelScope.launch {recorder.recordings.collect {takes->takes.forEach(::recordingSummary)}}
+        viewModelScope.launch {
+            var previous=screen.value
+            screen.collect {current->
+                if(previous=="Recorder" && current!="Recorder")recorder.interrupt("Saved when leaving recorder")
+                if(current!="Ear training")earClock.pause(System.nanoTime()) else if(foreground)earClock.resume(System.nanoTime())
+                previous=current
+            }
+        }
         audio.selectSound(settings.value.sound)
         midi.onEvent = { event ->
             captureKey(event)
+            recorder.observe(event)
             if(screen.value=="Ear training" && event is MidiEvent.On) earGuess(event.pitch)
             if(calibrating.value && event is MidiEvent.On && calibrationClicks.size >= 5) {
                 val nearest = calibrationClicks.minByOrNull { abs(event.timestamp-it) }
@@ -127,9 +165,18 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             }
         }
         midi.onDisconnect = {
+            recorder.inputReset();recorder.interrupt("Saved after piano disconnected");clearPlayedSequence()
             if(ui.value.running) stop("Piano disconnected. Session stopped; reconnect before restarting.")
         }
     }
+    private fun handleAudioInterruption(reason: String) {
+        stopListening();if(ui.value.running)stop(reason)
+        recorder.inputReset();recorder.interrupt(reason);clearPlayedSequence();midi.clearKeys();message.value=reason
+    }
+    fun openRecorder() {stopListening();if(ui.value.running)stop();screen.value="Recorder"}
+    fun recordFreePlay() {stopListening();if(ui.value.running)stop();earPlayback?.cancel();audio.silence();recorder.start()}
+    fun panic() {if(recorder.state.value.playing)recorder.interrupt("Playback stopped");recorder.inputReset();midi.clearKeys();clearPlayedSequence();audio.silence()}
+    fun foreground() {org.pianopath.reminders.PracticeReminders.schedule(getApplication());foreground=true;if(screen.value=="Ear training")earClock.resume(System.nanoTime())}
     /** Ear training uses outgoing audio only; questions never feed generated MIDI into the scorer. */
     fun earQuestion(octaves: Int,voices: Int) = earQuestion(4,octaves,voices)
     /** Choose any C1..C7 start and 1..3 octaves within the 88-key C8 limit. */
@@ -139,6 +186,8 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         val from=startOctave.coerceIn(1,7)
         val span=octaves.coerceIn(1,minOf(3,8-from))
         val count=voices.coerceIn(1,3)
+        if(earQuestions>=10 || previous.startOctave!=from || previous.octaves!=span || previous.voices!=count){earRound=UUID.randomUUID().toString();earQuestions=0}
+        earClock.begin(System.nanoTime())
         val first=(from+1)*12
         val pitches=(first..minOf(108,first+span*12)).shuffled().take(count).toSet()
         ear.value=previous.copy(startOctave=from,octaves=span,voices=count,target=pitches,guesses=emptySet(),revealed=false,
@@ -172,6 +221,12 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             streak=streak,bestStreak=maxOf(p.bestStreak,streak),
             feedback=if(right)"Correct! +10 points" else "Try the next question.")
         ear.value=updated
+        val active=earClock.millis(System.nanoTime()).coerceAtMost(300_000)
+        earClock.pause(System.nanoTime());earQuestions++
+        val entry=PracticeEntry(UUID.randomUUID().toString(),System.currentTimeMillis(),"C${p.startOctave}–C${p.startOctave+p.octaves} · ${p.voices} simultaneous note(s)","Ear training",
+            source=if(midi.state.value.connected)"MIDI / TOUCH" else "TOUCH",activeMs=active,correct=if(right)1 else 0,total=1,roundId=earRound,
+            exercise="${p.startOctave}:${p.octaves}:${p.voices}")
+        persistenceScope.launch{progress.add(entry)}
         preferences.edit().putInt("earCorrect",updated.correct).putInt("earAttempts",updated.attempts)
             .putInt("earStreak",updated.streak).putInt("earBestStreak",updated.bestStreak).apply()
     }
@@ -180,7 +235,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         settings.value = change(previous)
         val s = settings.value
         if(previous.simulator && !s.simulator){audio.releaseTouch();midi.clearKeys()}
-        if(previous.sound!=s.sound)audio.selectSound(s.sound)
+        if(previous.sound!=s.sound){recorder.interrupt("Playback paused for sound change");audio.selectSound(s.sound)}
         if(previous.sheetMargin!=s.sheetMargin)ui.value=ui.value.copy(sheetMargin=s.sheetMargin)
         preferences.edit().putFloat("tolerance",s.tolerance.toFloat()).putFloat("latency",s.latency.toFloat()).putString("theme",s.theme.name).putBoolean("simulator",s.simulator).putString("sound",s.sound.name)
             .putInt("playedNoteCount",s.playedNoteCount.coerceIn(1,32)).putInt("noteGapMs",s.noteGapMs.coerceIn(500,10000)).putInt("sheetMargin",s.sheetMargin).apply()
@@ -196,12 +251,12 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         if(!p.running && !p.listening) return
         val now=System.nanoTime()
         if(p.paused) {
-            if(p.running) { startTime += (now-pausedAt).coerceAtLeast(0L); engine?.resume(now); lastClick=Long.MIN_VALUE }
+            if(p.running) { startTime += (now-pausedAt).coerceAtLeast(0L); engine?.resume(now); activityClock.resume(now); lastClick=Long.MIN_VALUE }
             if(p.listening) {playbackPauseAdjustment+=(now-pausedAt).coerceAtLeast(0L);playbackRestore=true}
             ui.value=p.copy(paused=false,feedback=if(p.listening)"Listening" else "Resumed")
         } else {
             pausedAt=now
-            if(p.running) engine?.pause(now) else audio.releasePlayback()
+            if(p.running) {engine?.pause(now);activityClock.pause(now)} else audio.releasePlayback()
             tone?.stopTone()
             ui.value=p.copy(paused=true,playbackHeld=emptySet(),feedback="Paused")
         }
@@ -330,7 +385,10 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         p.copy(startMeasure=number,endMeasure=number,startOffset=0.0,endOffset=m.length)
     } }
     fun start() {
-        if(ui.value.running) return
+        recorder.interrupt("Saved before practice")
+        if (ui.value.running) {
+            return
+        }
         stopListening()
         val p=ui.value
         if(p.score==null) return
@@ -389,9 +447,11 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     }
     private fun beginLoop() {
         val p=ui.value; val score=p.score ?: return
+        practiceGeneration++
         val(a,b)=bounds(p)
         midi.clearKeys(); audio.silence(); finishing=false; lastClick=Long.MIN_VALUE
         startTime=System.nanoTime()+if(p.countIn) beatNanos(score.beats*4.0/score.beatType,p.bpm) else 0L
+        activityClock.begin(startTime);loopContext=p;loopTolerance=settings.value.tolerance;loopLatency=settings.value.latency
         engine=PerformanceEngine(score,PracticeConfig(p.mode,p.hand,p.bpm,settings.value.tolerance,latencyMs=settings.value.latency,startBeat=a,endBeat=b)).also { it.start(startTime) }
         ui.value=p.copy(paused=false,take=emptyList(),review=false,matched=emptySet(),missed=emptySet(),beat=a,transportBeat=a,expected=score.selected(a,b,p.hand).filter { it.beat==a }.map { it.midi },feedback="Ready",counting=if(p.countIn) score.beats else 0,hidden=p.category=="Sight reading" && p.previewSeconds==0)
     }
@@ -402,21 +462,48 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             expected=e.results.filter { !it.missing && it.onsetMs==null && abs(it.note.beat-e.currentBeat)<0.001 }.map { it.note.midi })
     }
     private suspend fun completeLoop(now: Long) {
+        val generation=practiceGeneration
         finishing=true; simulator?.cancel()
         val result=engine?.finish(now) ?: return
-        persist(result)
         val p=ui.value
-        ui.value=p.copy(loops=p.loops+result,result=result,take=result.take)
-        if(p.loop) {
+        val elapsed=activityClock.millis(now);activityClock.pause(now)
+        val context=loopContext ?: p;val simulated=simulationUsed;val tolerance=loopTolerance;val latency=loopLatency
+        persistenceScope.async {persist(result,context,simulated,elapsed,tolerance,latency)}.await()
+        if(generation!=practiceGeneration || !ui.value.running)return
+        val remaining=(p.focusRemainingMs-elapsed).coerceAtLeast(0)
+        ui.value=ui.value.copy(loops=p.loops+result,result=result,take=result.take,focusRemainingMs=remaining)
+        if(p.loop && (p.focusRemainingMs==0L || remaining>0)) {
             if(p.autoTempo && result.overall>=90) ui.value=ui.value.copy(bpm=(p.bpm+4).coerceAtMost(240.0))
             waitPracticeTime(600); if(ui.value.running) beginLoop()
         } else { ui.value=ui.value.copy(running=false,paused=false,feedback="Session complete"); engine=null; midi.clearKeys();audio.silence() }
     }
-    private suspend fun persist(r: SessionResult,p: PracticeUi = ui.value,simulated: Boolean = simulationUsed) {
-        if(p.mode==PracticeMode.FREE) return
+    private suspend fun persist(r: SessionResult,p: PracticeUi = ui.value,simulated: Boolean = simulationUsed,activeMs: Long=0,tolerance: Double=loopTolerance,latency: Double=loopLatency) = withContext(NonCancellable) {
+        if(p.mode==PracticeMode.FREE) return@withContext
         val reviewFile=withContext(Dispatchers.IO){runCatching{TakeArchive.save(getApplication(),p,r)}.getOrNull()}
-        dao.saveSession(SessionEntity(title=p.score?.title ?: "Practice",date=System.currentTimeMillis(),pitch=r.pitch,rhythm=r.rhythm,overall=r.overall,
-            correct=r.correct,expected=r.expected,extra=r.extra,missing=r.missing,onsetMs=r.meanOnsetMs,durationMs=r.meanDurationMs,mode="${p.mode} · ${p.hand}",bpm=p.bpm,category=p.category,simulated=simulated,reviewFile=reviewFile))
+        runCatching { dao.saveSession(SessionEntity(title=p.score?.title ?: "Practice",date=System.currentTimeMillis(),pitch=r.pitch,rhythm=r.rhythm,overall=r.overall,
+            correct=r.correct,expected=r.expected,extra=r.extra,missing=r.missing,onsetMs=r.meanOnsetMs,durationMs=r.meanDurationMs,mode="${p.mode} · ${p.hand}",bpm=p.bpm,category=p.category,simulated=simulated,reviewFile=reviewFile)) }.onFailure { message.value="Session history could not be saved; retaining local progress." }
+        val (a,b)=bounds(p)
+        val penalties=r.details.groupBy{it.note.measure}.mapValues{(_,notes)->notes.sumOf{n->
+            (if(n.missing)2 else 0)+(if(kotlin.math.abs(n.onsetMs ?: 0.0)>tolerance)1 else 0)+(if(kotlin.math.abs(n.durationErrorMs ?: 0.0)>tolerance)1 else 0)}}
+        val weak=penalties.filterValues{it>0}.maxByOrNull{it.value}?.key
+        val fingerprint=MessageDigest.getInstance("SHA-256").digest(p.xml.toByteArray()).joinToString(""){"%02x".format(it)}
+        progress.add(PracticeEntry(UUID.randomUUID().toString(),System.currentTimeMillis(),p.score?.title ?: "Practice",p.category,
+            p.key,a,b,p.bpm,p.mode.name,p.hand.name,tolerance,latency,if(simulated)"TOUCH / TEST" else "MIDI",activeMs.coerceIn(0,86_400_000),
+            r.pitch,r.rhythm,r.overall,r.expected,r.missing,r.extra,weak,reviewFile,exercise=fingerprint))
+
+    }
+    fun practiseEntry(entry: PracticeEntry) = viewModelScope.launch {
+        try {
+            val xml=withContext(Dispatchers.IO){TakeArchive.originalXml(getApplication(),requireNotNull(entry.reviewFile))}
+            load(xml,entry.scoreKey,entry.category,"")
+            val score=requireNotNull(ui.value.score)
+            val measure=entry.weakMeasure?.let{n->score.measures.find{it.number==n}}
+            val a=maxOf(entry.startBeat,measure?.start ?: entry.startBeat)
+            val b=minOf(entry.endBeat,measure?.let{it.start+it.length} ?: entry.endBeat)
+            setPassage(a,b)
+            edit{it.copy(bpm=entry.bpm,mode=runCatching{PracticeMode.valueOf(entry.mode)}.getOrDefault(PracticeMode.RHYTHM),hand=runCatching{Hand.valueOf(entry.hand)}.getOrDefault(Hand.BOTH),loop=true,countIn=true,focusRemainingMs=120_000)}
+            message.value="Two-minute focus · finish a repetition when ready"
+        }catch(e: Exception){message.value="Could not reopen this passage: ${e.message}"}
     }
     fun showPerformedRoll(on: Boolean) {
         val p=ui.value;if(!p.review || p.take.isEmpty())return
@@ -433,10 +520,14 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     }
     fun stop(reason: String = "Practice finished") {
         if(!ui.value.running) return
+        practiceGeneration++
         ticker?.cancel(); simulator?.cancel()
         val r=if(!finishing && ui.value.mode!=PracticeMode.FREE) engine?.finish(System.nanoTime()) else null
         val snapshot=ui.value;val simulated=simulationUsed
-        if(r!=null && ui.value.mode!=PracticeMode.FREE) viewModelScope.launch { persist(r,snapshot,simulated) }
+        val elapsed=activityClock.millis(System.nanoTime());activityClock.pause(System.nanoTime())
+        val savedContext=loopContext ?: snapshot
+        val tolerance=loopTolerance;val latency=loopLatency
+        if(r!=null && ui.value.mode!=PracticeMode.FREE) persistenceScope.launch { persist(r,savedContext,simulated,elapsed,tolerance,latency) }
         ui.value=ui.value.copy(running=false,paused=false,counting=0,hidden=false,take=r?.take ?: ui.value.take,result=r ?: ui.value.result,feedback=reason)
         engine=null; midi.clearKeys();audio.silence()
     }
@@ -477,9 +568,16 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     }
     private fun touchEvent(event: MidiEvent) {audio.accept(event);midi.simulate(event)}
     fun listen() {
-        if(ui.value.listening){stopListening();return}
-        if(ui.value.running)stop("Stopped for listening")
-        val p=ui.value;val score=p.score ?: return
+        recorder.interrupt("Saved before listening")
+        if (ui.value.listening) {
+            stopListening()
+            return
+        }
+        if (ui.value.running) {
+            stop("Stopped for listening")
+        }
+        val p=ui.value
+        val score=p.score ?: return
         val(a,b)=bounds(p)
         if(a>=b){message.value="End of passage must follow its start";return}
         if(!audio.start())return
@@ -544,7 +642,9 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
                                 audio.metronomeClick(downbeat)
                             }
                         }
-                        if(beat>=b)break
+                        if (beat>=b) {
+                            break
+                        }
                         delay(12)
                     }
                     audio.releasePlayback()
@@ -558,6 +658,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         if(ui.value.listening)ui.value=ui.value.copy(listening=false,paused=false,playbackHeld=emptySet(),feedback="Playback stopped")
     }
     fun background() {
+        foreground=false;earClock.pause(System.nanoTime());recorder.inputReset();recorder.interrupt("Saved when app left foreground");clearPlayedSequence()
         stopListening();if(ui.value.running)stop("Practice stopped while app is in the background")
         simulator?.cancel();earPlayback?.cancel();calibration?.cancel();calibrating.value=false;tone?.stopTone();midi.clearKeys();audio.stop()
     }
@@ -578,5 +679,5 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             calibrating.value=false
         }
     }
-    override fun onCleared() { playback?.cancel();earPlayback?.cancel();idleMarkerJob?.cancel();audio.stop();midi.close(); tone?.release(); database.close(); super.onCleared() }
+    override fun onCleared() { playback?.cancel();earPlayback?.cancel();idleMarkerJob?.cancel();recorder.close();audio.stop();midi.close(); tone?.release();persistenceJob.invokeOnCompletion{database.close()};persistenceJob.complete();super.onCleared() }
 }

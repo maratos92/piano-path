@@ -66,7 +66,7 @@ jobs:
             printf -- '- Source commit: %s\n' "$SOURCE_SHA"
             echo "- [Successful test run]($SOURCE_RUN_URL)"
             echo "- This is a debug-signed testing APK, not a Play Store signed release."
-            echo '- Build 8 starts a new pinned signing identity. Older dev.2/dev.3 installs need one uninstall and fresh installation, as authorised by the owner. Future builds retain this key; missing or changed keys fail the build. The upgrade check uses a same-key fixture and does not claim legacy certificate compatibility.'
+            echo '- Build 8 starts a new pinned signing identity. Older dev.2/dev.3 installs need one uninstall and fresh installation, as authorised by the owner. Future builds retain this key; missing or changed keys fail the build. Build 8 and later update in place with this key; older signing generations remain incompatible. The workflow tests an update from the previous published APK when its signer matches.'
           } > release-notes.md
 
       - name: Publish one stable download link after full test success

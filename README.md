@@ -2,17 +2,17 @@
 
 ## Install the latest tested app
 
-**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-0.4.0-dev.5-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
+**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-0.5.0-dev.1-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**This release: 0.4.0-dev.5 (build 8).** Settings → About shows the installed version, build code and source revision.
+**This release: 0.5.0-dev.1 (build 9).** Settings → About shows the installed version, build code and source revision.
 
-> **Fresh installation for build 8:** this release starts a consistent signing identity. Uninstall an older dev.2/dev.3 app once, then install the APK above. The owner has authorised resetting the old local data. Future builds use the pinned key and can update this installation; CI stops if that key is missing or changed. The private key must also be backed up securely—Actions cache alone is not permanent storage.
+> **Updating:** build 8 and later use the same pinned signing identity and update in place. Uninstall an older dev.2/dev.3 app once, then install the APK above. The owner has authorised resetting the old local data. Future builds use the pinned key and can update this installation; CI stops if that key is missing or changed. The private key must also be backed up securely—Actions cache alone is not permanent storage.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The source on this branch is version 0.4.0-dev.5: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The source is version 0.5.0-dev.1: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
@@ -35,13 +35,17 @@ The source on this branch is version 0.4.0-dev.5: a working initial implementati
 
 **Looping:** the selected A/B passage is tinted on the score; drag the gold A and B grips to select its precise boundaries. The falling view shows A/B lines as they scroll into view. The footer shows the selected beats and a Repeat icon. Looping restarts at A after the end B. Adaptive tempo (off by default) raises the next repetition by 4 BPM only when the just-completed assessed repetition scored at least 90%; this is optional speed-building practice.
 
-**Recorded MIDI roll:** completed scored sessions save private MIDI takes. In History, choose **Replay MIDI roll** to view actual played pitches, held lengths and extra notes as falling bars, or **Review score** for traditional notation. The Recorded view supports scrubbing and a visual animation; it is not an audio or video exporter, and Free Play is not yet archived.
+**Recorded MIDI roll:** completed scored sessions save private MIDI takes. In History, choose **Replay MIDI roll** to view actual played pitches, held lengths and extra notes as falling bars, or **Review score** for traditional notation. The Recorded view supports scrubbing and a visual animation; it is not an audio or video exporter, and scored replay remains a visual animation. Free-play recordings have a separate audible transport.
+
+**Free-play recorder:** open Home → Free play recordings (also in Practice). Record Bluetooth/USB MIDI or touch keys without loading a score. Takes preserve on/off, velocity, channel and controllers, with three-second crash checkpoints, save-retry recovery, names/deletion, audible replay, seeking and 0.5×–2× speed. Replay never enters assessment. Recordings are private MIDI data, not microphone recordings or video. Maximum: two hours / 200,000 source events per take; the app visibly stops and saves at the limit. Uninstall/clear storage deletes local files.
+
+**Local progress:** Home → Your practice shows a gentle daily minutes goal, seven-day activity, dated ear rounds and pitch/rhythm trends only for matching passage/tempo/hand/mode/tolerance/latency/input contexts. A 5–10 minute queue reopens weak measures, with a two-minute target that ends at a loop boundary; pause/count-in do not count. Recording time includes rests. Optional daily notifications are off by default and approximate. Existing Room history is retained without a schema change; no cloud or account was added.
 
 **Ear training game:** choose a specific starting octave (C1–C7), span 1–3 octaves and simultaneous note count 1–3. The 88-key keyboard dims notes outside the selected range; points, attempts, accuracy and streak are saved locally and summarised in History.
 
 **Visual review:** choose Sheet, then Practice. Rhythm mode (the default) starts the cursor after count-in; Follow starts on the first expected pitch, and Wait advances on chord completion. Green markers show matched input, amber early/late input, red extras and dashed rings missed notes. Hold traces show physical key-down duration; they are not pedal sustain. After Finish select Review on score, scrub the score, or reopen a take in History. This is a diagnostic overlay, not a quantised MusicXML transcription/export. Wrong pitches use a conventional sharp spelling; MIDI does not carry enharmonic spelling or physical-hand identity.
 
-**Played notes:** tap the compact note icon in the score toolbar or open Settings → MIDI → Played notes. The staff shows the last five key presses in sequence by default, with approximate note durations after release and pause markers for long gaps. Settings → Practice adjusts note count (up to 32) and gap threshold. Diagnostics has raw MIDI events.
+**Played notes:** in landscape the monitor opens as a dismissible window to preserve score height; portrait keeps the inline monitor. Tap the compact note icon in the score toolbar or open Settings → MIDI → Played notes. The staff shows the last five key presses in sequence by default, with approximate note durations after release and pause markers for long gaps. Settings → Practice adjusts note count (up to 32) and gap threshold. Diagnostics has raw MIDI events.
 
 **Navigation:** Home, Practice, Library and Settings are the four main sections. Practice opens Sight reading, Listening/ear training, Scales, current score and free play. Settings has General / Practice / MIDI / About subsections. Sheet padding is in Settings → General; notation zoom remains in the reader. Landscape uses the menu overlay rather than an inactive P button.
 

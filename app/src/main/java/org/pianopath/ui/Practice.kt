@@ -77,8 +77,8 @@ import kotlin.math.*
             IconButton(onClick={monitor=!monitor},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.QueueMusic,"Played notes",Modifier.size(19.dp),tint=if(monitor)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
             IconButton(onClick={scorePopup=true},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.OpenInNew,"Floating score window",Modifier.size(18.dp))}
         }
-        if(monitor)LiveNotes(vm,Modifier.fillMaxWidth().padding(horizontal=12.dp))
-        if(p.view==ScoreView.COMBINED)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+        if(monitor && !landscape)LiveNotes(vm,Modifier.fillMaxWidth().padding(horizontal=12.dp))
+        if(p.view==ScoreView.COMBINED && !landscape)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("Score height",fontSize=11.sp)
             Slider(scoreFraction,{scoreFraction=it},Modifier.weight(1f).padding(horizontal=10.dp),valueRange=.25f..0.75f)
         }
@@ -92,14 +92,18 @@ import kotlin.math.*
                         replaying=true
                     }
                 }){Icon(if(replaying)Icons.Outlined.Pause else Icons.Outlined.PlayArrow,if(replaying)"Pause replay" else "Animate recorded notes")}
+                if(landscape){
+                    Slider(p.reviewBeat.toFloat(),{vm.seekReview(it.toDouble())},Modifier.weight(1f),valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f))
+                    TextButton(onClick={replaying=false;vm.edit{it.copy(review=false)}}){Text("Close",fontSize=11.sp)}
+                }
             }
-            Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+            if(!landscape)Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text("Review",fontSize=11.sp)
                 Slider(p.reviewBeat.toFloat(),{vm.seekReview(it.toDouble())},Modifier.weight(1f),valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f))
                 TextButton(onClick={vm.edit{it.copy(review=false)}}){Text("Close",fontSize=11.sp)}
             }
         }
-        if(p.view==ScoreView.SHEET && (p.running || p.review))Text("● correct   ● early/late   ● extra   ○ missing · traces show key holds",fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
+        if(p.view==ScoreView.SHEET && (p.running || p.review))Text(if(landscape)"Green correct · amber timing · red extra · ○ missing" else "● correct   ● early/late   ● extra   ○ missing · traces show key holds",fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
@@ -123,7 +127,7 @@ import kotlin.math.*
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(p.feedback,fontSize=12.sp,maxLines=1)
+                Text(if(p.focusRemainingMs>0)"${(p.focusRemainingMs/1000)}s focus · ${p.feedback}" else p.feedback,fontSize=12.sp,maxLines=1)
 
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
@@ -136,7 +140,7 @@ import kotlin.math.*
                 Text(if(p.running)"Finish" else "Practice",fontSize=12.sp)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+        if(!p.review)Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             val start=score.measures[p.startMeasure-1].start+p.startOffset
             val end=score.measures[p.endMeasure-1].start+p.endOffset
             Text("A ${"%.1f".format(start)}",fontSize=10.sp)
@@ -147,7 +151,7 @@ import kotlin.math.*
                 Icon(Icons.Outlined.Repeat,if(p.loop)"Loop enabled" else "Enable loop",Modifier.size(19.dp),tint=if(p.loop)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if(p.result!=null)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+        if(p.result!=null && !p.review)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick={vm.review()},contentPadding=PaddingValues(0.dp)){Text("Review on score",fontSize=11.sp)}
             Spacer(Modifier.width(12.dp))
             TextButton(onClick={result=true},contentPadding=PaddingValues(0.dp)){Text(if(p.running)"Loop ${p.loops.size} · ${p.result!!.overall.toInt()}%" else "View results · ${p.result!!.overall.toInt()}%",fontSize=11.sp)}
@@ -160,22 +164,37 @@ import kotlin.math.*
                     Text("Score · floating view",Modifier.weight(1f).padding(start=16.dp),fontWeight=FontWeight.SemiBold)
                     IconButton(onClick={scorePopup=false}){Icon(Icons.Outlined.Close,"Close floating score")}
                 }
-                Notation(p,Modifier.weight(1f).fillMaxWidth(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek){vm.message.value="Notation: $it"}
+                Notation(p,Modifier.weight(1f).fillMaxWidth(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage){vm.message.value="Notation: $it"}
             }
         }
     }
-    if(controls)PracticeControls(vm,p){controls=false}
+    if(monitor && landscape)Dialog(onDismissRequest={monitor=false}) {
+        Surface(shape=RoundedCornerShape(18.dp)) {Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Text("Played notes",Modifier.weight(1f),fontWeight=FontWeight.SemiBold)
+                IconButton(onClick={monitor=false}){Icon(Icons.Outlined.Close,"Close played notes")}
+            }
+            LiveNotes(vm,Modifier.fillMaxWidth())
+        }}
+    }
+    if(controls)PracticeControls(vm,p,readerControls={
+        if(p.view==ScoreView.COMBINED && landscape) {
+            Text("Score height")
+            Slider(scoreFraction,{scoreFraction=it},valueRange=.25f..0.75f)
+        }
+    }){controls=false}
     if(result&&p.result!=null)ResultDialog(p.result!!,p.simulated){result=false}
 }
 fun modeName(m: PracticeMode)=when(m){PracticeMode.FREE->"Free play";PracticeMode.FOLLOW->"Follow score";PracticeMode.WAIT->"Wait mode";PracticeMode.RHYTHM->"Rhythm"}
 fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Hand.BOTH->"Both hands"}
-@Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,close: ()->Unit) {
+@Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,readerControls: @Composable ()->Unit = {},close: ()->Unit) {
     val score=p.score ?: return
     var sectionName by remember{mutableStateOf("")}
     var advanced by remember{mutableStateOf(false)}
     ModalBottomSheet(onDismissRequest=close) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Shape your practice",fontFamily=FontFamily.Serif,fontSize=28.sp)
+            readerControls()
             if(p.running || p.listening)Text("Stop playback or finish practice to change these settings.",color=MaterialTheme.colorScheme.primary)
             Text("Mode",fontWeight=FontWeight.SemiBold)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { PracticeMode.entries.forEach { mode-> FilterChip(p.mode==mode,{vm.edit{it.copy(mode=mode)}},enabled=!(p.running || p.listening),label={Text(modeName(mode))}) } }

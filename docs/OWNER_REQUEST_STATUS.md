@@ -19,7 +19,7 @@ be confirmed on the owner's physical Android/MIDI piano.
 | 10 | History trend/practiced weekdays | **Implemented** | Seven-day per-category activity histogram and totals. No advanced skill trend yet. |
 | 11 | Known scales and sight-reading exercises | **Partial** | Existing generated exercises remain; sourced named studies and curricula not added. |
 | 12 | Backward/forward cursor jumps | **Partial fix** | Monotonic visible beat during practice, less eager OSMD scroll; needs validation against real performances. |
-| 13 | Listening/guessing exercises with custom octave(s) | **Implemented** | Ear training selects any C1–C7 starting octave and a 1–3-octave range, with 1–3 simultaneous pitches. Saved cumulative points, attempts, accuracy and streak appear in History; per-day training history remains missing. |
+| 13 | Listening/guessing exercises with custom octave(s) | **Implemented** | Ear training selects any C1–C7 starting octave and a 1–3-octave range, with 1–3 simultaneous pitches. Saved cumulative points, attempts, accuracy and streak appear in History; dated rounds are available under Your practice. |
 | 14 | Loop selection by highlighting piece à la MuseScore | **Implemented; device QA** | Gold A/B handles on the staff edit the actual loop bounds, range tinted, bottom A/B indicator and falling boundary lines. Practice controls retain range slider and a Repeat switch; physical touchscreen validation required. |
 | 15 | Natural metronome sound | **Implemented** | Generated percussive taps in PCM; coroutine scheduling accuracy and hardware latency remain unverified. |
 | 16 | “When score (sheet) is selected then can we …” | **Clarification needed** | Original message ended before describing the requested behavior. |
@@ -36,8 +36,8 @@ be confirmed on the owner's physical Android/MIDI piano.
 | Score padding under global Settings | **Implemented** | Settings → General; Practice control no longer contains a margin slider. |
 | Understand adaptive tempo | **Explained** | +4 BPM only on the next loop after completed assessed repetition with at least 90% overall accuracy. |
 | Show last 5 notes, durations and rests | **Implemented; approximate notation** | MIDI note-down and note-up capture, 1–32 configurable count, pause threshold; displayed note values are estimates from BPM. |
-| Visualise recordings like YouTube falling bars | **Partial** | Saved scored MIDI takes are viewable/animated in History's Recorded roll. No video export, audio recording or free-play capture yet. |
-| Ear-training custom octave and game | **Implemented with limits** | C1..C7 start and configurable width, points/attempts/streak and aggregate saved accuracy. No per-question dated trend chart. |
+| Visualise recordings like YouTube falling bars | **Partial** | Saved scored MIDI takes are viewable/animated in History's Recorded roll. Free-play raw MIDI capture, audible replay, seek/speed/naming/deletion and recovered drafts are now implemented; no video/audio-file export. |
+| Ear-training custom octave and game | **Implemented with limits** | C1..C7 start and configurable width, points/attempts/streak and aggregate saved accuracy. Dated question/round results are now available under Your practice. |
 | Navigation and structured settings | **Implemented first pass** | Home, Practice hub, Library, Settings with four settings subsections. Needs owner usability review. |
 | Bluetooth pairing | **Owner confirmed working** | MIDI backend and manifest permissions unchanged; no connection regression identified. |
 
@@ -52,3 +52,11 @@ be confirmed on the owner's physical Android/MIDI piano.
 - `latest-debug` is debug-signed, not the signed production/Play APK. The build must match the pinned current preview certificate and pass emulator update checks. Missing keys fail rather than being regenerated. Older APKs using another signer cannot be upgraded by a version bump; do not uninstall to bypass errors.
 - Future Codex sessions should update this checklist and commit rationale when
   adding features, not silently promote Partial items to Implemented.
+
+## Local practice delivery — 0.5.0-dev.1 / build 9
+
+- Added persistent local free-play MIDI takes and a dedicated recording transport, separate from scored review.
+- Added local-file progress, comparable-context trends, dated ear rounds, daily goals, optional inexact reminders and an actionable short practice queue. Existing Room v2/schema and BLE/USB implementation are unchanged.
+- Fixed repeated-note monitor release ordering, bounded its held state, handled channel panic; disabled drawer swipe interception, moved landscape monitor to a dialog, compacted review and moved landscape score-height control into Practice controls. Floating score now forwards A/B edits.
+- Fixed replay rests/audio focus, pending-final-save recovery and asynchronous practice persistence/resume races during review.
+- Full later robustness audit, physical long-session audio/touch/USB/tablet tests and durable signing-secret backup remain separate gates. See VALIDATION.md for executed evidence.

@@ -25,9 +25,17 @@ object TakeArchive {
         check(temporary.renameTo(File(directory,name))){"Could not store visual review"}
         return name
     }
+    private fun read(context: Context,name: String): JSONObject {
+        require(name.matches(Regex("[a-f0-9-]+\\.json")))
+        return File(context.filesDir,"takes/$name").inputStream().use{stream->
+            require(stream.channel.size()<=32L*1024*1024){"Visual review exceeds the size limit"}
+            stream.bufferedReader().use{JSONObject(it.readText())}
+        }
+    }
+    fun originalXml(context: Context,name: String): String = read(context,name).getString("xml")
     fun load(context: Context,session: SessionEntity): PracticeUi {
         val name=requireNotNull(session.reviewFile);require(name.matches(Regex("[a-f0-9-]+\\.json")))
-        val data=JSONObject(File(context.filesDir,"takes/$name").readText());val xml=data.getString("xml");val score=MusicXml.parse(xml)
+        val data=read(context,name);val xml=data.getString("xml");val score=MusicXml.parse(xml)
         fun nullable(o: JSONObject,key: String)=if(o.isNull(key))null else o.getDouble(key)
         val take=data.getJSONArray("take").let {a->(0 until a.length()).map {i->val n=a.getJSONObject(i)
             PlayedNote(n.getInt("id"),n.getInt("pitch"),n.getInt("velocity"),n.getInt("channel"),n.getDouble("beat"),nullable(n,"duration"),if(n.isNull("expectedId"))null else n.getInt("expectedId"),nullable(n,"onsetMs"))}}
