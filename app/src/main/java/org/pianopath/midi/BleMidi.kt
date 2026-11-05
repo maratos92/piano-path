@@ -18,7 +18,7 @@ data class UsbPiano(val id: Int,val port: Int,val name: String,val portName: Str
 data class MidiStatus(val status: String = "Not connected", val connected: Boolean = false, val scanning: Boolean = false,
     val devices: List<PianoDevice> = emptyList(), val held: Map<Int,Int> = emptyMap(), val sounding: Set<Int> = emptySet(),
     val usbDevices: List<UsbPiano> = emptyList(), val lastNote: Int? = null, val lastVelocity: Int = 0, val lastChannel: Int = 0,
-    val sustain: Boolean = false, val events: List<String> = emptyList())
+    val sustain: Boolean = false, val events: List<String> = emptyList(),val canSend: Boolean=false)
 
 class BleMidi(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
@@ -29,6 +29,8 @@ class BleMidi(private val context: Context) {
     private val keyboard = KeyboardState()
     private var device: MidiDevice? = null
     private var port: MidiOutputPort? = null
+    private var referencePort: MidiInputPort? = null
+    private val referenceNotes=linkedMapOf<Int,Int>()
     private var target: BluetoothDevice? = null
     private var usbTarget: String? = null
     private var usbPort = 0
@@ -104,6 +106,7 @@ class BleMidi(private val context: Context) {
                 device=opened;port=opened.openOutputPort(portNumber)
                 if(port==null){release();mutable.value=mutable.value.copy(status="USB MIDI port unavailable");return@openDevice}
                 port?.connect(receiver)
+                openReference(opened)
                 mutable.value=mutable.value.copy(connected=true,status="${usbName(info)} · USB connected")
             },handler)
         }catch(e: Exception){release();mutable.value=mutable.value.copy(connected=false,status="USB connection error: ${e.message}")}
@@ -154,6 +157,7 @@ class BleMidi(private val context: Context) {
                 port = output?.let { opened.openOutputPort(it.portNumber) }
                 if(port == null) { release(); mutable.value = mutable.value.copy(status="No MIDI output port · retrying"); scheduleReconnect(); return@openBluetoothDevice }
                 port?.connect(receiver); attempt = 0; stopScan()
+                openReference(opened)
                 mutable.value = mutable.value.copy(connected=true,status="${remote.name ?: "Piano"} connected")
             },handler)
         } catch(e: Exception) { mutable.value = mutable.value.copy(connected=false,status="Connection error: ${e.message}"); scheduleReconnect() }
@@ -169,7 +173,52 @@ class BleMidi(private val context: Context) {
         reconnect=false; generation++; target=null; usbTarget=null; stopScan(); release(); clearKeys(); onDisconnect?.invoke()
         mutable.value = mutable.value.copy(connected=false,status="Not connected")
     }
-    private fun release() { try { port?.disconnect(receiver); port?.close(); device?.close() } catch(_: Exception) { }; port=null; device=null; parser.reset() }
+    /** Android names directions from the device's perspective: TYPE_INPUT receives app output. */
+    private fun openReference(opened: MidiDevice) {
+        stopReference();closeReferencePort()
+        val input=opened.info.ports.firstOrNull{it.type==MidiDeviceInfo.PortInfo.TYPE_INPUT}
+        referencePort=try {input?.let{opened.openInputPort(it.portNumber)}} catch(_: Exception) {null}
+        mutable.value=mutable.value.copy(canSend=referencePort!=null)
+    }
+    private fun closeReferencePort() {
+        try {referencePort?.close()} catch(_: Exception) {}
+        referencePort=null
+        mutable.value=mutable.value.copy(canSend=false)
+    }
+    /** Reference output is not input: it never calls deliver, simulate, capture, or scoring. */
+    fun sendReference(pitch: Int,velocity: Int,down: Boolean): Boolean {
+        if(pitch !in 0..127 || velocity !in 0..127 || (down && velocity==0))return false
+        val output=referencePort ?: return false
+        if(!down && (referenceNotes[pitch] ?: 0)==0)return true
+        return try {
+            output.send(byteArrayOf((if(down)0x90 else 0x80).toByte(),pitch.toByte(),velocity.toByte()),0,3)
+            if(down)referenceNotes[pitch]=(referenceNotes[pitch] ?: 0)+1
+            else {
+                val remaining=(referenceNotes[pitch] ?: 1)-1
+                if(remaining==0)referenceNotes.remove(pitch) else referenceNotes[pitch]=remaining
+            }
+            true
+        } catch(_: Exception) {
+            stopReference();closeReferencePort();false
+        }
+    }
+    /** Release exactly the reference strikes we sent, without panicking the player's channels. */
+    fun stopReference() {
+        val notes=referenceNotes.toMap();referenceNotes.clear()
+        val output=referencePort ?: return
+        var failed=false
+        notes.forEach{(pitch,count)->repeat(count) {
+            try {output.send(byteArrayOf(0x80.toByte(),pitch.toByte(),0),0,3)} catch(_: Exception) {failed=true}
+        }}
+        if(failed)closeReferencePort()
+    }
+    private fun release() {
+        stopReference();closeReferencePort()
+        try {port?.disconnect(receiver)} catch(_: Exception) {}
+        try {port?.close()} catch(_: Exception) {}
+        try {device?.close()} catch(_: Exception) {}
+        port=null;device=null;parser.reset()
+    }
     fun clearKeys() { keyboard.reset(); mutable.value = mutable.value.copy(held=emptyMap(),sounding=emptySet(),sustain=false) }
     fun simulate(e: MidiEvent) { deliver(e) }
     private fun deliver(e: MidiEvent) {

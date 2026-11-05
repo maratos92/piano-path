@@ -1,12 +1,15 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"><meta charset="utf-8"><style>
-html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:#369dbe;box-shadow:0 0 0 3px #369dbe18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:7px;background:#369dbe}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:6px;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
+html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:var(--cursor,#1b554b);box-shadow:0 0 0 3px #1b554b18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:7px;background:var(--cursor,#1b554b)}#playhead.dragging{filter:brightness(.72)}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:6px;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
 </style></head><body><div id="viewport"><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
 let osmd,ready=false,entries=[],hitGroups=[],lastBeat=-1,lastState='',lastSelection='',lastZoom=1,lastHorizontal=false,lastMargin=4,lastDark=false,lastArgs=null,canSeek=false,dragging=false,dragPointer=null,dragBeat=null,loopEnabled=true,loopEditable=true,loopDragging=null,loopPointer=null,loopStart=0,loopEnd=0,scoreEnd=0;
 let lastLayoutWidth=0;const scrollRoot=document.getElementById('viewport');const scroller=new ScoreScroller(),systemBounds=new Map();
+let allowCursorAnimation=false,lastCursorSystem=null,lastCursorBeat=-1,lastTakePaint='',lastTakeTime=0;
+let performanceData={matched:[],missed:[],take:[],expected:[]},dataRevision=0;
+function setPerformanceData(matched,missed,take,expected){performanceData={matched,missed,take,expected};dataRevision++;}
 const NS='http://www.w3.org/2000/svg';
 function fail(e){document.getElementById('loading').style.display='none';document.getElementById('error').textContent='Notation could not be rendered. '+e;if(window.Android)Android.error(String(e));}
 function layout(){
-const anchor=scroller.capture(entries),line=document.getElementById('playhead');if(line)line.style.display='none';
+const anchor=scroller.capture(entries);lastCursorSystem=null;
 const r=osmd.EngravingRules;r.PageLeftMargin=lastMargin/(10*lastZoom);r.PageRightMargin=r.PageLeftMargin;r.SystemLeftMargin=0;r.PageTopMargin=1.5;osmd.Zoom=lastZoom;
 osmd.setOptions({autoResize:false,renderSingleHorizontalStaffline:lastHorizontal,defaultColorMusic:lastDark?'#dce8df':'#173c3b',defaultColorLabel:lastDark?'#dce8df':'#173c3b'});
 document.body.style.background=lastDark?'#142421':'#fffefb';document.documentElement.style.background=document.body.style.background;
@@ -25,10 +28,10 @@ for(const g of c.GNotesUnderCursor()){
  const m=g.parentVoiceEntry.parentStaffEntry.parentMeasure,source=m.parentSourceMeasure,system=m.ParentMusicSystem;
  if(!systemBounds.has(system)){const b=system.PositionAndShape;systemBounds.set(system,{top:(b.AbsolutePosition.y+b.BorderTop)*10,bottom:(b.AbsolutePosition.y+b.BorderBottom)*10});}
  entries.push({g,beat,system,pitch:n.Pitch?n.Pitch.getHalfTone()+12:-1,staff:n.parentStaffEntry.ParentStaff.idInMusicSheet+1,x:xy.x,y:n.Pitch?xy.y:g.PositionAndShape.AbsolutePosition.y*10,svg,
- measure:source.MeasureNumber,start:source.AbsoluteTimestamp.RealValue*4,end:(source.AbsoluteTimestamp.RealValue+source.Duration.RealValue)*4,right:(m.PositionAndShape.AbsolutePosition.x+m.PositionAndShape.Size.width)*10});
+ left:m.PositionAndShape.AbsolutePosition.x*10,measure:source.MeasureNumber,start:source.AbsoluteTimestamp.RealValue*4,end:(source.AbsoluteTimestamp.RealValue+source.Duration.RealValue)*4,right:(m.PositionAndShape.AbsolutePosition.x+m.PositionAndShape.Size.width)*10});
 }c.next();}c.reset();c.hide();lastBeat=-1;lastState='';lastSelection='';
-for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);svg.appendChild(layer);}}
-let line=document.getElementById('playhead');if(!line){line=document.createElement('div');line.id='playhead';line.setAttribute('role','slider');line.setAttribute('tabindex','0');line.setAttribute('aria-label','Blue score cursor. Drag to seek');document.getElementById('score').appendChild(line);}
+for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);if(cls==='loop-layer')svg.insertBefore(layer,svg.firstChild);else svg.appendChild(layer);}}
+let line=document.getElementById('playhead');if(!line){line=document.createElement('div');line.id='playhead';line.setAttribute('role','slider');line.setAttribute('tabindex','0');line.setAttribute('aria-label','Score cursor. Drag to seek');document.getElementById('score').appendChild(line);}
 for(const [id,label] of [['loop-start','A'],['loop-end','B']]){if(!document.getElementById(id)){const marker=document.createElement('div');marker.id=id;marker.className='loop-handle';marker.setAttribute('role','slider');marker.setAttribute('aria-label',label==='A'?'Loop start':'Loop end');const cap=document.createElement('b');cap.textContent=label;marker.appendChild(cap);document.getElementById('score').appendChild(marker);}}
 indexHitGroups();installScrubber();}
 // Index measure positions for inverse mouse/touch hit-testing. Layout uses SVG coordinates.
@@ -42,7 +45,7 @@ function indexHitGroups(){
   const firstX=Math.min(...notes.map(e=>e.x)),lastX=Math.max(...notes.map(e=>e.right-5));
   if(!points.has(start))points.set(start,firstX-12);points.set(end,lastX);
   hitGroups.push({svg,measure,start,end,points:[...points.entries()].sort((a,b)=>a[1]-b[1]),
-   left:firstX-18,right:Math.max(lastX,firstX+15),top:systemBounds.get(notes[0].system).top,bottom:systemBounds.get(notes[0].system).bottom});
+   left:Math.min(...notes.map(e=>e.left)),right:Math.max(...notes.map(e=>e.right)),top:systemBounds.get(notes[0].system).top,bottom:systemBounds.get(notes[0].system).bottom});
  }
 }
 // Get the closest measure *on the touched system*, then interpolate between noteheads.
@@ -75,16 +78,23 @@ function drawLoop(start,end,enabled){
  const state=[start,end,enabled,lastDark].join(':');if(state===lastSelection)return;lastSelection=state;
  for(const svg of document.querySelectorAll('#score svg'))svg.querySelector('.loop-layer')?.replaceChildren();
  if(!enabled)return;
+ const bands=new Map();
  for(const m of hitGroups){if(end<=m.start||start>=m.end)continue;
-  const x1=xAt(m,Math.max(start,m.start)),x2=xAt(m,Math.min(end,m.end)),layer=m.svg.querySelector('.loop-layer');if(!layer)continue;
-  const r=document.createElementNS(NS,'rect');r.setAttribute('x',Math.min(x1,x2));r.setAttribute('y',m.top);r.setAttribute('width',Math.max(2,Math.abs(x2-x1)));r.setAttribute('height',Math.max(1,m.bottom-m.top));
+  const x1=start<=m.start?m.left:xAt(m,start),x2=end>=m.end?m.right:xAt(m,end);
+  let rows=bands.get(m.svg);if(!rows){rows=new Map();bands.set(m.svg,rows);}
+  const key=m.top+':'+m.bottom,old=rows.get(key);
+  rows.set(key,{left:Math.min(old?.left??Infinity,x1),right:Math.max(old?.right??-Infinity,x2),top:m.top,bottom:m.bottom});
+ }
+ for(const [svg,rows] of bands)for(const band of rows.values()){
+  const layer=svg.querySelector('.loop-layer');if(!layer)continue;
+  const r=document.createElementNS(NS,'rect');r.setAttribute('x',band.left);r.setAttribute('y',band.top);r.setAttribute('width',Math.max(2,band.right-band.left));r.setAttribute('height',Math.max(1,band.bottom-band.top));
   r.setAttribute('fill',lastDark?'#e7bd77':'#a6d3c2');r.setAttribute('fill-opacity',lastDark?'.11':'.17');layer.appendChild(r);
  }
 }
 function moveLoopHandles(start,end,enabled,editable){
  drawLoop(start,end,enabled);
  for(const [id,beat] of [['loop-start',start],['loop-end',end]]){
-  const el=document.getElementById(id),pos=atBeatPosition(beat);if(!el||!pos)continue;
+  const el=document.getElementById(id),pos=atBeatPosition(id==='loop-end'?Math.max(start,beat-.002):beat);if(!el||!pos)continue;
   el.style.display='block';el.style.left=pos.x+'px';el.style.top=pos.y+'px';el.style.height=pos.h+'px';
   el.setAttribute('aria-disabled',editable?'false':'true');el.setAttribute('aria-valuenow',beat.toFixed(2));
  }
@@ -92,6 +102,8 @@ function moveLoopHandles(start,end,enabled,editable){
 function moveCursor(beat,start,end,follow=false){
  const pos=atBeatPosition(Math.max(start,Math.min(end,beat)));if(!pos)return;
  const line=document.getElementById('playhead');line.style.display='block';
+ line.style.transition=allowCursorAnimation&&follow&&!dragging&&pos.frame.system===lastCursorSystem&&beat>=lastCursorBeat&&beat-lastCursorBeat<.5?'left 48ms linear':'none';
+ lastCursorSystem=pos.frame.system;lastCursorBeat=beat;
  line.style.left=pos.x+'px';line.style.top=pos.y+'px';line.style.height=pos.h+'px';
  if(!dragging&&!loopDragging)scroller.follow(pos.frame,beat,follow);
 }
@@ -108,9 +120,9 @@ function installScrubber(){
   el.addEventListener('pointerup',event=>finishLoop(event,true));el.addEventListener('pointercancel',event=>finishLoop(event,false));
  }
 
- function preview(event){const beat=beatAtClient(event.clientX,event.clientY);if(beat!==null){dragBeat=beat;if(lastArgs)moveCursor(beat,0,lastArgs[18]);}}
+ function preview(event){const beat=beatAtClient(event.clientX,event.clientY);if(beat!==null){dragBeat=beat;if(lastArgs)moveCursor(beat,0,lastArgs[17]);if(window.Android?.previewSeek)Android.previewSeek(beat);}}
  line.addEventListener('pointerdown',event=>{
-  if(!canSeek)return;dragging=true;dragPointer=event.pointerId;
+  if(!canSeek)return;dragging=true;line.classList.add('dragging');dragPointer=event.pointerId;
   line.setPointerCapture(event.pointerId);preview(event);event.preventDefault();event.stopPropagation();
  });
  line.addEventListener('pointermove',event=>{
@@ -119,7 +131,7 @@ function installScrubber(){
  function finishCursor(event,commit){
   if(!dragging||dragPointer!==event.pointerId)return;
   if(commit)preview(event);
-  const target=dragBeat;dragging=false;dragPointer=null;dragBeat=null;
+  const target=dragBeat;dragging=false;line.classList.remove('dragging');dragPointer=null;dragBeat=null;if(window.Android?.previewEnd)Android.previewEnd();
   if(line.hasPointerCapture(event.pointerId))line.releasePointerCapture(event.pointerId);
   if(commit&&target!==null)Android.seek(target);
   event.preventDefault();event.stopPropagation();
@@ -135,7 +147,7 @@ function installScrubber(){
  line.addEventListener('keydown',event=>{
   if(!canSeek||!lastArgs||!['ArrowLeft','ArrowRight'].includes(event.key))return;
   const delta=event.key==='ArrowRight'?.25:-.25;
-  Android.seek(Math.max(0,Math.min(lastArgs[4],lastBeat+delta)));event.preventDefault();
+  Android.seek(Math.max(0,Math.min(lastArgs[17],lastBeat+delta)));event.preventDefault();
  });
 }
 function locateBeat(beat,staff){
@@ -167,11 +179,13 @@ function drawTake(take,expected,tolerance,beat,bpm){
  append(pos.e.svg,'line',{x1:pos.x,y1:traceY,x2:Math.max(pos.x+2,last.x),y2:traceY,stroke:color,'stroke-width':2.4,opacity:.7,'data-hold-id':n.id},label);cursor=until+.001;}
  }
 }
-function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end,follow=true){if(!ready)return;
+function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end,follow=true,accent='#1b554b',animate=false){if(!ready)return;
 try{
+allowCursorAnimation=animate;
+if(/^#[0-9a-f]{6}$/i.test(accent))document.documentElement.style.setProperty('--cursor',accent);
 lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm,hand,seekEnabled,loopOn,loopEdit,fullEnd,follow];canSeek=seekEnabled;loopEditable=loopEdit;scoreEnd=fullEnd;if(!loopDragging){loopStart=start;loopEnd=end;loopEnabled=loopOn;}const cursor=document.getElementById('playhead');cursor.setAttribute('aria-disabled',seekEnabled?'false':'true');cursor.setAttribute('aria-valuenow',beat.toFixed(2));
 if(zoom!==lastZoom||horizontal!==lastHorizontal||margin!==lastMargin||dark!==lastDark){lastZoom=zoom;lastHorizontal=horizontal;lastMargin=margin;lastDark=dark;layout();}
-const state=JSON.stringify([matched,missed,start,end,take,hand]);
+const state=animate?[dataRevision,start,end,hand].join(':'):JSON.stringify([matched,missed,start,end,take,hand]);
 if(state!==lastState){lastState=state;for(const e of entries){let color=e.beat>=start-.001&&e.beat<end-.001?(lastDark?'#dce8df':'#173c3b'):'#86958d';
  if(hand==='RIGHT'&&e.staff>1||hand==='LEFT'&&e.staff===1)color=lastDark?'#63766c':'#abb5ad';
 if(matched.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))color='#16836d';
@@ -180,8 +194,10 @@ e.g.setColor(color,{applyToNoteheads:true,applyToBeams:false,applyToFlag:false,a
 if(missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');}
 }
 // The overlay is redrawn as an unreleased note grows with the transport.
-drawTake(take,expected,tolerance,beat,bpm);
-for(const e of entries.filter(e=>missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch)))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');
+const paint=animate?[dataRevision,tolerance,bpm,zoom,horizontal,margin,dark].join(':'):JSON.stringify([take,expected,missed,tolerance,bpm,zoom,horizontal,margin,dark]),now=performance.now();
+if(paint!==lastTakePaint || (take.some(n=>n.duration===null)&&now-lastTakeTime>=80)){
+lastTakePaint=paint;lastTakeTime=now;drawTake(take,expected,tolerance,beat,bpm);
+for(const e of entries.filter(e=>missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch)))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');}
 moveCursor(dragging&&dragBeat!==null?dragBeat:beat,0,fullEnd,follow);
  moveLoopHandles(loopStart,loopEnd,loopEnabled,loopEditable);
  lastBeat=beat;

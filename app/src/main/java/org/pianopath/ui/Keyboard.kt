@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.*
@@ -29,6 +30,7 @@ import org.pianopath.core.*
     onKey: (Int,Boolean)->Unit,height: Int,zoom: Float,pan: Float,playback: Set<Int> = emptySet(),
     focusRange: IntRange? = null) {
     val currentOnKey by rememberUpdatedState(onKey)
+    val accent=MaterialTheme.colorScheme.primary
     Canvas(Modifier.fillMaxWidth().height(height.dp).background(Color(0xff1b2e2b))
         .semantics {contentDescription="88-key piano, A0 to C8"}
         .pointerInput(interactive,zoom,pan) {
@@ -59,10 +61,8 @@ import org.pianopath.core.*
         fun color(pitch: Int,black: Boolean) = when {
             focusRange!=null && pitch !in focusRange -> if(black)Color(0xff243633) else Color(0xff83918b)
             else -> when(pitch) {
-            in held->Color(0xff39a888)
             in playback->Color(0xff78bfe8)
-            in sounding->Color(0xff99cdb8)
-            in expected->if(black)Color(0xffb38853) else Color(0xfff4d5ae)
+            in expected->if(black)lerp(Color.Black,accent,.65f) else lerp(Color.White,accent,.3f)
             else->if(black)Color(0xff182b29) else Color(0xfffaf7ef)
         }
         }
@@ -70,6 +70,7 @@ import org.pianopath.core.*
             val x=key.left.toFloat()*w-offset
             if(x+w<0||x>size.width)continue
             drawRect(color(key.pitch,false),Offset(x+gap,0f),Size((w-gap*2).coerceAtLeast(.5f),size.height-1))
+            if(key.pitch in sounding || key.pitch in held)drawRect(if(key.pitch in held)accent else accent.copy(alpha=.65f),Offset(x+gap+1,1f),Size((w-gap*2-2).coerceAtLeast(.5f),size.height-3),style=androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx().coerceAtMost(w*.3f)))
             if(w>=17.dp.toPx()&&(key.pitch%12==0||key.pitch==21))drawContext.canvas.nativeCanvas.drawText(
                 noteName(key.pitch),x+w*.14f,size.height-6.dp.toPx(),android.graphics.Paint().apply {
                     this.color=android.graphics.Color.DKGRAY;textSize=10.sp.toPx();isAntiAlias=true
@@ -79,6 +80,7 @@ import org.pianopath.core.*
             val x=key.left.toFloat()*w-offset
             if(x+key.width*w<0||x>size.width)continue
             drawRect(color(key.pitch,true),Offset(x,0f),Size(key.width.toFloat()*w,size.height*.62f))
+            if(key.pitch in sounding || key.pitch in held)drawRect(if(key.pitch in held)accent else accent.copy(alpha=.65f),Offset(x+1,1f),Size((key.width.toFloat()*w-2).coerceAtLeast(.5f),size.height*.62f-2),style=androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx().coerceAtMost(w*.25f)))
         }
     }
 }

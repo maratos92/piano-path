@@ -14,7 +14,7 @@ import org.pianopath.core.*
 
 @Composable fun ScaleSetup(vm: PianoViewModel) {
     var root by remember {mutableIntStateOf(0)};var kind by remember{mutableStateOf(ScaleKind.MAJOR)};var octaves by remember{mutableIntStateOf(1)};var hand by remember{mutableStateOf(Hand.BOTH)};var descending by remember{mutableStateOf(true)}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxHeight().widthIn(max=640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Practice","Scales & technique")
         Panel(Modifier.fillMaxWidth()) {
             Text("Choose a tonic",fontWeight=FontWeight.SemiBold)
@@ -43,7 +43,7 @@ import org.pianopath.core.*
 }
 @Composable fun SightSetup(vm: PianoViewModel) {
     var level by remember{mutableIntStateOf(0)};var fifths by remember{mutableIntStateOf(0)};var beats by remember{mutableIntStateOf(4)};var hand by remember{mutableStateOf(Hand.BOTH)};var preview by remember{mutableIntStateOf(10)};var tempo by remember{mutableFloatStateOf(80f)}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxHeight().widthIn(max=640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Practice","Sight reading")
         Panel(Modifier.fillMaxWidth()) {
             Text("Difficulty",fontWeight=FontWeight.SemiBold)
@@ -58,7 +58,7 @@ import org.pianopath.core.*
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(3,4,6).forEach{n->FilterChip(beats==n,{beats=n},modifier=Modifier.weight(1f),label={Text(if(n==6)"6/8" else "$n/4")})}}
             HorizontalDivider()
             Text("Tempo · ${tempo.toInt()} BPM",fontWeight=FontWeight.SemiBold)
-            Slider(tempo,{tempo=it},valueRange=40f..200f,steps=159)
+            Slider(tempo,{tempo=it},valueRange=20f..200f,steps=179)
             HorizontalDivider()
             Text("Hands",fontWeight=FontWeight.SemiBold)
             HandChoice(hand){hand=it}

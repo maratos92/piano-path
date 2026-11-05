@@ -186,8 +186,10 @@ def run_gestures(browser):
     page.mouse.up()
     assert abs(page.evaluate('window.seekResult')-6)<.1, 'Blue cursor must commit the dragged beat'
     page.evaluate('window.seekResult=null')
-    start, target = position(8), position(10)
-    page.mouse.move(start['x'], start['y']+40)
+    handle=page.locator('#loop-end b').bounding_box()
+    assert handle, 'Loop end handle must be visible'
+    target = position(10)
+    page.mouse.move(handle['x']+handle['width']/2, handle['y']+handle['height']/2)
     page.mouse.down()
     page.mouse.move(target['x'], target['y']+40, steps=8)
     page.mouse.up()
