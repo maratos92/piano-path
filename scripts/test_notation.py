@@ -64,7 +64,7 @@ with sync_playwright() as p:
      clientX:rect.left+e.x*scale,clientY:rect.top+e.y*scale}));
  }''')
  assert page.evaluate('window.seekedBeat')>=5.5,'Score tap must seek to the touched beat'
- assert page.locator('#playhead').get_attribute('aria-label').startswith('Blue score cursor')
+ assert page.locator('#playhead').get_attribute('aria-label').startswith('Score cursor')
  assert page.locator('#playhead').evaluate('(el)=>getComputedStyle(el).pointerEvents')=='auto'
  assert not failures,failures
  print(json.dumps({'testFixture':'four measures with both staves','renderer':'OSMD 1.9.2','graphicalNotes':count,'firstNotes':values,'svg':page.locator('svg').count(),'seekBeat':page.evaluate('window.seekedBeat'),'errors':failures}))

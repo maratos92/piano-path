@@ -27,6 +27,8 @@ import java.time.format.TextStyle
 import java.util.*
 
 @Composable fun ProgressScreen(vm: PianoViewModel) {
+    val sessions by vm.history.collectAsStateWithLifecycle()
+    var showAll by remember{mutableStateOf(false)}
     val entries by vm.progress.entries.collectAsStateWithLifecycle()
     val goal by vm.progress.goalMinutes.collectAsStateWithLifecycle()
     var now by remember {mutableLongStateOf(System.currentTimeMillis())}
@@ -90,15 +92,24 @@ import java.util.*
             }
         }
         item { Text("Listening rounds",style=MaterialTheme.typography.titleMedium) }
-        if(earRounds.isEmpty())item {Text("Ear-training answers will be dated here. Older lifetime totals remain in History.")}
+        if(earRounds.isEmpty())item {Text("Ear-training answers will be dated here. Lifetime totals are shown in Ear training.")}
         items(earRounds.take(20),key={it.first().roundId}) { round->Panel(Modifier.fillMaxWidth()) {
             val latest=round.maxBy{it.date}
             Text("${round.sumOf{it.correct}} / ${round.sumOf{it.total}} correct",fontWeight=FontWeight.SemiBold)
             Text("${DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(latest.date))} · ${latest.title}",style=MaterialTheme.typography.bodySmall)
             Text("A round contains up to 10 answers at the same difficulty.",style=MaterialTheme.typography.labelSmall)
         } }
+        item { Text("Session history",style=MaterialTheme.typography.titleMedium) }
+        if(sessions.isEmpty())item {Text("Completed scored sessions appear here, alongside your trends and listening rounds.")}
+        items(if(showAll)sessions else sessions.take(20),key={"session-${it.id}"}) {session->Panel(Modifier.fillMaxWidth()) {
+            Text(session.title,fontWeight=FontWeight.SemiBold)
+            Text("${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(session.date))} · ${session.bpm.toInt()} BPM · ${session.mode}",style=MaterialTheme.typography.bodySmall)
+            Text("Pitch ${session.pitch.toInt()}% · rhythm ${session.rhythm?.toInt()?.let{"$it%"} ?: "—"} · ${session.missing} missing · ${session.extra} extra")
+            if(session.reviewFile!=null)Row {TextButton(onClick={vm.openReview(session)}){Text("Review score")};TextButton(onClick={vm.openReview(session,true)}){Text("Replay MIDI roll")}}
+        }}
+        if(sessions.size>20)item {TextButton(onClick={showAll=!showAll}){Text(if(showAll)"Show recent" else "Show all stored results")}}
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick={vm.screen.value="History"}){Text("All session results")}
+
             TextButton(onClick={vm.openRecorder()}){Text("Free play recordings")}
         } }
     }

@@ -2,17 +2,17 @@
 
 ## Install the latest tested app
 
-**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-0.5.0-dev.1-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
+**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-0.5.0-dev.2-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**This release: 0.5.0-dev.1 (build 9).** Settings → About shows the installed version, build code and source revision.
+**This release: 0.5.0-dev.2 (build 10).** Settings → About shows the installed version, build code and source revision.
 
 > **Updating:** build 8 and later use the same pinned signing identity and update in place. Uninstall an older dev.2/dev.3 app once, then install the APK above. The owner has authorised resetting the old local data. Future builds use the pinned key and can update this installation; CI stops if that key is missing or changed. The private key must also be backed up securely—Actions cache alone is not permanent storage.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The source is version 0.5.0-dev.1: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The source is version 0.5.0-dev.2: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
@@ -45,7 +45,7 @@ The source is version 0.5.0-dev.1: a working initial implementation with automat
 
 **Visual review:** choose Sheet, then Practice. Rhythm mode (the default) starts the cursor after count-in; Follow starts on the first expected pitch, and Wait advances on chord completion. Green markers show matched input, amber early/late input, red extras and dashed rings missed notes. Hold traces show physical key-down duration; they are not pedal sustain. After Finish select Review on score, scrub the score, or reopen a take in History. This is a diagnostic overlay, not a quantised MusicXML transcription/export. Wrong pitches use a conventional sharp spelling; MIDI does not carry enharmonic spelling or physical-hand identity.
 
-**Played notes:** in landscape the monitor opens as a dismissible window to preserve score height; portrait keeps the inline monitor. Tap the compact note icon in the score toolbar or open Settings → MIDI → Played notes. The staff shows the last five key presses in sequence by default, with approximate note durations after release and pause markers for long gaps. Settings → Practice adjusts note count (up to 32) and gap threshold. Diagnostics has raw MIDI events.
+**Played notes:** the monitor is integrated above Sheet, Falling or Both, at full width. It follows the newest notes; near-simultaneous attacks group visually, with ledger lines and octave marks for extreme pitches. Tap the compact note icon in the score toolbar or open Settings → MIDI → Played notes. The staff shows the last five key presses in sequence by default, with approximate note durations after release and pause markers for long gaps. Settings → Practice adjusts note count (up to 32) and gap threshold. Diagnostics has raw MIDI events.
 
 **Navigation:** Home, Practice, Library and Settings are the four main sections. Practice opens Sight reading, Listening/ear training, Scales, current score and free play. Settings has General / Practice / MIDI / About subsections. Sheet padding is in Settings → General; notation zoom remains in the reader. Landscape uses the menu overlay rather than an inactive P button.
 
@@ -110,3 +110,13 @@ App source: [MIT](LICENSE). Piano sound samples: Alexander Holm, Salamander Gran
 The continuation fixes score scrolling around slurs/ties, cursor and A/B dragging after zoom, paused note durations/releases and listening resume. CI tests the combined source on phone and tablet emulators before publication, verifies the pinned certificate, and checks a fresh install and same-key update. For the build-8 reset, the historical APK is re-signed only as an emulator fixture; this is not a claim that differently signed old installations can be upgraded.
 
 Private signing keys are not stored in Git. The preview key is currently retained in CI cache; `PIANO_DEBUG_KEYSTORE_BASE64` supports durable secret restoration. Back up that same key privately and never generate a new one silently. See [release signing](docs/RELEASE.md). Previous recovery notes are historical; the owner has authorised a fresh installation instead.
+
+## Latest practice feedback
+
+Looping defaults off. Enable Repeat for a selected passage; Settings → Practice (also Practice controls) sets 0–5 seconds of rest before the next count-in, default 2 seconds. Count-in is preparation clicks; adaptive tempo optionally adds 4 BPM after a successful loop. Both remain optional.
+
+The cursor remains visible and darkens during drag. Keyboard fills preview notes sounding at the cursor; outlines show actual input. Falling notes support vertical dragging and independent stretch/compress controls, including Both view. The sheet uses a continuous A–B band, cached performance data and lighter overlay updates.
+
+Home shows recently opened imports. Home / Practice / Library / Progress / Settings share navigation; Progress includes trends, listening rounds and session history. General settings offer accent presets/custom hex and optional falling-note glow.
+
+Ear training adds full A0–C8 range, longer octave spans and major/minor triads by default for three notes. Optional MIDI reference output sends to a connected instrument's receive port; input-only instruments use phone sound. **Actual piano sound/echo behaviour needs hardware testing.** Reference playback is excluded from answers/capture. Sight reading supports 20 BPM. See [the detailed feedback checklist](docs/FEEDBACK_2026-11-05.md) for limits and deferred decorative backgrounds.
