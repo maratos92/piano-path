@@ -15,5 +15,6 @@ class MainActivity: ComponentActivity() {
         model=ViewModelProvider(this)[PianoViewModel::class.java]
         setContent { PianoApp(model) }
     }
+    override fun onStart(){super.onStart();if(::model.isInitialized)model.foreground()}
     override fun onStop() {if(::model.isInitialized)model.background();super.onStop()}
 }

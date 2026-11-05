@@ -14,23 +14,31 @@ enum class PianoSound(val label: String) {
 /** PCM output is independent from assessment. Listening never feeds generated notes into the scorer. */
 class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
     private val manager=context.getSystemService(AudioManager::class.java)
-    private val grand by lazy { SampledPiano((21..108 step 3).map { pitch -> PianoSample.read(pitch,context.assets.open("piano/$pitch.wav")) }) }
+    // Both transports share read-only PCM samples, with separate voices and pedal state.
+    private val samples by lazy { (21..108 step 3).map { pitch -> PianoSample.read(pitch,context.assets.open("piano/$pitch.wav")) } }
+    private val grand by lazy { SampledPiano(samples) }
     private val mellow by lazy { PianoSynth(tone=SynthTone.MELLOW) }
     private val bright by lazy { PianoSynth(tone=SynthTone.BRIGHT) }
+    private val recordingGrand by lazy { SampledPiano(samples) }
+    private val recordingMellow by lazy { PianoSynth(tone=SynthTone.MELLOW) }
+    private val recordingBright by lazy { PianoSynth(tone=SynthTone.BRIGHT) }
     @Volatile private var sound=PianoSound.GRAND
+    @Volatile private var recordingPlayback=false
     fun selectSound(next: PianoSound) {if(sound!=next){silence();sound=next}}
-    private fun render(buffer: FloatArray) {
+    private fun render(buffer: FloatArray,recordingBuffer: FloatArray) {
         when(sound) {
-            PianoSound.GRAND->grand.render(buffer)
-            PianoSound.MELLOW->mellow.render(buffer)
-            PianoSound.BRIGHT->bright.render(buffer)
+            PianoSound.GRAND->{grand.render(buffer);recordingGrand.render(recordingBuffer)}
+            PianoSound.MELLOW->{mellow.render(buffer);recordingMellow.render(recordingBuffer)}
+            PianoSound.BRIGHT->{bright.render(buffer);recordingBright.render(recordingBuffer)}
         }
+        for(i in buffer.indices)buffer[i]=(buffer[i]+recordingBuffer[i]).coerceIn(-1f,1f)
         clicker.mix(buffer)
+        for(i in buffer.indices)buffer[i]=buffer[i].coerceIn(-1f,1f)
     }
     private fun voices()=when(sound) {
-        PianoSound.GRAND->grand.activeVoiceCount
-        PianoSound.MELLOW->mellow.activeVoiceCount
-        PianoSound.BRIGHT->bright.activeVoiceCount
+        PianoSound.GRAND->grand.activeVoiceCount+recordingGrand.activeVoiceCount
+        PianoSound.MELLOW->mellow.activeVoiceCount+recordingMellow.activeVoiceCount
+        PianoSound.BRIGHT->bright.activeVoiceCount+recordingBright.activeVoiceCount
     }
     private val clicker=MetronomeClick()
     fun metronomeClick(downbeat: Boolean) {if(start())clicker.trigger(downbeat)}
@@ -61,14 +69,15 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
                 try {
                     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO)
                     val buffer=FloatArray(256)
+                    val recordingBuffer=FloatArray(buffer.size)
                     track.play()
                     var idleFrames=0
                     while(alive.get()) {
-                        render(buffer)
-                        idleFrames=if(voices()==0 && !clicker.active)idleFrames+buffer.size else 0
+                        render(buffer,recordingBuffer)
+                        idleFrames=if(voices()==0 && !clicker.active && !recordingPlayback)idleFrames+buffer.size else 0
                         if(idleFrames>=44100*2) {
                             idleFrames=0
-                            handler.post {if(output?.track===track && voices()==0 && !clicker.active)stop()}
+                            handler.post {if(output?.track===track && voices()==0 && !clicker.active && !recordingPlayback)stop()}
                         }
                         var offset=0
                         while(offset<buffer.size&&alive.get()) {
@@ -91,6 +100,20 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
         PianoSound.MELLOW->mellow.accept(event)
         PianoSound.BRIGHT->bright.accept(event)
     }}
+    /** Replay never enters the live input/scoring path, even on MIDI channel zero. */
+    fun acceptRecording(event: MidiEvent) {
+        if(!start())return
+        recordingPlayback=true
+        when(sound) {
+        PianoSound.GRAND->recordingGrand.accept(event)
+        PianoSound.MELLOW->recordingMellow.accept(event)
+        PianoSound.BRIGHT->recordingBright.accept(event)
+    }}
+    fun silenceRecording() {recordingPlayback=false;when(sound) {
+        PianoSound.GRAND->recordingGrand.silence()
+        PianoSound.MELLOW->recordingMellow.silence()
+        PianoSound.BRIGHT->recordingBright.silence()
+    }}
     fun releaseTouch()=when(sound) {
         PianoSound.GRAND->grand.releaseChannel(0)
         PianoSound.MELLOW->mellow.releaseChannel(0)
@@ -103,6 +126,7 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
     } }}
     fun silence() {
         clicker.silence()
+        silenceRecording()
         when(sound) {
             PianoSound.GRAND->grand.silence()
             PianoSound.MELLOW->mellow.silence()

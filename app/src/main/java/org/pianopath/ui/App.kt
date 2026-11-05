@@ -55,7 +55,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val context=LocalContext.current
     DisposableEffect(screen) {
         val window=(context as? Activity)?.window
-        if(screen=="Practice")window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if(screen=="Practice" || screen=="Recorder")window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grant -> if(grant.values.all { it })vm.midi.scan() else vm.message.value="Bluetooth access is required for MIDI discovery. You can still import scores and use the simulator." }
@@ -66,11 +66,11 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val dark=settings.theme==ThemeMode.DARK || settings.theme==ThemeMode.SYSTEM && isSystemInDarkTheme()
     MaterialTheme(colorScheme=if(dark)Dark else Light,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontSize=16.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=FontFamily.Serif,fontSize=28.sp))) {
         LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.message.value=null } }
-        ModalNavigationDrawer(drawerState=drawer,gesturesEnabled=screen=="Practice",drawerContent={
+        ModalNavigationDrawer(drawerState=drawer,gesturesEnabled=false,drawerContent={
             ModalDrawerSheet(Modifier.width(280.dp)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Piano Path",Modifier.padding(24.dp),fontSize=26.sp,fontFamily=FontFamily.Serif)
-                listOf("Home","Practice hub","Library","Settings","Connect","Note monitor","History").forEach { name ->
+                listOf("Home","Practice hub","Library","Settings","Connect","Note monitor","Recorder","Progress","History").forEach { name ->
                     NavigationDrawerItem(label={Text(if(name=="Practice hub")"Practice" else name)},selected=screen==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
                 }
                 }
@@ -100,6 +100,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         "Scales" -> ScaleSetup(vm)
                         "Sight reading" -> SightSetup(vm)
                         "Ear training" -> EarTraining(vm)
+                        "Recorder" -> RecorderScreen(vm)
+                        "Progress" -> ProgressScreen(vm)
                         "History" -> History(vm)
                         "Diagnostics" -> Diagnostics(vm,midi)
                         else -> SettingsScreen(vm)
@@ -147,9 +149,9 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                 Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score?.title ?: "Current score"}",maxLines=1)
             }
             OutlinedButton(onClick={vm.screen.value="Library"},modifier=Modifier.fillMaxWidth()){Text("Choose a piece from Library")}
-            OutlinedButton(onClick={vm.playWithoutPiano()},modifier=Modifier.fillMaxWidth()){Text("Free play · 88 keys")}
+            OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("Free play · record & replay")}
         } }
-        item { TextButton(onClick={vm.screen.value="History"}){Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("Practice history")} }
+        item { TextButton(onClick={vm.screen.value="Progress"}){Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("Your practice · goals & progress")} }
     }
 }
 @Composable private fun Home(vm: PianoViewModel) {
@@ -166,6 +168,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             Metric(history.size.toString(),"sessions",Modifier.weight(1f)); Metric(if(history.isEmpty())"—" else "${history.take(10).map { it.pitch }.average().toInt()}%","recent pitch",Modifier.weight(1f)); Metric(history.map { SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date(it.date)) }.distinct().size.toString(),"practice days",Modifier.weight(1f))
         } }
         item { OutlinedButton(onClick={vm.playWithoutPiano()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Piano,null);Spacer(Modifier.width(8.dp));Text("Play without a piano")} }
+        item { OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("Free play recordings")} }
+        item { OutlinedButton(onClick={vm.screen.value="Progress"},modifier=Modifier.fillMaxWidth()){Text("Your practice · goals & progress")} }
         item { Text("Find your focus",fontFamily=FontFamily.Serif,fontSize=24.sp) }
         item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             FocusCard("Technique","Scales & arpeggios",Icons.Outlined.Piano,Modifier.weight(1f)){vm.screen.value="Scales"}
@@ -240,6 +244,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("History","Your progress") }
+        item { OutlinedButton(onClick={vm.screen.value="Progress"}){Text("Goals, passage trends & listening rounds")} }
         item { val ear by vm.ear.collectAsStateWithLifecycle()
             if(ear.attempts>0)Panel(Modifier.fillMaxWidth()) {
                 Text("Ear training · ${ear.correct*10} points",fontWeight=FontWeight.SemiBold)
@@ -374,7 +379,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         Text("Held: ${midi.held.keys.sorted().joinToString {noteName(it)}}\nSustain: ${if(midi.sustain)"down" else "up"} · Sounding: ${midi.sounding.size}",fontSize=14.sp)
         PianoKeyboard(midi.held.keys,midi.sounding,emptyList(),settings.simulator,vm::key)
         if(settings.simulator)Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedButton(onClick={vm.simulateNext()}){Text("Test chord")};OutlinedButton(onClick={vm.pedal(!midi.sustain)}){Text("Pedal ${if(midi.sustain)"up" else "down"}")}}
-        Row { TextButton(onClick={vm.midi.clearKeys()}){Text("Panic / clear notes")};TextButton(onClick={vm.screen.value="Connect"}){Text("Connection")}}
+        Row { TextButton(onClick={vm.panic()}){Text("Panic / clear notes")};TextButton(onClick={vm.screen.value="Connect"}){Text("Connection")}}
         LazyColumn(Modifier.weight(1f)) { items(midi.events) { Text(it,fontFamily=FontFamily.Monospace,fontSize=11.sp,modifier=Modifier.padding(vertical=4.dp)) } }
     }
 }
