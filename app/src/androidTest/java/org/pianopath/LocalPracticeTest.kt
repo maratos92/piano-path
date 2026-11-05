@@ -105,10 +105,10 @@ class FreePlayIntegrationTest {
         lateinit var vm: PianoViewModel
         compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]}
         compose.waitUntil(15_000){vm.recorder.state.value.ready}
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Free play recordings"))
+        compose.onNodeWithTag("home-feed").performScrollToNode(hasText("Free play recordings"))
         compose.onNodeWithText("Free play recordings").performClick()
         compose.onNodeWithText("Free play recordings").assertIsDisplayed()
-        compose.onNodeWithText("Record new take").performClick()
+        compose.onNodeWithText("Record new take").performScrollTo().performClick()
         compose.waitUntil(5_000){vm.recorder.state.value.recording}
         compose.runOnUiThread {vm.midi.simulate(MidiEvent.On(60,88,System.nanoTime(),1))}
         compose.waitUntil(5_000){vm.recorder.state.value.eventCount>=1}
@@ -132,10 +132,10 @@ class FreePlayIntegrationTest {
     }
 
     @Test fun progressIsReachableFromHomeAndShowsGoal() {
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Your practice · goals & progress"))
+        compose.onNodeWithTag("home-feed").performScrollToNode(hasText("Your practice · goals & progress"))
         compose.onNodeWithText("Your practice · goals & progress").performClick()
         compose.onNodeWithText("Your practice").assertIsDisplayed()
-        compose.onNodeWithText("Daily goal",substring=true).assertIsDisplayed()
+        compose.onNodeWithText("Daily goal",substring=true).performScrollTo().assertIsDisplayed()
     }
 
     @Test fun repeatedSimultaneousNotesKeepTheirFifoReleaseDurations() {
