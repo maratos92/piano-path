@@ -36,8 +36,23 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     val currentBeat get() = groups.getOrNull(group)?.firstOrNull()?.note?.beat ?: min(score.endBeat,config.endBeat)
     val hasAnchor get() = anchored
     val finished get() = group >= groups.size
-    val matchedIds get() = results.filter { it.onsetMs != null }.map { it.note.id }.toSet()
-    val missedIds get() = results.filter { it.missing }.map { it.note.id }.toSet()
+    private val matched = linkedSetOf<Int>()
+    private val missed = linkedSetOf<Int>()
+    private var matchedSnapshot: Set<Int> = emptySet()
+    private var missedSnapshot: Set<Int> = emptySet()
+    val matchedIds: Set<Int> get() {
+        if(matchedSnapshot.size != matched.size) matchedSnapshot = matched.toSet()
+        return matchedSnapshot
+    }
+    val missedIds: Set<Int> get() {
+        if(missedSnapshot.size != missed.size) missedSnapshot = missed.toSet()
+        return missedSnapshot
+    }
+    val expectedPitches get() = groups.getOrNull(group).orEmpty().filter { !it.missing && it.onsetMs == null }.map { it.note.midi }
+    private var acceptedMatch: NoteResult? = null
+    private fun markMissing(notes: List<NoteResult>) {
+        notes.filter { it.onsetMs == null }.forEach { it.missing = true; missed.add(it.note.id) }
+    }
     fun start(now: Long) { origin = now; started = true; pausedAt = null; anchored = config.mode == PracticeMode.RHYTHM }
     /** Freezes the musical clock without changing note-matching results. */
     fun pause(now: Long) { if(started && pausedAt == null) pausedAt = now }
@@ -60,7 +75,20 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     fun clockBeat(now: Long) = config.startBeat + (elapsedMs(now) - phaseMs) * config.bpm / 60000.0
     private val recorded = mutableListOf<PlayedNote>()
     private val recordingActive = mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<Pair<Int,Long>>>()
+    private var takeRevision = 0L
+    private var liveRevision = -1L
+    private var liveLimit = 0
+    private var liveSnapshot: List<PlayedNote> = emptyList()
     val take: List<PlayedNote> get() = recorded.toList()
+    /** Rendering needs only recent notes; retain the complete take for the finished review. */
+    fun liveTake(limit: Int = 256): List<PlayedNote> {
+        require(limit > 0)
+        if(liveRevision != takeRevision || liveLimit != limit) {
+            liveSnapshot = recorded.takeLast(limit)
+            liveRevision = takeRevision; liveLimit = limit
+        }
+        return liveSnapshot
+    }
     fun accept(event: MidiEvent) {
         if(!started || config.mode == PracticeMode.FREE)return
         // New attacks during a pause are not scored, but releases must still close
@@ -71,23 +99,23 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
             is MidiEvent.Off -> incoming.copy(timestamp=min(incoming.timestamp,paused))
             is MidiEvent.Control -> incoming.copy(timestamp=min(incoming.timestamp,paused))
         } } ?: incoming
-        val before=matchedIds
+        acceptedMatch=null
         val clockBefore=if(config.mode==PracticeMode.WAIT || !anchored)currentBeat else clockBeat(e.timestamp)
         val releaseIsExtra=e is MidiEvent.Off && recordingActive[e.channel to e.pitch]?.peekFirst()?.first?.let{recorded[it].expectedId==null}==true
         if(!releaseIsExtra)acceptScored(e)
         when(e) {
             is MidiEvent.On -> if(recorded.size<20000) {
-                val match=results.firstOrNull {it.note.id !in before && it.onsetMs!=null}
+                val match=acceptedMatch
                 val beat=match?.let {it.note.beat + if(config.mode==PracticeMode.WAIT)0.0 else (it.onsetMs ?: 0.0)*config.bpm/60000.0} ?: clockBefore
                 val index=recorded.size
-                recorded.add(PlayedNote(index,e.pitch,e.velocity,e.channel,beat,expectedId=match?.note?.id,onsetMs=if(config.mode==PracticeMode.WAIT)null else match?.onsetMs))
+                recorded.add(PlayedNote(index,e.pitch,e.velocity,e.channel,beat,expectedId=match?.note?.id,onsetMs=if(config.mode==PracticeMode.WAIT)null else match?.onsetMs)); takeRevision++
                 recordingActive.getOrPut(e.channel to e.pitch){java.util.ArrayDeque()}.add(index to e.timestamp)
             }
             is MidiEvent.Off -> recordingActive[e.channel to e.pitch]?.pollFirst()?.let { (index,time) ->
-                recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0))
+                recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0)); takeRevision++
             }
             is MidiEvent.Control -> if(e.controller in listOf(120,123))recordingActive.keys.filter{it.first==e.channel}.toList().forEach{key->
-                recordingActive.remove(key)?.forEach{(index,time)->recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0))}
+                recordingActive.remove(key)?.forEach{(index,time)->recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0)); takeRevision++}
             }
         }
     }
@@ -138,10 +166,11 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         if(match == null) { extra++; lastFeedback = "Extra ${noteName(e.pitch)}"; return }
         val deviation = if(config.mode == PracticeMode.WAIT) 0.0 else elapsedMs(e.timestamp) - expectedMs(match.note)
         if(config.mode == PracticeMode.FOLLOW && match !in current) {
-            current.filter { it.onsetMs == null }.forEach { it.missing = true }
+            markMissing(current)
             advance()
         }
         match.onsetMs = deviation; match.channel = e.channel
+        matched.add(match.note.id); acceptedMatch = match
         // Re-anchor after a long expressive pause. Never advance unseen measures on a timer.
         if(config.mode == PracticeMode.FOLLOW && abs(deviation) > window) phaseMs += deviation
         active.getOrPut(e.channel to e.pitch) { java.util.ArrayDeque() }.add(match to e.timestamp)
@@ -168,13 +197,13 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         while(group < groups.size) {
             val g = groups[group]
             if(elapsedMs(now) <= expectedMs(g.first().note) + expiry) break
-            g.filter { it.onsetMs == null }.forEach { it.missing = true }
+            markMissing(g)
             advance()
         }
     }
     fun finish(now: Long): SessionResult {
         tick(now)
-        results.filter { it.onsetMs == null }.forEach { it.missing = true }
+        markMissing(results)
         if(config.mode != PracticeMode.WAIT) active.values.flatMap { it.toList() }.forEach { (r,_) ->
             // No key release was received. Do not silently treat this as an accurate duration.
             r.durationErrorMs = max(config.toleranceMs * 2, r.note.duration * 60000.0 / config.bpm)

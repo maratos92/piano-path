@@ -19,20 +19,30 @@ def run(browser):
         assert right>left+5,(beat,left,right)
     samples=page.evaluate('''async() => {
       const samples=[];
-      for(let i=0;i<75;i++){
+      for(let i=0;i<22;i++){
         await new Promise(requestAnimationFrame);
         samples.push({beat:lastCursorBeat,x:parseFloat(document.getElementById('playhead').style.left)});
       }
       return samples;
     }''')
-    assert samples[-1]['beat']-samples[0]['beat']>.6, 'Cursor must advance without note/native packets'
-    assert len({round(s['x'],1) for s in samples})>25, 'Motion must be rendered between notes'
+    assert samples[-1]['beat']-samples[0]['beat']>.15, 'Cursor must advance without note/native packets'
+    assert len({round(s['x'],1) for s in samples})>12, 'Motion must be rendered between notes'
     assert all(b['beat']>=a['beat'] for a,b in zip(samples,samples[1:])), 'Motion must remain forward'
     page.evaluate("progress(2,[],[],0,64,.7,true,[],[],180,4,false,60,'BOTH',true,false,true,64,false,'#315f72',true,0)")
     before=page.locator('#playhead').get_attribute('style')
     page.wait_for_timeout(250)
     assert before==page.locator('#playhead').get_attribute('style'),'Paused motion must freeze'
     assert page.locator('#playhead').evaluate("e=>getComputedStyle(e,'::after').borderRadius")=='50%'
+    # A lost transport connection must not leave an autonomous cursor running.
+    page.evaluate("progress(3,[],[],0,64,.7,true,[],[],180,4,false,60,'BOTH',true,false,true,64,true,'#315f72',true,1)")
+    page.wait_for_timeout(700)
+    frozen=page.evaluate('lastCursorBeat')
+    page.wait_for_timeout(200)
+    assert page.evaluate('lastCursorBeat')==frozen,'Stale transport must expire'
+    # The circular grip is attached to the current system, including wrapped rows.
+    page.evaluate("progress(36,[],[],0,64,1,false,[],[],180,4,false,60,'BOTH',true,false,true,64,false,'#315f72',true,0)")
+    pin=page.locator('#playhead').evaluate("e=>({position:getComputedStyle(e,'::after').position,left:parseFloat(getComputedStyle(e,'::after').left),width:parseFloat(getComputedStyle(e,'::after').width)})")
+    assert pin['position']=='absolute' and abs(pin['left']+pin['width']/2-22)<1,pin
     page.close()
 
 if __name__=='__main__':

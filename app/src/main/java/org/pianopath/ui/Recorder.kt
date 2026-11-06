@@ -29,7 +29,7 @@ import java.util.Date
     val current=r.current
     val keys=remember(current){current?.let{recordingKeys(it)}.orEmpty()}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { PageTitle("Play · observe · save","Studio","Play freely, monitor velocity and pedal, or save a take on this device.") }
+        item { PageTitle("Studio") }
         item { PrimaryTabRow(selectedTabIndex=if(events)1 else 0){Tab(!events,{events=false},text={Text("Play & record")});Tab(events,{events=true},text={Text("MIDI events")})} }
         if(events)item {Panel(Modifier.fillMaxWidth()) {
             Text("Velocity ${midi.lastVelocity} · channel ${midi.lastChannel+1}")

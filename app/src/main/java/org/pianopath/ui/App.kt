@@ -49,6 +49,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 @Composable fun PianoApp(vm: PianoViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val screen by vm.screen.collectAsStateWithLifecycle()
+    val exerciseState=androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val midi by vm.midi.state.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val config=LocalConfiguration.current
@@ -71,7 +72,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val accent=Color(settings.accent)
     val primary=if(dark)lerp(accent,Color.White,.45f) else lerp(accent,Color.Black,.12f)
     val palette=(if(dark)Dark else Light).copy(primary=primary,onPrimary=if(primary.luminance()>.179f)Color.Black else Color.White,secondary=primary,primaryContainer=primary.copy(alpha=.15f))
-    MaterialTheme(colorScheme=palette,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontSize=16.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=FontFamily.Serif,fontSize=28.sp))) {
+    MaterialTheme(colorScheme=palette,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontSize=16.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=FontFamily.Serif,fontSize=24.sp))) {
         LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.message.value=null } }
         CompositionLocalProvider(LocalKeyboardRange provides (settings.keyboardFirst..settings.keyboardLast),LocalNoteNaming provides settings.noteNaming) {
         ModalNavigationDrawer(drawerState=drawer,gesturesEnabled=false,drawerContent={
@@ -100,8 +101,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         "Connect" -> Connection(vm,midi,requestScan) { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
                         "Practice" -> Practice(vm){scope.launch{drawer.open()}}
                         "Note monitor" -> RecorderScreen(vm)
-                        "Scales" -> ScaleSetup(vm)
-                        "Sight reading" -> SightSetup(vm)
+                        "Scales" -> exerciseState.SaveableStateProvider("Scales"){ScaleSetup(vm)}
+                        "Sight reading" -> exerciseState.SaveableStateProvider("Sight reading"){SightSetup(vm)}
                         "Ear training" -> EarTraining(vm)
                         "Recorder" -> RecorderScreen(vm)
                         "Progress" -> ProgressScreen(vm)
@@ -115,12 +116,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
     }
 }
-@Composable fun PageTitle(eyebrow: String,title: String,subtitle: String="") {
-    Column(Modifier.padding(bottom=20.dp)) {
-        Text(eyebrow.uppercase(),fontSize=11.sp,letterSpacing=2.sp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)
-        Text(title,fontFamily=FontFamily.Serif,fontSize=34.sp,lineHeight=40.sp,modifier=Modifier.padding(top=6.dp))
-        if(subtitle.isNotEmpty()) Text(subtitle,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
-    }
+@Composable fun PageTitle(title: String,modifier: Modifier=Modifier) {
+    Text(title,fontFamily=FontFamily.Serif,fontSize=26.sp,lineHeight=32.sp,modifier=modifier)
 }
 @Composable fun Panel(modifier: Modifier=Modifier,content: @Composable ColumnScope.()->Unit) {
     Surface(modifier=modifier,shape=RoundedCornerShape(18.dp),color=MaterialTheme.colorScheme.surfaceContainerLow,border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.5f))) { Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp),content=content) }
@@ -131,7 +128,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 @Composable private fun PracticeHub(vm: PianoViewModel) {
     val p by vm.ui.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Text("Practice",fontFamily=FontFamily.Serif,fontSize=32.sp) }
+        item { PageTitle("Practice") }
         item { Panel(Modifier.fillMaxWidth()) {
             Text("Choose a session",fontWeight=FontWeight.SemiBold)
             OutlinedButton(onClick={vm.screen.value="Sight reading"},modifier=Modifier.fillMaxWidth()) {
@@ -163,7 +160,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val imports by vm.imports.collectAsStateWithLifecycle();val recents by vm.recentKeys.collectAsStateWithLifecycle()
     val recent=recents.mapNotNull{key->imports.find{it.key==key}}
     LazyColumn(Modifier.fillMaxSize().testTag("home-feed"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item { PageTitle("Piano Path","Make room for music.") }
+        item { PageTitle("Home") }
         item { Surface(shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.primary,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}) {
             Row(Modifier.fillMaxWidth().padding(24.dp),verticalAlignment=Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Text("YOUR NEXT SESSION",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f),letterSpacing=2.sp,fontSize=11.sp);Spacer(Modifier.height(14.dp));Text(p.score?.title ?: "Start with a scale",color=MaterialTheme.colorScheme.onPrimary,fontFamily=FontFamily.Serif,fontSize=27.sp);Spacer(Modifier.height(8.dp));Text(if(p.score==null)"C major · both hands" else "Continue practice",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f));Spacer(Modifier.height(18.dp));Text("Open practice  →",color=MaterialTheme.colorScheme.onPrimary,fontWeight=FontWeight.Bold) }
@@ -195,7 +192,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     var onlyFavourites by remember{mutableStateOf(false)}
     val visible=imports.filter {(it.title+it.composer).contains(query,true) && (!onlyFavourites || it.key in favourites)}.sortedByDescending{it.key in favourites}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { PageTitle("Your music","The library") }
+        item { PageTitle("Library") }
         item { Button(onClick=onImport,modifier=Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL")
         } }
@@ -223,7 +220,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable private fun Connection(vm: PianoViewModel,midi: MidiStatus,scan: ()->Unit,bluetoothSettings: ()->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item { PageTitle("A direct connection","Meet your piano.","Connect a compatible instrument by Bluetooth LE MIDI or USB MIDI. No microphone is used.") }
+        item { PageTitle("Connect piano") }
+        item { Text("Connect a compatible instrument by Bluetooth LE MIDI or USB MIDI. No microphone is used.",style=MaterialTheme.typography.bodyMedium) }
         item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(if(midi.connected)Icons.Outlined.CheckCircle else Icons.Outlined.Bluetooth,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(12.dp));Text(midi.status,fontWeight=FontWeight.Medium) };if(midi.scanning)LinearProgressIndicator(Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick=scan,enabled=!midi.scanning){Text("Find piano")};if(midi.connected)OutlinedButton(onClick={vm.midi.disconnect()}){Text("Disconnect")}} } }
         item { Panel(Modifier.fillMaxWidth()) {
             Text("USB MIDI",fontFamily=FontFamily.Serif,fontSize=24.sp)
@@ -261,7 +259,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     })
     var section by remember {mutableStateOf("General")}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        Text("Settings",fontFamily=FontFamily.Serif,fontSize=29.sp)
+        PageTitle("Settings")
         PrimaryTabRow(selectedTabIndex=listOf("General","Practice","About").indexOf(section)) {
             listOf("General","Practice","About").forEach { tab ->
                 Tab(selected=section==tab,onClick={section=tab},text={Text(tab)})
@@ -343,7 +341,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 @Composable private fun Diagnostics(vm: PianoViewModel,midi: MidiStatus) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        PageTitle("Direct from the keys","MIDI monitor",midi.status)
+        PageTitle("MIDI monitor")
+        Text(midi.status,style=MaterialTheme.typography.bodyMedium)
         Text("Held: ${midi.held.keys.sorted().joinToString {noteName(it)}}\nSustain: ${if(midi.sustain)"down" else "up"} · Sounding: ${midi.sounding.size}",fontSize=14.sp)
         PianoKeyboard(midi.held.keys,midi.sounding,emptyList(),settings.simulator,vm::key)
         if(settings.simulator)Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedButton(onClick={vm.simulateNext()}){Text("Test chord")};OutlinedButton(onClick={vm.pedal(!midi.sustain)}){Text("Pedal ${if(midi.sustain)"up" else "down"}")}}

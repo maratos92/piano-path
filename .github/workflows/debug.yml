@@ -27,6 +27,7 @@ jobs:
       - name: Verify continuous cursor, empty measures, loop gestures and reflow
         run: |
           python scripts/test_cursor_motion.py
+          python scripts/test_notation_load.py
           python scripts/test_practice_feedback.py
           python scripts/test_scrolling.py
   debug:

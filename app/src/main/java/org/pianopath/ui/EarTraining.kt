@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +26,8 @@ import org.pianopath.core.PlayedAttack
     var triads by remember{mutableStateOf(ear.triads)}
     var setupExpanded by remember{mutableStateOf(ear.target.isEmpty())}
     val canStart=ear.target.isEmpty() || ear.revealed
+    val correctAnswer=ear.revealed && ear.history.lastOrNull()==ear.target
+    val answerFills=if(ear.revealed)ear.target.associateWith {if(correctAnswer)Color(0xff78c88b) else Color(0xfff5d45b)} else emptyMap()
     LaunchedEffect(ear.target){if(ear.target.isNotEmpty())setupExpanded=false;touchHeld=emptySet()}
     val columns=remember(ear.history,ear.guesses,ear.revealed,ear.target,settings.earAttempts) {
         fun notes(pitches: Set<Int>)=pitches.sorted().map{PlayedAttack(it,0,0L,750L)}
@@ -45,7 +48,7 @@ import org.pianopath.core.PlayedAttack
         values.mapValues{it.value.toList()}
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        PageTitle("Listen · answer · learn","Ear training")
+        PageTitle("Listening")
         if(!setupExpanded)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             Text("${ear.voices} note(s) · ${if(ear.fullKeyboard)"instrument range" else "${ear.octaves} octave(s)"}",style=MaterialTheme.typography.bodySmall)
             TextButton(onClick={setupExpanded=true},enabled=canStart && !playing){Text("Exercise setup")}
@@ -76,19 +79,19 @@ import org.pianopath.core.PlayedAttack
                 if(!ear.revealed)Text("Answer hidden · listen and play your answer")
                 PlayedStaff(columns,bpm=80.0,followKey=ear.questionAttempts to ear.guesses,naming=settings.noteNaming)
                 if(ear.revealed)Text("Answer: ${ear.target.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick=vm::earReplay,enabled=!playing){Text("Replay")}
-                    OutlinedButton(onClick=vm::earClear,enabled=!ear.revealed && !playing){Text("Clear")}
-                }
             }
-            Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing){Text(if(ear.target.isEmpty())"Start game" else "Next question")}
+            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                if(ear.target.isNotEmpty())OutlinedButton(onClick=vm::earReplay,enabled=!playing){Text("Replay")}
+                Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing){Text(if(ear.target.isEmpty())"Start game" else "Next question")}
+            }
         }
         if(ear.target.isNotEmpty()) {
-            Text("Play ${ear.voices} distinct note${if(ear.voices==1)"" else "s"}. Numbered keys show your attempts; ● shows the revealed answer.",style=MaterialTheme.typography.bodySmall)
-            PianoKeyboard(if(playing)emptySet() else ear.guesses+touchHeld+midi.held.keys,emptySet(),emptyList(),!playing && !ear.revealed,
-                {pitch,down->touchHeld=if(down)touchHeld+pitch else touchHeld-pitch;if(down)vm.earGuess(pitch)},146,
+            Text(if(ear.revealed)"${if(correctAnswer)"Green" else "Yellow"} keys show the answer. Play it again or tap Next question to continue."
+                else "Play ${ear.voices} distinct note${if(ear.voices==1)"" else "s"}. Numbered keys show your attempts.",style=MaterialTheme.typography.bodySmall)
+            PianoKeyboard(if(playing || ear.revealed)emptySet() else ear.guesses+touchHeld+midi.held.keys,emptySet(),emptyList(),!playing,
+                {pitch,down->touchHeld=if(down)touchHeld+pitch else touchHeld-pitch;if(down)vm.earGuess(pitch) else vm.earRelease(pitch)},146,
                 if(ear.fullKeyboard)settings.keyboardFirst..settings.keyboardLast else ((ear.startOctave+1)*12)..minOf(108,(ear.startOctave+ear.octaves+1)*12),
-                filledInput=true,attemptBadges=badges)
+                filledInput=true,attemptBadges=badges,keyFills=answerFills)
         }
         Text("${ear.correct*10} points · ${ear.correct}/${ear.attempts} correct · accuracy ${if(ear.attempts==0)"—" else "${100*ear.correct/ear.attempts}%"}",style=MaterialTheme.typography.bodyMedium)
     }

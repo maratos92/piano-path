@@ -31,7 +31,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
     return listOf(.25 to "1/16",.5 to "1/8",1.0 to "1/4",2.0 to "1/2",4.0 to "whole").minBy{abs(it.first-beats)}
 }
 
-/** A column is explicit: all its pitches share X, independent of their input attack times. */
+/** A column is explicit: its notes share a position; colliding chord heads use adjacent lanes. */
 data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: String="",val detail: String="",
     val pause: Boolean=false,val correct: Boolean?=null)
 
@@ -51,7 +51,11 @@ data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: St
         val names=columns.map{column->column.notes.joinToString(" "){displayNoteName(it.pitch,naming)}}
         val widths=columns.mapIndexed {i,column->max(64f,max(names[i].length,column.label.length)*6f+24f)}
         val contentWidth=max(maxWidth.value,42f+widths.sum()+24f)
-        LaunchedEffect(followKey,scroll.maxValue){scroll.scrollTo(scroll.maxValue)}
+        LaunchedEffect(followKey,contentWidth,scroll.maxValue) {
+            // Wait for the newest column to be measured before reading the new scroll range.
+            withFrameNanos { }
+            scroll.scrollTo(scroll.maxValue)
+        }
         Canvas(Modifier.fillMaxWidth().horizontalScroll(scroll).width(contentWidth.dp).height(height.dp).semantics {
             contentDescription=if(columns.isEmpty())"Played staff empty. Play a note to start the sequence." else
                 "Played staff. "+columns.joinToString {column->
@@ -88,16 +92,24 @@ data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: St
                 if(column.pause) {
                     for(bottom in listOf(trebleBottom,bassBottom))glyph(0xE4E5,x-.54f*space,bottom-2*space,muted)
                 } else {
-                    val placements=column.notes.map{it to pitchForNotation(it.pitch)}
+                    // Stable low-to-high order makes seconds alternate sides regardless of attack order.
+                    val placements=column.notes.map{it to pitchForNotation(it.pitch)}.sortedWith(
+                        compareBy({it.second.diatonic},{it.first.pitch},{it.first.channel}))
+                    val lanes=mutableListOf<Int>()
+                    val laneWidth=placements.maxOfOrNull { (note,_)->
+                        (if(approximateDuration(note.durationMs,bpm).first>=4.0)1.688f else 1.18f)*space
+                    } ?: 0f
                     placements.forEachIndexed {noteIndex,(note,pitch)->
                         val treble=pitch.writtenPitch>=60
                         val bottom=if(treble)trebleBottom else bassBottom
                         val relative=pitch.diatonic-if(treble)37 else 25
                         val y=bottom-relative*step
-                        val prior=placements.take(noteIndex).filter{(it.second.writtenPitch>=60)==treble}
-                        val unisons=prior.count{it.second.writtenPitch==pitch.writtenPitch}
-                        val adjacent=prior.count{abs(it.second.diatonic-pitch.diatonic)<=1}
-                        val headX=x+if(unisons>0)unisons*11*d else if(adjacent%2==1)8*d else 0f
+                        val occupied=placements.take(noteIndex).mapIndexedNotNull {i,(_,prior)->
+                            lanes[i].takeIf {(prior.writtenPitch>=60)==treble && abs(prior.diatonic-pitch.diatonic)<=1}
+                        }.toSet()
+                        val lane=generateSequence(0){it+1}.first{it !in occupied}
+                        lanes.add(lane)
+                        val headX=x+lane*laneWidth
                         val value=approximateDuration(note.durationMs,bpm)
                         val color=if(column.correct==null && note.durationMs==null)primary else columnColor
                         val whole=value.first>=4.0
@@ -122,7 +134,8 @@ data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: St
                                 glyph(code,stemX,end+anchor*space,color)
                             }
                         }
-                        if(pitch.writtenPitch%12 in listOf(1,3,6,8,10))glyph(0xE262,headLeft-1.3f*space,y,color)
+                        // Accidentals stay left of the chord, including a head displaced to the right.
+                        if(pitch.writtenPitch%12 in listOf(1,3,6,8,10))glyph(0xE262,x-headWidth/2-1.3f*space,y,color)
                         if(pitch.octaves!=0) {
                             val mark=when(pitch.octaves){1->"8va";-1->"8vb";2->"15ma";-2->"15mb";3->"22ma";-3->"22mb";else->"${pitch.octaves} oct"}
                             text(mark,headX+17*d,max(8*d,y+2*d),8f,color)
@@ -175,7 +188,7 @@ data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: St
 @Composable fun NoteMonitorPage(vm: PianoViewModel,midi: MidiStatus) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        PageTitle("MIDI","Played notes")
+        PageTitle("Played notes")
         Text("Last ${settings.playedNoteCount} attacks · key-down duration (approximate values)",fontSize=12.sp)
         LiveNotes(vm,Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth()) {

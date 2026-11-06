@@ -39,13 +39,13 @@ fun displayNoteText(text: String,style: String="LETTERS"): String {
 }
 
 @Composable fun PianoKeyboard(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,
-    onKey: (Int,Boolean)->Unit,height: Int=88,focusRange: IntRange? = null,filledInput: Boolean=false,attemptBadges: Map<Int,List<String>> = emptyMap()) {
-    KeyboardCanvas(held,sounding,expected,interactive,onKey,height,1f,0f,focusRange=focusRange,filledInput=filledInput,attemptBadges=attemptBadges)
+    onKey: (Int,Boolean)->Unit,height: Int=88,focusRange: IntRange? = null,filledInput: Boolean=false,attemptBadges: Map<Int,List<String>> = emptyMap(),keyFills: Map<Int,Color> = emptyMap()) {
+    KeyboardCanvas(held,sounding,expected,interactive,onKey,height,1f,0f,focusRange=focusRange,filledInput=filledInput,attemptBadges=attemptBadges,keyFills=keyFills)
 }
 
 @Composable fun KeyboardCanvas(held: Set<Int>,sounding: Set<Int>,expected: List<Int>,interactive: Boolean,
     onKey: (Int,Boolean)->Unit,height: Int,zoom: Float,pan: Float,playback: Set<Int> = emptySet(),
-    focusRange: IntRange? = null,filledInput: Boolean=false,attemptBadges: Map<Int,List<String>> = emptyMap(),paused: Boolean=false) {
+    focusRange: IntRange? = null,filledInput: Boolean=false,attemptBadges: Map<Int,List<String>> = emptyMap(),paused: Boolean=false,keyFills: Map<Int,Color> = emptyMap()) {
     val currentOnKey by rememberUpdatedState(onKey)
     val accent=MaterialTheme.colorScheme.primary
     val range=LocalKeyboardRange.current
@@ -81,7 +81,7 @@ fun displayNoteText(text: String,style: String="LETTERS"): String {
         val w=size.width/geometry.whiteSpan.toFloat()*zoom
         val offset=pan.coerceIn(0f,1f)*(zoom-1)*size.width
         val gap=.7.dp.toPx().coerceAtMost(w*.12f)
-        fun color(pitch: Int,black: Boolean) = when {
+        fun color(pitch: Int,black: Boolean): Color = keyFills[pitch] ?: when {
             filledInput && (pitch in held || pitch in sounding)->Color(0xfff5b942)
             focusRange!=null && pitch !in focusRange -> if(black)Color(0xff243633) else Color(0xff83918b)
             else -> when(pitch) {
@@ -96,7 +96,7 @@ fun displayNoteText(text: String,style: String="LETTERS"): String {
             val area=(keyHeight-if(black)12.dp.toPx() else 28.dp.toPx()).coerceAtLeast(1f)
             val row=(area/labels.size).coerceAtMost(14.dp.toPx())
             val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                color=if(black && !(filledInput && (pitch in held || pitch in sounding)))android.graphics.Color.WHITE else android.graphics.Color.rgb(62,42,15)
+                color=if(black && pitch !in keyFills && !(filledInput && (pitch in held || pitch in sounding)))android.graphics.Color.WHITE else android.graphics.Color.rgb(62,42,15)
                 textAlign=android.graphics.Paint.Align.CENTER;typeface=android.graphics.Typeface.DEFAULT_BOLD
             }
             labels.forEachIndexed {i,label->

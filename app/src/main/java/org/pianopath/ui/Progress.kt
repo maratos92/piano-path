@@ -40,7 +40,7 @@ import java.util.*
     val graded=entries.filter{it.category!="Free play"}
     val selected=graded.filter{progressCategory(it)==tabs[tab]}
     Column(Modifier.fillMaxSize()) {
-        Text("Progress",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(horizontal=20.dp,vertical=12.dp))
+        PageTitle("Progress",Modifier.padding(horizontal=20.dp,vertical=20.dp))
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
             if(maxWidth>=600.dp)PrimaryTabRow(selectedTabIndex=tab){tabs.forEachIndexed{i,label->Tab(tab==i,{tab=i},text={Text(label,maxLines=1)})}}
             else PrimaryScrollableTabRow(selectedTabIndex=tab,edgePadding=0.dp){tabs.forEachIndexed{i,label->Tab(tab==i,{tab=i},text={Text(label,maxLines=1)})}}
