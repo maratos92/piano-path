@@ -61,7 +61,11 @@ import org.pianopath.PracticeUi
     }
     // Only one WebView command may be outstanding. New snapshots replace the pending
     // snapshot instead of queuing every intermediate key release and timer tick.
-    SideEffect { if(ready)bridge?.submit(NotationPacket(p,dark,accent,animate)) }
+    // Read readiness during composition so the asynchronous ready callback invalidates
+    // this scope even when an idle score has no transport/MIDI updates.
+    val rendererReady=ready
+    val rendererBridge=bridge
+    SideEffect { if(rendererReady)rendererBridge?.submit(NotationPacket(p,dark,accent,animate)) }
 }
 
 private data class NotationPacket(val p: PracticeUi,val dark: Boolean,val accent: String,val animate: Boolean)

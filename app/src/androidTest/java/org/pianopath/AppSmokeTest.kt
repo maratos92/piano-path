@@ -23,9 +23,9 @@ class AppSmokeTest {
         compose.onNodeWithText("Revision ${BuildConfig.BUILD_REVISION}").performScrollTo().assertIsDisplayed()
     }
     @Test fun dashboardAndLibraryOpenOffline() {
-        compose.onNodeWithText("Make room for music.").assertIsDisplayed()
+        compose.onNodeWithText("Home").assertIsDisplayed()
         compose.onNodeWithContentDescription("Library",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("The library").assertIsDisplayed()
+        compose.onNodeWithText("Library").assertIsDisplayed()
         compose.onNodeWithText("Import MusicXML / MXL").assertIsDisplayed()
     }
     @Test fun androidXmlParserLoadsAllAssetsAndExercises() {

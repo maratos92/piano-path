@@ -2,7 +2,7 @@
 
 ## Install the latest tested app
 
-**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-0.6.0-dev.3-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
+**[Latest fully tested debug APK](https://github.com/maratos92/piano-path/releases/download/latest-debug/piano-path-latest-debug.apk)** · [Latest passing release notes](https://github.com/maratos92/piano-path/releases/tag/latest-debug) · [Build/test runs](https://github.com/maratos92/piano-path/actions/workflows/debug.yml)
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
