@@ -56,9 +56,9 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val compactLandscape=config.screenWidthDp>config.screenHeightDp
     val snackbar=remember { SnackbarHostState() }
     val context=LocalContext.current
-    DisposableEffect(screen) {
+    DisposableEffect(screen,settings.keepAwake) {
         val window=(context as? Activity)?.window
-        if(screen=="Practice" || screen=="Recorder")window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if(settings.keepAwake)window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grant -> if(grant.values.all { it })vm.midi.scan() else vm.message.value="Bluetooth access is required for MIDI discovery. You can still import scores and use the simulator." }
@@ -66,37 +66,32 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val requestScan: ()->Unit={ if(vm.midi.hasPermissions())vm.midi.scan() else permission.launch(vm.midi.requiredPermissions()) }
     val drawer=rememberDrawerState(DrawerValue.Closed)
     val scope=rememberCoroutineScope()
-    val destinations=listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Progress" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)
+    val destinations=listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Recorder" to Icons.Outlined.Piano,"Progress" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)
     val dark=settings.theme==ThemeMode.DARK || settings.theme==ThemeMode.SYSTEM && isSystemInDarkTheme()
     val accent=Color(settings.accent)
     val primary=if(dark)lerp(accent,Color.White,.45f) else lerp(accent,Color.Black,.12f)
     val palette=(if(dark)Dark else Light).copy(primary=primary,onPrimary=if(primary.luminance()>.179f)Color.Black else Color.White,secondary=primary,primaryContainer=primary.copy(alpha=.15f))
     MaterialTheme(colorScheme=palette,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontSize=16.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=FontFamily.Serif,fontSize=28.sp))) {
         LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.message.value=null } }
+        CompositionLocalProvider(LocalKeyboardRange provides (settings.keyboardFirst..settings.keyboardLast),LocalNoteNaming provides settings.noteNaming) {
         ModalNavigationDrawer(drawerState=drawer,gesturesEnabled=false,drawerContent={
             ModalDrawerSheet(Modifier.width(280.dp)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Piano Path",Modifier.padding(24.dp),fontSize=26.sp,fontFamily=FontFamily.Serif)
-                (destinations.map{it.first}+listOf("Connect","Note monitor","Recorder")).forEach { name ->
-                    NavigationDrawerItem(label={Text(if(name=="Practice hub")"Practice" else name)},selected=navigationSection(screen)==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
+                destinations.forEach { (name,icon) ->
+                    NavigationDrawerItem(label={Text(navLabel(name))},icon={Icon(icon,null)},selected=navigationSection(screen)==name,onClick={scope.launch{drawer.close()};vm.stop();vm.stopListening();vm.screen.value=name},modifier=Modifier.padding(horizontal=12.dp))
                 }
                 }
             }
         }) { Surface(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                if(screen!="Practice" && (wide || compactLandscape)) NavigationRail(containerColor=MaterialTheme.colorScheme.surface) {
-                    destinations.forEach { (name,icon) ->
-                        NavigationRailItem(selected=navigationSection(screen)==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Practice hub")"Practice" else name)},alwaysShowLabel=config.screenHeightDp>=600)
-                    }
-                }
                 Scaffold(modifier=Modifier.weight(1f),snackbarHost={SnackbarHost(snackbar)},
                     topBar={ if(screen!="Practice") Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically) {
-                        IconButton(onClick={scope.launch{drawer.open()}}){Icon(Icons.Outlined.Menu,"Open navigation menu")}
                         Icon(Icons.Outlined.Piano,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(27.dp)); Spacer(Modifier.width(10.dp)); Text("PIANO PATH",fontWeight=FontWeight.Bold,letterSpacing=2.sp,fontSize=13.sp)
                         Spacer(Modifier.weight(1f))
                         AssistChip(onClick={vm.screen.value="Connect"},label={Text(if(midi.connected)"Piano connected" else "Connect piano",fontSize=12.sp)},leadingIcon={Icon(Icons.Outlined.Bluetooth, null,Modifier.size(16.dp))})
-                    } },bottomBar={ if(!wide && !compactLandscape && screen!="Practice") NavigationBar {
-                        destinations.forEach { (name,icon) -> NavigationBarItem(selected=navigationSection(screen)==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(if(name=="Practice hub")"Practice" else name)}) }
+                    } },bottomBar={ if(screen!="Practice") NavigationBar {
+                        destinations.forEach { (name,icon) -> NavigationBarItem(selected=navigationSection(screen)==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(navLabel(name),fontSize=10.sp,maxLines=1)}) }
                     } }) { padding ->
                     Box(Modifier.padding(padding).fillMaxSize()) { when(screen) {
                         "Home" -> Home(vm)
@@ -104,19 +99,20 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         "Library" -> Library(vm) { importer.launch(arrayOf("*/*")) }
                         "Connect" -> Connection(vm,midi,requestScan) { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
                         "Practice" -> Practice(vm){scope.launch{drawer.open()}}
-                        "Note monitor" -> NoteMonitorPage(vm,midi)
+                        "Note monitor" -> RecorderScreen(vm)
                         "Scales" -> ScaleSetup(vm)
                         "Sight reading" -> SightSetup(vm)
                         "Ear training" -> EarTraining(vm)
                         "Recorder" -> RecorderScreen(vm)
                         "Progress" -> ProgressScreen(vm)
                         "History" -> ProgressScreen(vm)
-                        "Diagnostics" -> Diagnostics(vm,midi)
+                        "Diagnostics" -> RecorderScreen(vm,initialEvents=true)
                         else -> SettingsScreen(vm)
                     } }
                 }
             }
         } }
+        }
     }
 }
 @Composable fun PageTitle(eyebrow: String,title: String,subtitle: String="") {
@@ -142,12 +138,12 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                 Icon(Icons.Outlined.Visibility,null);Spacer(Modifier.width(10.dp));Text("Sight reading",Modifier.weight(1f))
                 Icon(Icons.Outlined.MusicNote,null)
             }
-            OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.widthIn(max=420.dp).fillMaxWidth()) {
-                Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(10.dp));Text("Listening · ear training",Modifier.weight(1f))
+            OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(10.dp));Text("Listening",Modifier.weight(1f))
                 Icon(Icons.Outlined.MusicNote,null)
             }
-            OutlinedButton(onClick={vm.screen.value="Scales"},modifier=Modifier.widthIn(max=420.dp).fillMaxWidth()) {
-                Icon(Icons.Outlined.Piano,null);Spacer(Modifier.width(10.dp));Text("Scales & technique",Modifier.weight(1f))
+            OutlinedButton(onClick={vm.screen.value="Scales"},modifier=Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Piano,null);Spacer(Modifier.width(10.dp));Text("Scales",Modifier.weight(1f))
                 Icon(Icons.Outlined.MusicNote,null)
             }
         } }
@@ -157,7 +153,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                 Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score?.title ?: "Current score"}",maxLines=1)
             }
             OutlinedButton(onClick={vm.screen.value="Library"},modifier=Modifier.fillMaxWidth()){Text("Choose a piece from Library")}
-            OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("Free play · record & replay")}
+            OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("MIDI studio · play, monitor & record")}
         } }
         item { TextButton(onClick={vm.screen.value="Progress"}){Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("Your practice · goals & progress")} }
     }
@@ -182,32 +178,36 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         item { OutlinedButton(onClick={vm.screen.value="Progress"},modifier=Modifier.fillMaxWidth()){Text("Your practice · goals & progress")} }
         item { Text("Find your focus",fontFamily=FontFamily.Serif,fontSize=24.sp) }
         item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            FocusCard("Technique","Scales & arpeggios",Icons.Outlined.Piano,Modifier.weight(1f)){vm.screen.value="Scales"}
-            FocusCard("Read ahead","Fresh sight reading",Icons.Outlined.Visibility,Modifier.weight(1f)){vm.screen.value="Sight reading"}
+            FocusCard("Scales","",Icons.Outlined.Piano,Modifier.weight(1f)){vm.screen.value="Scales"}
+            FocusCard("Sight reading","",Icons.Outlined.Visibility,Modifier.weight(1f)){vm.screen.value="Sight reading"}
+            FocusCard("Listening","",Icons.Outlined.Hearing,Modifier.weight(1f)){vm.screen.value="Ear training"}
         } }
-        item { OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.widthIn(max=420.dp).fillMaxWidth()) {
-            Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(8.dp));Text("Ear training")
-        } }
-        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.Bluetooth,null);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text("Connect your digital piano",fontWeight=FontWeight.SemiBold);Text("Bluetooth or USB MIDI",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)} }; TextButton(onClick={vm.screen.value="Connect"}){Text("Connect")} } }
+
     }
 }
 @Composable private fun FocusCard(title: String,description: String,icon: ImageVector,modifier: Modifier,onClick: ()->Unit) {
-    Surface(onClick=onClick,modifier=modifier,shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh) { Column(Modifier.padding(18.dp)) { Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(16.dp));Text(title,fontWeight=FontWeight.SemiBold);Text(description,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) } }
+    Surface(onClick=onClick,modifier=modifier.height(118.dp),shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh) { Column(Modifier.fillMaxSize().padding(12.dp),verticalArrangement=Arrangement.Center) { Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(16.dp));Text(title,fontWeight=FontWeight.SemiBold);if(description.isNotEmpty())Text(description,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant) } }
 }
 @Composable private fun Library(vm: PianoViewModel,onImport: ()->Unit) {
     var query by remember { mutableStateOf("") }
     val imports by vm.imports.collectAsStateWithLifecycle()
-    val visible=imports.filter {(it.title+it.composer).contains(query,true)}
+    val favourites by vm.favourites.collectAsStateWithLifecycle()
+    var onlyFavourites by remember{mutableStateOf(false)}
+    val visible=imports.filter {(it.title+it.composer).contains(query,true) && (!onlyFavourites || it.key in favourites)}.sortedByDescending{it.key in favourites}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Your music","The library") }
         item { Button(onClick=onImport,modifier=Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL")
         } }
+        item {FilterChip(onlyFavourites,{onlyFavourites=!onlyFavourites},label={Text("Favourites")},leadingIcon={Icon(Icons.Outlined.Star,null)})}
         if(imports.isEmpty()) item { Text("No scores imported yet.",color=MaterialTheme.colorScheme.onSurfaceVariant) }
         else {
             item { OutlinedTextField(query,{query=it},Modifier.fillMaxWidth(),singleLine=true,
                 placeholder={Text("Find an imported score")},leadingIcon={Icon(Icons.Outlined.Search,null)}) }
-            items(visible,key={it.key}) { piece -> ScoreRow(piece.title,piece.composer,"Imported",{vm.openImport(piece)}) }
+            items(visible,key={it.key}) { piece -> Row(verticalAlignment=Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)){ScoreRow(piece.title,piece.composer,"Imported",{vm.openImport(piece)})}
+                IconToggleButton(piece.key in favourites,{vm.toggleFavourite(piece.key)}){Icon(if(piece.key in favourites)Icons.Outlined.Star else Icons.Outlined.StarBorder,if(piece.key in favourites)"Remove favourite ${piece.title}" else "Favourite ${piece.title}")}
+            }}
         }
     }
 }
@@ -257,14 +257,19 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     var section by remember {mutableStateOf("General")}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Text("Settings",fontFamily=FontFamily.Serif,fontSize=29.sp)
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(5.dp)) {
-            listOf("General","Practice","MIDI","About").forEach { tab ->
-                FilterChip(section==tab,{section=tab},modifier=Modifier.weight(1f),label={Text(tab,fontSize=11.sp,maxLines=1)})
+        PrimaryTabRow(selectedTabIndex=listOf("General","Practice","About").indexOf(section)) {
+            listOf("General","Practice","About").forEach { tab ->
+                Tab(selected=section==tab,onClick={section=tab},text={Text(tab)})
             }
         }
         when(section) {
             "General" -> {
                 Panel(Modifier.fillMaxWidth()) {
+                    Toggle("Keep device awake",s.keepAwake,{v->vm.setSettings{it.copy(keepAwake=v)}})
+                    Text("Note names",fontWeight=FontWeight.SemiBold)
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(s.noteNaming=="LETTERS",{vm.setSettings{it.copy(noteNaming="LETTERS")}},label={Text("C D E")});FilterChip(s.noteNaming=="SOLFEGE",{vm.setSettings{it.copy(noteNaming="SOLFEGE")}},label={Text("Do Re Mi")})}
+                    OutlinedButton(onClick={vm.screen.value="Connect"}){Text("Connect piano")}
+                    KeyboardRangeSettings(s.keyboardFirst,s.keyboardLast){a,b->vm.setSettings{it.copy(keyboardFirst=a,keyboardLast=b)}}
                     Text("Appearance",fontWeight=FontWeight.SemiBold)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         ThemeMode.entries.forEach {mode ->
@@ -272,6 +277,9 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         }
                     }
                     AccentPicker(s.accent){value->vm.setSettings{it.copy(accent=value)}}
+                    Toggle("Reduce motion",s.reduceMotion,{v->vm.setSettings{it.copy(reduceMotion=v)}})
+                    Text("Score frame · artwork stays outside the notes",style=MaterialTheme.typography.bodySmall)
+                    Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {SheetDecoration.entries.forEach{style->FilterChip(s.sheetDecoration==style,{vm.setSettings{it.copy(sheetDecoration=style)}},label={Text(if(style==SheetDecoration.NONE)"Plain" else style.name.lowercase().replaceFirstChar{it.uppercase()})})}}
                     Toggle("Glow on falling notes",s.fallingGlow,{v->vm.setSettings{it.copy(fallingGlow=v)}})
                     HorizontalDivider()
                     Text("Piano sound",fontWeight=FontWeight.SemiBold)
@@ -287,6 +295,10 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
             }
             "Practice" -> {
                 Panel(Modifier.fillMaxWidth()) {
+                    Text("Listening attempts · ${s.earAttempts}")
+                    Slider(s.earAttempts.toFloat(),{v->vm.setSettings{it.copy(earAttempts=v.toInt())}},valueRange=1f..10f,steps=8)
+                    Text("Metronome volume · ${(s.metronomeVolume*100).toInt()}%")
+                    Slider(s.metronomeVolume,{v->vm.setSettings{it.copy(metronomeVolume=v)}},valueRange=0f..1f)
                     Text("Rest before next loop count-in · ${s.loopBreakSeconds}s",fontWeight=FontWeight.SemiBold)
                     Slider(s.loopBreakSeconds.toFloat(),{v->vm.setSettings{it.copy(loopBreakSeconds=v.toInt())}},valueRange=0f..5f,steps=4)
                     Text("Applies to Practice and Listen. Pausing also pauses this rest.",fontSize=12.sp)
@@ -306,16 +318,6 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Slider(s.noteGapMs.toFloat(),{v->vm.setSettings{it.copy(noteGapMs=(v/500).toInt()*500)}},valueRange=500f..10000f,steps=18)
                     Text("Durations appear after releasing a key; note values are approximate.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-            "MIDI" -> {
-                Panel(Modifier.fillMaxWidth()) {
-                    Text("Your piano",fontWeight=FontWeight.SemiBold)
-                    Text(if(vm.midi.state.collectAsStateWithLifecycle().value.connected)"Connected" else "Disconnected")
-                    OutlinedButton(onClick={vm.screen.value="Connect"},modifier=Modifier.fillMaxWidth()){Text("Connection")}
-                    OutlinedButton(onClick={vm.screen.value="Note monitor"},modifier=Modifier.fillMaxWidth()){Text("Played notes")}
-                    OutlinedButton(onClick={vm.screen.value="Diagnostics"},modifier=Modifier.fillMaxWidth()){Text("MIDI diagnostics")}
-                }
-                Text("The on-screen piano is always playable.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> {
                 Panel(Modifier.fillMaxWidth()) {
@@ -341,7 +343,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         Text("Held: ${midi.held.keys.sorted().joinToString {noteName(it)}}\nSustain: ${if(midi.sustain)"down" else "up"} · Sounding: ${midi.sounding.size}",fontSize=14.sp)
         PianoKeyboard(midi.held.keys,midi.sounding,emptyList(),settings.simulator,vm::key)
         if(settings.simulator)Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedButton(onClick={vm.simulateNext()}){Text("Test chord")};OutlinedButton(onClick={vm.pedal(!midi.sustain)}){Text("Pedal ${if(midi.sustain)"up" else "down"}")}}
-        Row { TextButton(onClick={vm.panic()}){Text("Panic / clear notes")};TextButton(onClick={vm.screen.value="Connect"}){Text("Connection")}}
+        Row { TextButton(onClick={vm.panic()}){Text("Clear sounding notes")};TextButton(onClick={vm.screen.value="Connect"}){Text("Connection")}}
         LazyColumn(Modifier.weight(1f)) { items(midi.events) { Text(it,fontFamily=FontFamily.Monospace,fontSize=11.sp,modifier=Modifier.padding(vertical=4.dp)) } }
     }
 }
@@ -357,4 +359,6 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     }
 }
 
-private fun navigationSection(screen: String)=when(screen){"Practice","Scales","Sight reading","Ear training","Recorder"->"Practice hub";"History"->"Progress";else->screen}
+private fun navigationSection(screen: String)=when(screen){"Practice","Scales","Sight reading","Ear training"->"Practice hub";"History"->"Progress";else->screen}
+
+private fun navLabel(screen: String)=when(screen){"Practice hub"->"Practice";"Recorder"->"MIDI studio";else->screen}

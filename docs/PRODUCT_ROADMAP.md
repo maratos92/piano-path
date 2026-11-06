@@ -131,3 +131,9 @@ Yes: add 49/61/76/88 presets plus explicit lowest/highest-note setup and a custo
 Current `PianoLayout` is hardcoded to A0–C8 and 52 white keys; the existing `focusRange` only dims notes. Proper range support requires one shared dynamic geometry model for keyboard, ideal roll, performed roll, labels and hit-testing, plus boundary/black-key/chord tests and range-aware generated exercises. This is moderate work with high practical value.
 
 If “different instruments” means guitar, violin or voice, a cropped piano keyboard is not enough. They need appropriate notation, tuning/transposition/range, pedagogy and sensor handling. Support smaller keyboard instruments first; treat broader instruments as a separate product scope.
+
+## Follow-ups from the November 6 feedback
+
+- **Velocity/dynamics trainer:** show target dynamic bands and trends for velocity consistency, crescendos and accents. MIDI velocity is an instrument-dependent control value, not calibrated loudness. Start with user-calibrated ranges; avoid grading artistic interpretation or claiming identical response between pianos. No feature implemented yet.
+- **Sequence listening:** progress from single pitches/triads to short 2–4-event phrases; play the reference, capture an answer sequence, align by ordered onset groups with configurable chord-spread tolerance, then reveal notation and errors. Keep reference-output echo separate from answers, offer slower replay, limit attempts and preserve accessibility. This needs its own generation/alignment tests and is deferred from build 11.
+- Physical piano output/echo, sustained-note timing, portrait/landscape readability, device battery/frame-time checks and durable signing-key backup remain owner/hardware gates. No cloud/database work is resumed.

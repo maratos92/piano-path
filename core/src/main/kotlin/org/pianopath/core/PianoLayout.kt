@@ -6,28 +6,15 @@ object PianoLayout {
     const val LAST = 108
     const val WHITE_COUNT = 52
     data class Key(val pitch: Int, val left: Double, val width: Double, val black: Boolean)
-    fun isBlack(pitch: Int) = Math.floorMod(pitch,12) in listOf(1,3,6,8,10)
-    val keys: List<Key> = buildList {
-        var white = 0
-        for(pitch in FIRST..LAST) {
-            val black = isBlack(pitch)
-            add(Key(pitch,if(black) white-.31 else white.toDouble(),if(black) .62 else 1.0,black))
-            if(!black) white++
-        }
-    }
-    val whiteKeys = keys.filter { !it.black }
-    val blackKeys = keys.filter { it.black }
-    fun key(pitch: Int): Key? = keys.getOrNull(pitch-FIRST)
-    fun hit(unitX: Double, normalizedY: Double): Int? {
-        if(unitX<0 || unitX>=WHITE_COUNT || normalizedY !in 0.0..1.0) return null
-        if(normalizedY<.62) blackKeys.firstOrNull { unitX>=it.left && unitX<it.left+it.width }?.let {return it.pitch}
-        return whiteKeys.firstOrNull { unitX>=it.left && unitX<it.left+it.width }?.pitch
-    }
-    fun unitX(screenFraction: Double,zoom: Double,pan: Double): Double {
-        require(zoom>=1.0)
-        return (screenFraction+pan.coerceIn(0.0,1.0)*(zoom-1))*WHITE_COUNT/zoom
-    }
-    fun screenX(unit: Double,zoom: Double,pan: Double) = unit/WHITE_COUNT*zoom-pan.coerceIn(0.0,1.0)*(zoom-1)
+    private val geometry=KeyboardGeometry(FIRST..LAST)
+    fun isBlack(pitch: Int)=KeyboardGeometry.isBlack(pitch)
+    val keys: List<Key> = geometry.keys
+    val whiteKeys=geometry.whiteKeys
+    val blackKeys=geometry.blackKeys
+    fun key(pitch: Int): Key?=geometry.key(pitch)
+    fun hit(unitX: Double,normalizedY: Double): Int?=geometry.hit(unitX,normalizedY)
+    fun unitX(screenFraction: Double,zoom: Double,pan: Double)=geometry.unitX(screenFraction,zoom,pan)
+    fun screenX(unit: Double,zoom: Double,pan: Double)=geometry.screenX(unit,zoom,pan)
 }
 
 data class PlaybackNoteEvent(val beat: Double,val pitch: Int,val down: Boolean,val channel: Int,val velocity: Int=80)

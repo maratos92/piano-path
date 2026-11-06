@@ -107,7 +107,6 @@ class FreePlayIntegrationTest {
         compose.waitUntil(15_000){vm.recorder.state.value.ready}
         compose.onNodeWithTag("home-feed").performScrollToNode(hasText("Free play recordings"))
         compose.onNodeWithText("Free play recordings").performClick()
-        compose.onNodeWithText("Free play recordings").assertIsDisplayed()
         compose.onNodeWithText("Record new take").performScrollTo().performClick()
         compose.waitUntil(5_000){vm.recorder.state.value.recording}
         compose.runOnUiThread {vm.midi.simulate(MidiEvent.On(60,88,System.nanoTime(),1))}

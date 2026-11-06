@@ -59,4 +59,32 @@ class PracticeFeedbackTest {
             compose.runOnUiThread {vm.stop();vm.setSettings{it.copy(loopBreakSeconds=previous)}}
         }
     }
+
+    @Test fun enablingPassageNearCursorKeepsCursorAndDisablingRestoresWholeScore() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.scale(0,ScaleKind.MAJOR,1,Hand.RIGHT,true)}
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        compose.runOnUiThread {
+            vm.seek(4.0)
+            vm.toggleLoopSelection()
+            val p=vm.ui.value;val score=requireNotNull(p.score)
+            val a=score.measures[p.startMeasure-1].start+p.startOffset
+            val b=score.measures[p.endMeasure-1].start+p.endOffset
+            assertTrue(p.loop);assertEquals(4.0,p.transportBeat,.01)
+            assertTrue("The new passage should surround the cursor",a<=4.0 && b>=4.0)
+            assertTrue("The suggested passage should be local",b-a<=4.01)
+            vm.toggleLoopSelection()
+            val off=vm.ui.value
+            assertFalse(off.loop);assertEquals(4.0,off.transportBeat,.01)
+            assertEquals(0.0,score.measures[off.startMeasure-1].start+off.startOffset,.01)
+            assertEquals(score.endBeat,score.measures[off.endMeasure-1].start+off.endOffset,.01)
+        }
+    }
+
+    @Test fun sightReadingStartsInSheetView() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.sight(1,0,4,Hand.RIGHT,0)}
+        compose.waitUntil(15_000){vm.ui.value.category=="Sight reading" && vm.ui.value.score!=null}
+        assertEquals(ScoreView.SHEET,vm.ui.value.view)
+    }
 }

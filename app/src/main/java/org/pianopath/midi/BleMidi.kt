@@ -20,6 +20,33 @@ data class MidiStatus(val status: String = "Not connected", val connected: Boole
     val usbDevices: List<UsbPiano> = emptyList(), val lastNote: Int? = null, val lastVelocity: Int = 0, val lastChannel: Int = 0,
     val sustain: Boolean = false, val events: List<String> = emptyList(),val canSend: Boolean=false)
 
+/** Each connection owns its running status; queued events and flushes retain that connection. */
+internal class SessionMidiReceiver(private val isCurrent: ()->Boolean,private val post: (()->Unit)->Unit,
+    private val emit: (MidiEvent)->Unit,private val reset: ()->Unit): MidiReceiver() {
+    private val lock=Any()
+    @Volatile private var closed=false
+    @Volatile private var epoch=0L
+    private fun current()=!closed && isCurrent()
+    private val parser=MidiParser {event->
+        val captured=epoch
+        post {if(current() && epoch==captured)emit(event)}
+    }
+    override fun onSend(data: ByteArray,offset: Int,count: Int,timestamp: Long) {
+        synchronized(lock) {
+            if(current())parser.feed(data,offset,count,if(timestamp>0)timestamp else System.nanoTime())
+        }
+    }
+    override fun onFlush() {
+        synchronized(lock) {
+            if(!current())return
+            val captured=++epoch
+            parser.reset()
+            post {if(current() && epoch==captured)reset()}
+        }
+    }
+    fun close() {synchronized(lock) {closed=true;epoch++;parser.reset()}}
+}
+
 class BleMidi(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private val manager = context.getSystemService(MidiManager::class.java)
@@ -37,15 +64,21 @@ class BleMidi(private val context: Context) {
     private var reconnect = true
     private var attempt = 0
     @Volatile private var generation = 0
-    private var openEpoch = 0
+    @Volatile private var openEpoch = 0
     var onEvent: ((MidiEvent) -> Unit)? = null
     var onDisconnect: (() -> Unit)? = null
-    private val parser = MidiParser { event -> val token=generation; handler.post { if(token==generation && device!=null)deliver(event) } }
-    private val receiver = object: MidiReceiver() {
-        override fun onSend(data: ByteArray, offset: Int, count: Int, timestamp: Long) {
-            parser.feed(data,offset,count,if(timestamp > 0) timestamp else System.nanoTime())
+    var onInputReset: (()->Unit)? = null
+    @Volatile private var inputReceiver: SessionMidiReceiver?=null
+    private fun attachInput(output: MidiOutputPort,token: Int,epoch: Int): Boolean {
+        lateinit var receiver: SessionMidiReceiver
+        receiver=SessionMidiReceiver(
+            isCurrent={token==generation && epoch==openEpoch && inputReceiver===receiver},
+            post={handler.post(it)},emit={if(device!=null)deliver(it)},
+            reset={clearKeys();onInputReset?.invoke()})
+        inputReceiver=receiver
+        return try {output.connect(receiver);true} catch(_: Exception) {
+            inputReceiver=null;receiver.close();false
         }
-        override fun onFlush() { handler.post { clearKeys() } }
     }
     private val callback = object: MidiManager.DeviceCallback() {
         override fun onDeviceAdded(info: MidiDeviceInfo) { refreshUsb(); retryUsb() }
@@ -105,7 +138,9 @@ class BleMidi(private val context: Context) {
                 if(opened==null){mutable.value=mutable.value.copy(status="USB input busy or unavailable · reconnect or select again");return@openDevice}
                 device=opened;port=opened.openOutputPort(portNumber)
                 if(port==null){release();mutable.value=mutable.value.copy(status="USB MIDI port unavailable");return@openDevice}
-                port?.connect(receiver)
+                if(!attachInput(requireNotNull(port),token,epoch)) {
+                    release();mutable.value=mutable.value.copy(status="USB MIDI receiver unavailable");return@openDevice
+                }
                 openReference(opened)
                 mutable.value=mutable.value.copy(connected=true,status="${usbName(info)} · USB connected")
             },handler)
@@ -156,7 +191,10 @@ class BleMidi(private val context: Context) {
                 val output = opened.info.ports.firstOrNull { it.type == MidiDeviceInfo.PortInfo.TYPE_OUTPUT }
                 port = output?.let { opened.openOutputPort(it.portNumber) }
                 if(port == null) { release(); mutable.value = mutable.value.copy(status="No MIDI output port · retrying"); scheduleReconnect(); return@openBluetoothDevice }
-                port?.connect(receiver); attempt = 0; stopScan()
+                if(!attachInput(requireNotNull(port),token,epoch)) {
+                    release();mutable.value=mutable.value.copy(status="MIDI receiver unavailable · retrying");scheduleReconnect();return@openBluetoothDevice
+                }
+                attempt = 0; stopScan()
                 openReference(opened)
                 mutable.value = mutable.value.copy(connected=true,status="${remote.name ?: "Piano"} connected")
             },handler)
@@ -213,11 +251,12 @@ class BleMidi(private val context: Context) {
         if(failed)closeReferencePort()
     }
     private fun release() {
+        val previous=inputReceiver;inputReceiver=null;previous?.close()
         stopReference();closeReferencePort()
-        try {port?.disconnect(receiver)} catch(_: Exception) {}
+        try {if(previous!=null)port?.disconnect(previous)} catch(_: Exception) {}
         try {port?.close()} catch(_: Exception) {}
         try {device?.close()} catch(_: Exception) {}
-        port=null;device=null;parser.reset()
+        port=null;device=null
     }
     fun clearKeys() { keyboard.reset(); mutable.value = mutable.value.copy(held=emptyMap(),sounding=emptySet(),sustain=false) }
     fun simulate(e: MidiEvent) { deliver(e) }

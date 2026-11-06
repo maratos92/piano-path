@@ -6,3 +6,6 @@ local.properties
 *.keystore
 .idea/
 *.iml
+
+# Python renderer regression caches
+__pycache__/

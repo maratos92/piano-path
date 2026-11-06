@@ -9,9 +9,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.pianopath.PianoViewModel
-import org.pianopath.core.noteName
+import org.pianopath.PracticeUi
+import org.pianopath.core.*
 
 @Composable fun EarTraining(vm: PianoViewModel) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    var touchHeld by remember{mutableStateOf(emptySet<Int>())}
     val ear by vm.ear.collectAsStateWithLifecycle()
     val midi by vm.midi.state.collectAsStateWithLifecycle()
     val playing by vm.earReferencePlaying.collectAsStateWithLifecycle()
@@ -25,13 +28,13 @@ import org.pianopath.core.noteName
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         PageTitle("Listen · answer · learn","Ear training")
         Panel(Modifier.widthIn(max=680.dp).fillMaxWidth()) {
-            Toggle("Full keyboard · A0–C8",full,{full=it},canStart)
+            Toggle("Instrument range · ${displayNoteName(settings.keyboardFirst,settings.noteNaming)}–${displayNoteName(settings.keyboardLast,settings.noteNaming)}",full,{full=it},canStart)
             if(!full) {
                 Text("Start octave",fontWeight=FontWeight.SemiBold)
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                    (1..7).forEach{n->FilterChip(start==n,{start=n;span=span.coerceAtMost(8-n)},enabled=canStart,label={Text("C$n")})}
+                    (1..7).forEach{n->FilterChip(start==n,{start=n;span=span.coerceAtMost(8-n)},enabled=canStart,label={Text(displayNoteName((n+1)*12,settings.noteNaming))})}
                 }
-                Text("Range · C$start–C${start+span}")
+                Text("Range · ${displayNoteName((start+1)*12,settings.noteNaming)}–${displayNoteName((start+span+1)*12,settings.noteNaming)}")
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                     (1..8-start).forEach{n->FilterChip(span==n,{span=n},enabled=canStart,label={Text("$n octave${if(n>1)"s" else ""}")})}
                 }
@@ -48,23 +51,30 @@ import org.pianopath.core.noteName
             Text(if(playing)"Listen first…" else ear.feedback,fontWeight=FontWeight.SemiBold)
             if(ear.target.isNotEmpty()) {
                 Text("${ear.guesses.size} selected")
+                Text("Attempt ${if(ear.revealed)ear.questionAttempts else (ear.questionAttempts+1).coerceAtMost(settings.earAttempts)} / ${settings.earAttempts} · answers check automatically")
+                if(!ear.revealed)Surface(Modifier.fillMaxWidth().height(120.dp),color=MaterialTheme.colorScheme.surfaceContainerLow){Box(contentAlignment=androidx.compose.ui.Alignment.Center){Text("Score hidden · listen and play your answer")}}
                 if(ear.revealed) {
-                    Text("Answer: ${ear.target.sorted().joinToString{noteName(it)}}")
-                    Text("Your notes: ${ear.guesses.sorted().joinToString{noteName(it)}}")
+                    Text("Answer: ${ear.target.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
+                    Text("Your notes: ${ear.guesses.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
+                    val answer=remember(ear.target) {
+                        val notes=ear.target.sorted().mapIndexed {index,pitch->ScoreNote(index,pitch,0.0,1.0,1,if(pitch>=60)1 else 2)}
+                        val score=Score("Answer","Piano Path",notes,listOf(Measure(1,0.0,1.0)),80.0)
+                        PracticeUi(score=score,xml=Exercises.write(score),endMeasure=1,endOffset=1.0)
+                    }
+                    Notation(answer,Modifier.fillMaxWidth().height(160.dp),animate=!settings.reduceMotion)
                 }
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick=vm::earReplay,enabled=!playing){Text("Replay")}
                     OutlinedButton(onClick=vm::earClear,enabled=!ear.revealed && !playing){Text("Clear")}
-                    Button(onClick=vm::earCheck,enabled=!ear.revealed && !playing && ear.guesses.isNotEmpty()){Text("Check")}
                 }
             }
             Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing) {Text(if(ear.target.isEmpty())"Start game" else "Next question")}
         }
         Text("${ear.correct*10} points · ${ear.correct}/${ear.attempts} correct · accuracy ${if(ear.attempts==0)"—" else "${100*ear.correct/ear.attempts}%"}",style=MaterialTheme.typography.bodyMedium)
         if(ear.target.isNotEmpty()) {
-            Text("Tap the keyboard or play your MIDI piano after the reference ends.",style=MaterialTheme.typography.bodySmall)
-            PianoKeyboard(emptySet(),emptySet(),ear.guesses.toList(),!playing,{pitch,down->if(down)vm.earGuess(pitch)},146,
-                if(ear.fullKeyboard)21..108 else ((ear.startOctave+1)*12)..minOf(108,(ear.startOctave+ear.octaves+1)*12))
+            Text("Tap or play ${ear.voices} distinct note${if(ear.voices==1)"" else "s"} after the reference ends. Each complete answer checks automatically.",style=MaterialTheme.typography.bodySmall)
+            PianoKeyboard(if(playing)emptySet() else ear.guesses+touchHeld+midi.held.keys,emptySet(),emptyList(),!playing && !ear.revealed,{pitch,down->touchHeld=if(down)touchHeld+pitch else touchHeld-pitch;if(down)vm.earGuess(pitch)},146,
+                if(ear.fullKeyboard)settings.keyboardFirst..settings.keyboardLast else ((ear.startOctave+1)*12)..minOf(108,(ear.startOctave+ear.octaves+1)*12),filledInput=true)
         }
     }
 }

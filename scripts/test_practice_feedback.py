@@ -41,6 +41,23 @@ def run(browser):
     page.mouse.up()
     calls=page.evaluate('seekCalls')
     assert len(calls)==1 and abs(calls[0]-6)<.1, calls
+
+    # Reflow should retain user styling and the separate performed-note payload.
+    page.evaluate('''() => {
+      const e=entries.find(n=>n.pitch>=0 && n.beat>=4);
+      const expected=[{id:123,beat:e.beat,midi:e.pitch,staff:e.staff}];
+      const take=[{id:99,pitch:e.pitch,beat:e.beat,duration:1,expectedId:123,onsetMs:0}];
+      setPerformanceData([],[],take,expected);
+      progress(4,performanceData.matched,performanceData.missed,4,20,.7,true,
+        performanceData.take,performanceData.expected,180,4,false,80,"BOTH",true,true,true,64,true,"#a1327b",false);
+    }''')
+    assert page.locator('[data-take-id="99"]').count() > 0
+    page.set_viewport_size({'width':850,'height':400})
+    page.wait_for_timeout(700)
+    state=page.evaluate('''() => ({accent:document.documentElement.style.getPropertyValue('--cursor'),
+      animation:allowCursorAnimation,take:performanceData.take.map(n=>n.id),expected:performanceData.expected.map(n=>n.id)})''')
+    assert state=={'accent':'#a1327b','animation':False,'take':[99],'expected':[123]}, state
+    assert page.locator('[data-take-id="99"]').count() > 0, 'Performed-note overlay must survive width reflow'
     page.close()
 
 

@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
@@ -34,13 +35,13 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
 }
 
 /** Recent attacks keep their actual timing; proximity only groups their visual columns. */
-@Composable fun LiveNotes(vm: PianoViewModel,modifier: Modifier=Modifier) {
+@Composable fun LiveNotes(vm: PianoViewModel,modifier: Modifier=Modifier,includeReview: Boolean=true) {
     val all by vm.playedSequence.collectAsStateWithLifecycle()
     val isIdle by vm.playedIdle.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val practice by vm.ui.collectAsStateWithLifecycle()
-    val notes=remember(all,settings.playedNoteCount,practice.review,practice.take,practice.reviewBeat,practice.bpm) {
-        if(practice.review)practice.take.filter{it.beat<=practice.reviewBeat}.takeLast(settings.playedNoteCount).map {
+    val notes=remember(all,settings.playedNoteCount,practice.review,practice.take,practice.reviewBeat,practice.bpm,includeReview) {
+        if(practice.review && includeReview)practice.take.filter{it.beat<=practice.reviewBeat}.takeLast(settings.playedNoteCount).map {
             PlayedAttack(it.pitch,it.channel,(it.beat*60_000_000_000.0/practice.bpm).toLong(),
                 it.duration?.let{duration->(duration*60_000.0/practice.bpm).toLong()})
         }
@@ -53,7 +54,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                 if(index>0) {
                     val previous=groups[index-1]
                     val previousEnd=previous.maxOf{it.startedNs+(it.durationMs ?: 0)*1_000_000}
-                    if(group.first().startedNs-previousEnd>settings.noteGapMs*1_000_000L)add(null)
+                    if(previous.all{it.durationMs!=null} && group.first().startedNs-previousEnd>settings.noteGapMs*1_000_000L)add(null)
                 }
                 add(group)
             }
@@ -75,7 +76,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                 color=MaterialTheme.colorScheme.onSurfaceVariant)
         } else BoxWithConstraints(Modifier.fillMaxWidth()) {
             // Labels have their own column width; the final head and flag retain a full margin.
-            val widths=columns.map{group->if(group==null)48f else max(58f,group.size*23f+14f)}
+            val widths=columns.map{group->if(group==null)42f else max(58f,group.joinToString(" "){displayNoteName(it.pitch,settings.noteNaming)}.length*6f+22f)}
             val contentWidth=max(maxWidth.value,38f+widths.sum()+24f)
             LaunchedEffect(notes.lastOrNull()?.startedNs,notes.lastOrNull()?.pitch,isIdle,scroll.maxValue) {
                 scroll.scrollTo(scroll.maxValue)
@@ -84,7 +85,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                 val origin=notes.firstOrNull()?.startedNs ?: 0
                 contentDescription="Recent played notes. Chord grouping is approximate. "+columns.joinToString {group->
                     group?.joinToString(" with ") {n->
-                        "${noteName(n.pitch)}, channel ${n.channel+1}, at ${(n.startedNs-origin)/1_000_000} milliseconds, "+
+                        "${displayNoteName(n.pitch,settings.noteNaming)}, channel ${n.channel+1}, at ${(n.startedNs-origin)/1_000_000} milliseconds, "+
                             (n.durationMs?.let{"held $it milliseconds"} ?: "still held")
                     } ?: "pause"
                 }
@@ -110,10 +111,10 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                     val x=left+width/2
                     if(group==null) {
                         val rest=Path().apply {
-                            moveTo(x-2*d,60*vertical);lineTo(x+3*d,66*vertical);lineTo(x-3*d,72*vertical)
-                            lineTo(x+3*d,77*vertical);lineTo(x,82*vertical)
+                            moveTo(x-1.5f*d,64*vertical);lineTo(x+2*d,68*vertical);lineTo(x-2*d,72*vertical)
+                            lineTo(x+2*d,75*vertical);lineTo(x,78*vertical)
                         }
-                        drawPath(rest,held,style=Stroke(2*d))
+                        drawPath(rest,held,style=Stroke(1.1f*d,cap=StrokeCap.Round))
                         text("pause",x,148*vertical,10f)
                     } else {
                         val placements=group.map{it to pitchForNotation(it.pitch)}
@@ -148,15 +149,13 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                                 val end=y+direction*22*vertical
                                 drawLine(color,Offset(stemX,y+direction*1.2f*d),Offset(stemX,end),1.2f*d)
                                 if(value.first>0 && value.first<=.5)repeat(if(value.first==.25)2 else 1) {flag->
-                                    val start=end-direction*flag*5*d
+                                    val start=end-direction*flag*4*d
                                     val toward=-direction
                                     val path=Path().apply {
                                         moveTo(stemX,start)
-                                        cubicTo(stemX+10*d,start+toward*3*d,stemX+13*d,start+toward*9*d,stemX+4*d,start+toward*15*d)
-                                        cubicTo(stemX+9*d,start+toward*8*d,stemX+4*d,start+toward*6*d,stemX,start+toward*6*d)
-                                        close()
+                                        cubicTo(stemX+7*d,start+toward*2*d,stemX+9*d,start+toward*6*d,stemX+3*d,start+toward*11*d)
                                     }
-                                    drawPath(path,color)
+                                    drawPath(path,color,style=Stroke(1.1f*d,cap=StrokeCap.Round))
                                 }
                             }
                             if(pitch.writtenPitch%12 in listOf(1,3,6,8,10))text("♯",headX-12*d,y+3.5f*d,12f,color)
@@ -168,7 +167,7 @@ fun approximateDuration(durationMs: Long?,bpm: Double): Pair<Double,String> {
                                 text(mark,headX+18*d,max(8*d,y+2*d),8f,color)
                             }
                         }
-                        text(group.joinToString(" "){noteName(it.pitch)},x,143*vertical,10f)
+                        text(group.joinToString(" "){displayNoteName(it.pitch,settings.noteNaming)},x,143*vertical,10f)
                         val values=group.map{approximateDuration(it.durationMs,practice.bpm).second}.distinct()
                         text(if(values.size==1)values.first() else "mixed holds",x,156*vertical,9f,muted)
                     }

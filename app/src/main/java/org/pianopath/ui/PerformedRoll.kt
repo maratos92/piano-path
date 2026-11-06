@@ -2,7 +2,9 @@ package org.pianopath.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,16 +33,18 @@ private data class RollNote(val pitch: Int,val onset: Double,val release: Double
 }
 @Composable private fun NoteRoll(notes: List<RollNote>,position: Double,modifier: Modifier) {
     val lookAhead=4.0
-    Canvas(modifier.semantics { contentDescription="Recorded MIDI roll" }) {
+    val range=LocalKeyboardRange.current
+    val geometry=remember(range){KeyboardGeometry(range)}
+    Canvas(modifier.clipToBounds().semantics { contentDescription="Recorded MIDI roll, ${noteName(range.first)} to ${noteName(range.last)}" }) {
         drawRect(Color(0xff102c2d))
-        val w=size.width/52f
-        for(key in PianoLayout.keys) {
+        val w=size.width/geometry.whiteSpan.toFloat()
+        for(key in geometry.keys) {
             val x=key.left.toFloat()*w
             if(key.black)drawRect(Color(0xff0c2325),Offset(x,0f),Size(key.width.toFloat()*w,size.height))
             else drawLine(Color(0xff2d4745),Offset(x,0f),Offset(x,size.height),.6.dp.toPx())
         }
         for(note in notes) {
-            val k=PianoLayout.key(note.pitch) ?: continue
+            val k=geometry.key(note.pitch) ?: continue
             val onset=note.onset
             val release=max(note.release,onset+.08)
             if(onset>position+lookAhead || release<position)continue
