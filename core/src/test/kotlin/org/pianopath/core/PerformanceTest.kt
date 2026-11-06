@@ -141,4 +141,45 @@ class PerformanceTest {
         val e=engine(score(ScoreNote(0,60,2.0,1.0,1)),PracticeMode.FOLLOW)
         e.accept(MidiEvent.On(60,80,at(5000)));assertEquals(0.0,e.summary().details[0].onsetMs!!,.01)
     }
+    @Test fun waitRecognizesExpectedNotesAfterLongRunsOfErrorsWithBoundedLiveSnapshots() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,64,0.0,1.0,1),ScoreNote(2,67,1.0,1.0,1)),PracticeMode.WAIT)
+        val initialMatches=e.matchedIds
+        repeat(10_000) {i->
+            e.accept(MidiEvent.On(61,80,at(i*2)))
+            e.accept(MidiEvent.Off(61,0,at(i*2+1)))
+            assertEquals(listOf(60,64),e.expectedPitches)
+            assertTrue(e.liveTake().size<=256)
+        }
+        assertSame(initialMatches,e.matchedIds)
+        assertSame(e.liveTake(),e.liveTake())
+        e.accept(MidiEvent.On(60,80,at(20_001)))
+        assertEquals(setOf(0),e.matchedIds)
+        assertEquals(listOf(64),e.expectedPitches)
+        e.accept(MidiEvent.On(64,80,at(20_002)))
+        assertEquals(1.0,e.currentBeat,.001)
+        e.accept(MidiEvent.On(67,80,at(20_003)))
+        assertTrue(e.finished)
+        val result=e.finish(at(20_004))
+        assertEquals(3,result.correct)
+        assertEquals(10_000,result.extra)
+        assertEquals(10_003,result.take.size)
+        assertEquals(listOf(0,1,2),result.take.takeLast(3).map{it.expectedId})
+    }
+    @Test fun liveSnapshotsRemainImmutableAndRefreshAfterReleaseAndMissingNotes() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1)))
+        e.accept(MidiEvent.On(60,80,base))
+        val held=e.liveTake()
+        val matched=e.matchedIds
+        e.accept(MidiEvent.Off(60,0,at(500)))
+        assertNull(held.single().duration)
+        assertEquals(1.0,e.liveTake().single().duration!!,.001)
+        assertSame(e.liveTake(),e.liveTake())
+        assertSame(matched,e.matchedIds)
+        val missed=e.missedIds
+        e.tick(at(1200))
+        assertTrue(missed.isEmpty())
+        assertEquals(setOf(1),e.missedIds)
+        assertSame(e.missedIds,e.missedIds)
+    }
+
 }

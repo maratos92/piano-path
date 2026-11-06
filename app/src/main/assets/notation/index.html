@@ -1,12 +1,17 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"><meta charset="utf-8"><style>
-html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:var(--cursor,#1b554b);box-shadow:0 0 0 3px #1b554b18}#playhead::after{content:'';position:absolute;position:fixed;left:calc(var(--cursor-screen-x, 20px) - 12px);top:4px;width:24px;height:24px;border-radius:50%;transform:none;background:var(--cursor,#1b554b)}#playhead.dragging{filter:brightness(.72)}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:32px;height:54px;pointer-events:auto;touch-action:none;background:transparent}.loop-handle b::after{content:"";position:absolute;left:11px;top:5px;width:10px;height:44px;border-radius:5px;background:#b68b3f;box-shadow:0 1px 3px #0003}.loop-handle[aria-disabled=true]{opacity:.55}
-.loading-note{display:inline-block;font-size:32px;margin-right:10px;animation:loading-note 1s ease-in-out infinite alternate}@keyframes loading-note{to{transform:translateY(-6px) rotate(8deg);opacity:.5}}@media(prefers-reduced-motion:reduce){.loading-note{animation:none}}html[data-reduced-motion=true] .loading-note{animation:none}</style></head><body><div id="viewport"><div id="loading"><span class="loading-note" aria-hidden="true">♫</span>Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
+html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#617471;pointer-events:none;background:inherit;text-align:center}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:var(--cursor,#1b554b);box-shadow:0 0 0 3px #1b554b18}#playhead::after{content:'';position:absolute;left:10px;top:-12px;width:24px;height:24px;border-radius:50%;transform:none;background:var(--cursor,#1b554b)}#playhead.dragging{filter:brightness(.72)}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer,.missing-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:32px;height:54px;pointer-events:auto;touch-action:none;background:transparent}.loop-handle b::after{content:"";position:absolute;left:11px;top:5px;width:10px;height:44px;border-radius:5px;background:#b68b3f;box-shadow:0 1px 3px #0003}.loop-handle[aria-disabled=true]{opacity:.55}
+.loading-note{display:block;font-size:96px;line-height:1;animation:loading-float 1.2s ease-in-out infinite alternate}.loading-note[data-motion=pulse]{animation-name:loading-pulse}.loading-note[data-motion=sway]{animation-name:loading-sway}@keyframes loading-float{to{transform:translateY(-12px);opacity:.6}}@keyframes loading-pulse{to{transform:scale(1.15);opacity:.5}}@keyframes loading-sway{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}@media(prefers-reduced-motion:reduce){.loading-note{animation:none}}html[data-reduced-motion=true] .loading-note{animation:none}</style></head><body><div id="viewport"><div id="loading"><span class="loading-note" aria-hidden="true">♫</span><span>Engraving your score…</span></div><div id="range"></div><div id="score"></div><div id="error"></div></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
 let osmd,ready=false,entries=[],hitGroups=[],lastBeat=-1,lastState='',lastSelection='',lastZoom=1,lastHorizontal=false,lastMargin=4,lastDark=false,lastArgs=null,canSeek=false,dragging=false,dragPointer=null,dragBeat=null,loopEnabled=true,loopEditable=true,loopDragging=null,loopPointer=null,loopStart=0,loopEnd=0,scoreEnd=0;
 let lastLayoutWidth=0;const scrollRoot=document.getElementById('viewport');const scroller=new ScoreScroller(),systemBounds=new Map();
 let allowCursorAnimation=false,lastCursorSystem=null,lastCursorBeat=-1,lastTakePaint='',lastTakeTime=0;
 let beatIndex=new Map();
-let performanceData={matched:[],missed:[],take:[],expected:[]},dataRevision=0;
-function setPerformanceData(matched,missed,take,expected){performanceData={matched,missed,take,expected};dataRevision++;}
+let performanceData={matched:[],missed:[],take:[],expected:[]},dataRevision=0,colorRevision=0,lastColorData='';
+function setPerformanceData(matched,missed,take,expected){
+ if(matched!==performanceData.matched || missed!==performanceData.missed){const colors=JSON.stringify([matched,missed]);if(colors!==lastColorData){lastColorData=colors;colorRevision++;}}
+ performanceData={matched,missed,take,expected};dataRevision++;
+}
+let paintingNodes=null;const takeNodes=new Map();let lastPaintBeat=-1;
+const loadingNote=document.querySelector('.loading-note');loadingNote.dataset.motion=['float','pulse','sway'][Math.floor(Math.random()*3)];
 const NS='http://www.w3.org/2000/svg';
 function fail(e){document.getElementById('loading').style.display='none';document.getElementById('error').textContent='Notation could not be rendered. '+e;if(window.Android)Android.error(String(e));}
 function layout(){
@@ -23,7 +28,7 @@ await osmd.load(Android.score());
 await new Promise((resolve,reject)=>{let frames=0;function measurable(){if(scrollRoot.clientWidth>40&&scrollRoot.clientHeight>20)return resolve();if(++frames>600)return reject('Score viewport is not ready');requestAnimationFrame(measurable);}measurable();});
 document.getElementById('loading').style.display='none';layout();installScrubber();ready=true;Android.ready();
 }catch(e){fail(e)}}
-function indexNotes(){entries=[];systemBounds.clear();const c=osmd.cursor;c.reset();let guard=0;
+function indexNotes(){takeNodes.clear();lastTakePaint='';lastPaintBeat=-1;entries=[];systemBounds.clear();const c=osmd.cursor;c.reset();let guard=0;
 while(!c.Iterator.EndReached&&guard++<100000){const beat=c.Iterator.currentTimeStamp.RealValue*4;
 for(const g of c.GNotesUnderCursor()){
  const n=g.sourceNote,element=g.getSVGGElement?.(),svg=element?.ownerSVGElement;if(!svg)continue;
@@ -34,7 +39,7 @@ for(const g of c.GNotesUnderCursor()){
  entries.push({g,beat,system,pitch:n.Pitch?n.Pitch.getHalfTone()+12:-1,staff:n.parentStaffEntry.ParentStaff.idInMusicSheet+1,x:xy.x,y:n.Pitch?xy.y:g.PositionAndShape.AbsolutePosition.y*10,svg,
  left:m.PositionAndShape.AbsolutePosition.x*10,measure:source.MeasureNumber,start:source.AbsoluteTimestamp.RealValue*4,end:(source.AbsoluteTimestamp.RealValue+source.Duration.RealValue)*4,right:(m.PositionAndShape.AbsolutePosition.x+m.PositionAndShape.Size.width)*10});
 }c.next();}c.reset();c.hide();lastBeat=-1;lastState='';lastSelection='';
-for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);if(cls==='loop-layer')svg.insertBefore(layer,svg.firstChild);else svg.appendChild(layer);}}
+for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer','missing-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);if(cls==='loop-layer')svg.insertBefore(layer,svg.firstChild);else svg.appendChild(layer);}}
 let line=document.getElementById('playhead');if(!line){line=document.createElement('div');line.id='playhead';line.setAttribute('role','slider');line.setAttribute('tabindex','0');line.setAttribute('aria-label','Score cursor. Drag to seek');document.getElementById('score').appendChild(line);}
 for(const [id,label] of [['loop-start','A'],['loop-end','B']]){if(!document.getElementById(id)){const marker=document.createElement('div');marker.id=id;marker.className='loop-handle';marker.setAttribute('role','slider');marker.setAttribute('aria-label',label==='A'?'Loop start':'Loop end');const cap=document.createElement('b');cap.textContent='';marker.appendChild(cap);document.getElementById('score').appendChild(marker);}}
 indexHitGroups();installScrubber();}
@@ -121,22 +126,19 @@ function animateCursor(beat,end,rate,follow){
  const snap=!previous || (beat<previous.target-.1 || rate>0&&Math.abs(beat-previous.target)>Math.max(2,rate*.5));
  const anchor=snap?beat:current;
  const corrected=rate>0?Math.max(rate*.75,Math.min(rate*1.25,rate+(beat-anchor)*3)):0;
- cursorMotion={anchor,target:beat,end,at:now,rate:corrected,follow};
+ cursorMotion={anchor,target:beat,end,at:now,rate:corrected,follow,expires:now+500};
  if(cursorFrame)return;
- function frame(time){cursorFrame=0;const m=cursorMotion;if(!m)return;moveCursor(motionBeat(m,time),0,m.end,m.follow);if(m.rate>0&&motionBeat(m,time)<m.end || m.rate===0&&time-m.at<120)cursorFrame=requestAnimationFrame(frame);}
+ function frame(time){cursorFrame=0;const m=cursorMotion;if(!m)return;if(m.rate>0&&time>m.expires){stopCursorMotion();return;}moveCursor(motionBeat(m,time),0,m.end,m.follow);if(m.rate>0&&motionBeat(m,time)<m.end || m.rate===0&&time-m.at<120)cursorFrame=requestAnimationFrame(frame);}
  cursorFrame=requestAnimationFrame(frame);
 }
 window.addEventListener('pagehide',stopCursorMotion);
-scrollRoot.addEventListener('scroll',()=>{const line=document.getElementById('playhead');if(line)document.documentElement.style.setProperty('--cursor-screen-x',(parseFloat(line.style.left||0)-scrollRoot.scrollLeft)+'px');},{passive:true});
 function moveCursor(beat,start,end,follow=false){
  const pos=atBeatPosition(Math.max(start,Math.min(end,beat)));if(!pos)return;
  const line=document.getElementById('playhead');line.style.display='block';
  line.style.transition='none';
  lastCursorSystem=pos.frame.system;lastCursorBeat=beat;
- document.documentElement.style.setProperty('--cursor-screen-x',(pos.x-scrollRoot.scrollLeft)+'px');
  line.style.left=pos.x+'px';line.style.top=pos.y+'px';line.style.height=pos.h+'px';
  if(!dragging&&!loopDragging)scroller.follow(pos.frame,beat,follow);
- document.documentElement.style.setProperty('--cursor-screen-x',(pos.x-scrollRoot.scrollLeft)+'px');
 }
 function installScrubber(){
  const score=document.getElementById('score'),line=document.getElementById('playhead');
@@ -189,12 +191,17 @@ function locateBeat(beat,staff){
  const t=right[0]===left[0]?0:Math.max(0,Math.min(1,(beat-left[0])/(right[0]-left[0])));
  return {e:m.e,x:left[1]+(right[1]-left[1])*t,group:m.group};
 }
-function append(svg,tag,attrs,title){const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(title){const t=document.createElementNS(NS,'title');t.textContent=title;el.appendChild(t);}svg.querySelector('.take-layer').appendChild(el);return el;}
+function append(svg,tag,attrs,title){const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(title){const t=document.createElementNS(NS,'title');t.textContent=title;el.appendChild(t);}svg.querySelector('.take-layer').appendChild(el);if(paintingNodes)paintingNodes.push(el);return el;}
 function diatonic(p){return Math.floor(p/12)*7+[0,0,1,1,2,3,3,4,4,5,5,6][((p%12)+12)%12];}
 function drawTake(take,expected,tolerance,beat,bpm){
- for(const layer of document.querySelectorAll('.take-layer'))layer.replaceChildren();
+ const ids=new Set(take.map(n=>n.id));
+ for(const [id,old] of takeNodes)if(!ids.has(id)){old.nodes.forEach(e=>e.remove());takeNodes.delete(id);}
  const map=new Map(expected.map(n=>[n.id,n]));
- for(const n of take){const target=map.get(n.expectedId),staff=target?.staff || (n.pitch<60?2:1),loc=locateBeat(n.beat,staff);if(!loc)continue;
+ for(const n of take){
+ const signature=[n.pitch,n.beat,n.duration,n.expectedId,n.onsetMs,n.duration===null?beat:0,tolerance,bpm,lastDark].join(':');
+ const old=takeNodes.get(n.id);if(old?.signature===signature)continue;
+ if(old)old.nodes.forEach(e=>e.remove());paintingNodes=[];
+const target=map.get(n.expectedId),staff=target?.staff || (n.pitch<60?2:1),loc=locateBeat(n.beat,staff);if(!loc)continue;
  const ref=loc.group.filter(e=>e.staff===loc.e.staff&&e.pitch>=0).sort((a,b)=>Math.abs(a.pitch-n.pitch)-Math.abs(b.pitch-n.pitch))[0];if(!ref)continue;
  const y=ref.y-(diatonic(n.pitch)-diatonic(ref.pitch))*5;
  const color=!target?'#d34d50':n.onsetMs!==null&&Math.abs(n.onsetMs)>tolerance?'#c38420':'#16836d';
@@ -207,7 +214,9 @@ function drawTake(take,expected,tolerance,beat,bpm){
  const last=locateBeat(Math.max(cursor,until-.002),staff);const anchor=pos.group.find(e=>e.staff===pos.e.staff&&e.pitch>=0)||ref;
  const traceY=anchor.y-(diatonic(n.pitch)-diatonic(anchor.pitch))*5+6;
  append(pos.e.svg,'line',{x1:pos.x,y1:traceY,x2:Math.max(pos.x+2,last.x),y2:traceY,stroke:color,'stroke-width':2.4,opacity:.7,'data-hold-id':n.id},label);cursor=until+.001;}
+ takeNodes.set(n.id,{signature,nodes:paintingNodes});paintingNodes=null;
  }
+ paintingNodes=null;
 }
 function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end,follow=true,accent='#1b554b',animate=false,clockRate=0){if(!ready)return;
 try{
@@ -215,19 +224,27 @@ allowCursorAnimation=animate;
 if(/^#[0-9a-f]{6}$/i.test(accent))document.documentElement.style.setProperty('--cursor',accent);
 lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm,hand,seekEnabled,loopOn,loopEdit,fullEnd,follow,accent,animate,clockRate];canSeek=seekEnabled;loopEditable=loopEdit;scoreEnd=fullEnd;if(!loopDragging){loopStart=start;loopEnd=end;loopEnabled=loopOn;}const cursor=document.getElementById('playhead');cursor.setAttribute('aria-disabled',seekEnabled?'false':'true');cursor.setAttribute('aria-valuenow',beat.toFixed(2));
 if(zoom!==lastZoom||horizontal!==lastHorizontal||margin!==lastMargin||dark!==lastDark){lastZoom=zoom;lastHorizontal=horizontal;lastMargin=margin;lastDark=dark;layout();}
-const state=animate?[dataRevision,start,end,hand].join(':'):JSON.stringify([matched,missed,start,end,take,hand]);
-if(state!==lastState){lastState=state;for(const e of entries){let color=e.beat>=start-.001&&e.beat<end-.001?(lastDark?'#dce8df':'#173c3b'):'#86958d';
- if(hand==='RIGHT'&&e.staff>1||hand==='LEFT'&&e.staff===1)color=lastDark?'#63766c':'#abb5ad';
-if(matched.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))color='#16836d';
-if(missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))color='#c04438';
-e.g.setColor(color,{applyToNoteheads:true,applyToBeams:false,applyToFlag:false,applyToStem:false});
-if(missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');}
+// A stopped transport cancels frame motion before touching any potentially costly SVG.
+if(!follow || clockRate===0 && !animate)stopCursorMotion();
+const colorKey=matched===performanceData.matched && missed===performanceData.missed?colorRevision:JSON.stringify([matched,missed]);
+const state=[colorKey,start,end,hand,lastDark].join(':');
+if(state!==lastState){
+ lastState=state;const key=n=>Math.round(n[0]*1000)+':'+n[1],matches=new Set(matched.map(key)),misses=new Set(missed.map(key));
+ for(const layer of document.querySelectorAll('.missing-layer'))layer.replaceChildren();
+ for(const e of entries){let color=e.beat>=start-.001&&e.beat<end-.001?(lastDark?'#dce8df':'#173c3b'):'#86958d';
+  if(hand==='RIGHT'&&e.staff>1||hand==='LEFT'&&e.staff===1)color=lastDark?'#63766c':'#abb5ad';
+  const k=Math.round(e.beat*1000)+':'+e.pitch;
+  if(matches.has(k))color='#16836d';if(misses.has(k))color='#c04438';
+  if(e.color!==color){e.g.setColor(color,{applyToNoteheads:true,applyToBeams:false,applyToFlag:false,applyToStem:false});e.color=color;}
+  if(misses.has(k)){const mark=document.createElementNS(NS,'ellipse');for(const [a,v] of Object.entries({cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'}))mark.setAttribute(a,v);e.svg.querySelector('.missing-layer').appendChild(mark);}
+ }
 }
-// The overlay is redrawn as an unreleased note grows with the transport.
-const paint=animate?[dataRevision,tolerance,bpm,zoom,horizontal,margin,dark].join(':'):JSON.stringify([take,expected,missed,tolerance,bpm,zoom,horizontal,margin,dark]),now=performance.now();
-if(paint!==lastTakePaint || (take.some(n=>n.duration===null)&&now-lastTakeTime>=80)){
-lastTakePaint=paint;lastTakeTime=now;drawTake(take,expected,tolerance,beat,bpm);
-for(const e of entries.filter(e=>missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch)))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');}
+const paint=take===performanceData.take?[dataRevision,tolerance,bpm,zoom,horizontal,margin,dark].join(':'):JSON.stringify([take,expected,tolerance,bpm,zoom,horizontal,margin,dark]),now=performance.now();
+// Retain finished glyph nodes; update only changed/new notes and growing key holds.
+// WAIT's stationary beat must not continuously rebuild unreleased wrong notes.
+if(paint!==lastTakePaint || (beat!==lastPaintBeat&&take.some(n=>n.duration===null)&&now-lastTakeTime>=80)){
+ lastTakePaint=paint;lastTakeTime=now;lastPaintBeat=beat;drawTake(take,expected,tolerance,beat,bpm);
+}
 if(animate&&follow&&!dragging&&!loopDragging)animateCursor(beat,end,clockRate,follow);
 else{stopCursorMotion();moveCursor(dragging&&dragBeat!==null?dragBeat:beat,0,fullEnd,follow);}
  moveLoopHandles(loopStart,loopEnd,loopEnabled,loopEditable);

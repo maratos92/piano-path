@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -14,9 +15,9 @@ import org.pianopath.core.*
 
 @Composable fun ScaleSetup(vm: PianoViewModel) {
     val naming=LocalNoteNaming.current
-    var root by remember {mutableIntStateOf(0)};var kind by remember{mutableStateOf(ScaleKind.MAJOR)};var octaves by remember{mutableIntStateOf(1)};var hand by remember{mutableStateOf(Hand.BOTH)};var descending by remember{mutableStateOf(true)}
+    var root by rememberSaveable {mutableIntStateOf(0)};var kind by rememberSaveable{mutableStateOf(ScaleKind.MAJOR)};var octaves by rememberSaveable{mutableIntStateOf(1)};var hand by rememberSaveable{mutableStateOf(Hand.BOTH)};var descending by rememberSaveable{mutableStateOf(true)}
     Column(Modifier.fillMaxHeight().fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        PageTitle("Practice","Scales & technique")
+        PageTitle("Scales & technique")
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Choose a tonic",fontWeight=FontWeight.SemiBold)
             (0..11).chunked(4).forEach { row ->
@@ -43,9 +44,9 @@ import org.pianopath.core.*
     }
 }
 @Composable fun SightSetup(vm: PianoViewModel) {
-    var level by remember{mutableIntStateOf(0)};var fifths by remember{mutableIntStateOf(0)};var beats by remember{mutableIntStateOf(4)};var hand by remember{mutableStateOf(Hand.BOTH)};var preview by remember{mutableIntStateOf(10)};var tempo by remember{mutableFloatStateOf(80f)}
+    var level by rememberSaveable{mutableIntStateOf(0)};var fifths by rememberSaveable{mutableIntStateOf(0)};var beats by rememberSaveable{mutableIntStateOf(4)};var hand by rememberSaveable{mutableStateOf(Hand.BOTH)};var preview by rememberSaveable{mutableIntStateOf(10)};var tempo by rememberSaveable{mutableFloatStateOf(80f)}
     Column(Modifier.fillMaxHeight().fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        PageTitle("Practice","Sight reading")
+        PageTitle("Sight reading")
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Difficulty",fontWeight=FontWeight.SemiBold)
             listOf("Beginner","Elementary","Intermediate","Advanced").chunked(2).forEachIndexed{row,names->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){names.forEachIndexed{col,name->val n=row*2+col;FilterChip(level==n,{level=n},modifier=Modifier.weight(1f),label={Text(name)})}}}

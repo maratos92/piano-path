@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
@@ -25,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.pianopath.*
 import org.pianopath.core.*
@@ -55,7 +58,7 @@ import kotlin.math.*
         }
         replaying=false
     }
-    if(score==null) {Column(Modifier.padding(24.dp)){PageTitle("Your practice space","Choose your music.");Button(onClick={vm.screen.value="Library"}){Text("Open library")}};return}
+    if(score==null) {Column(Modifier.padding(24.dp)){PageTitle("Choose your music");Button(onClick={vm.screen.value="Library"}){Text("Open library")}};return}
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(if(landscape)44.dp else 54.dp).padding(horizontal=6.dp),verticalAlignment=Alignment.CenterVertically) {
             IconButton(onClick=openMenu){Icon(Icons.Outlined.Menu,"Open navigation menu")}
@@ -68,6 +71,7 @@ import kotlin.math.*
                 IconButton(onClick={vm.zoom(-.15)}){Icon(Icons.Outlined.ZoomOut,"Zoom out sheet")}
                 IconButton(onClick={vm.zoom(.15)}){Icon(Icons.Outlined.ZoomIn,"Zoom in sheet")}
             }
+            if(!p.running && !p.listening && (p.take.isNotEmpty() || p.matched.isNotEmpty() || p.missed.isNotEmpty()))IconButton(onClick={replaying=false;vm.stop()}){Icon(Icons.Outlined.LayersClear,"Clear sheet markings")}
             IconButton(onClick={controls=true}){Icon(Icons.Outlined.Tune,"Practice controls")}
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -129,8 +133,8 @@ import kotlin.math.*
                     Text("Score hidden · press Practice to begin",Modifier.align(Alignment.Center),color=Ink)
                 }
                 if(p.counting>0)Box(Modifier.align(Alignment.Center)) {
-                    if(settings.reduceMotion)Text(p.counting.toString(),fontSize=80.sp,color=MaterialTheme.colorScheme.primary)
-                    else AnimatedContent(targetState=p.counting,transitionSpec={ (fadeIn(tween(150))+scaleIn(tween(300),initialScale=.65f)) togetherWith (fadeOut(tween(300))+scaleOut(tween(300),targetScale=1.5f)) },label="Practice countdown"){number->Text(number.toString(),fontSize=80.sp,color=MaterialTheme.colorScheme.primary)}
+                    if(settings.reduceMotion)CountdownNumber(p.counting)
+                    else AnimatedContent(targetState=p.counting,transitionSpec={ (fadeIn(tween(150))+scaleIn(tween(300),initialScale=.65f)) togetherWith (fadeOut(tween(300))+scaleOut(tween(300),targetScale=1.5f)) },label="Practice countdown"){number->CountdownNumber(number)}
                 }
             }
             KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else if(p.cursorPreview!=null || !p.running)expectedAt(score,p.cursorPreview ?: if(p.review)p.reviewBeat else p.transportBeat,p.hand) else p.expected,true,vm::key,
@@ -143,12 +147,13 @@ import kotlin.math.*
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.listening)Icons.Outlined.Stop else Icons.Outlined.VolumeUp,null,Modifier.size(18.dp))
-                Text(if(p.listening)"Stop music" else "Listen",fontSize=12.sp)
+                Text(if(p.listening)"Stop music" else if(p.running)"Listen instead" else "Listen",fontSize=12.sp)
             }
+            if(p.running)IconButton(onClick={replaying=false;vm.stop()}){Icon(Icons.Outlined.Stop,"Stop and clear sheet")}
             if(p.running || p.listening)IconButton(onClick={vm.togglePause()}) {Icon(if(p.paused)Icons.Outlined.PlayArrow else Icons.Outlined.Pause,if(p.paused)"Resume" else "Pause")}
             Button(onClick={if(p.running)vm.stop("Practice finished",saveResult=true) else vm.start()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.running)Icons.Outlined.Stop else Icons.Outlined.PlayArrow,null,Modifier.size(18.dp))
-                Text(if(p.running)"Finish" else "Practice",fontSize=12.sp)
+                Text(if(p.running)"Finish" else if(p.listening)"Practice instead" else "Practice",fontSize=12.sp)
             }
         }
         if(!p.review)Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -159,6 +164,7 @@ import kotlin.math.*
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f),modifier=Modifier.weight(1f).height(34.dp))
             if(p.selectingLoop)Text("${"%.1f".format(end)}",fontSize=10.sp)
         }
+        if(p.category=="Sight reading" && !p.running && !p.listening)TextButton(onClick={replaying=false;vm.nextSight()}){Icon(Icons.Outlined.SkipNext,null);Text("Next exercise · same settings")}
         if(p.result!=null && !p.review)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick={vm.review()},contentPadding=PaddingValues(0.dp)){Text("Review on score",fontSize=11.sp)}
             Spacer(Modifier.width(12.dp))
@@ -182,8 +188,13 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     var advanced by remember{mutableStateOf(false)}
     ModalBottomSheet(onDismissRequest=close) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text("Shape your practice",fontFamily=FontFamily.Serif,fontSize=28.sp)
+            Text("Shape your practice",fontFamily=FontFamily.Serif,fontSize=26.sp)
             readerControls()
+            if(p.category=="Scales" || p.category=="Sight reading")OutlinedButton(onClick={
+                close();vm.stop();vm.screen.value=if(p.category=="Scales")"Scales" else "Sight reading"
+            }){Icon(Icons.Outlined.ArrowBack,null);Spacer(Modifier.width(8.dp));Text("Exercise settings")}
+            if(p.category=="Sight reading")OutlinedButton(onClick={close();vm.nextSight()}){Text("Next exercise · same settings")}
+
             if(p.running || p.listening)Text("Stop playback or finish practice to change these settings.",color=MaterialTheme.colorScheme.primary)
             Text("Mode",fontWeight=FontWeight.SemiBold)
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { PracticeMode.entries.forEach { mode-> FilterChip(p.mode==mode,{vm.edit{it.copy(mode=mode)}},enabled=!(p.running || p.listening),label={Text(modeName(mode))}) } }
@@ -217,7 +228,7 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             }
             Toggle("Repeat selected passage",p.loop,{v->vm.edit{it.copy(loop=v)}},!(p.running || p.listening))
             Toggle("Count-in before each repetition",p.countIn,{v->vm.edit{it.copy(countIn=v)}},!(p.running || p.listening))
-            Text("Count-in plays a bar of preparation clicks. Rest between loops is separate; both are optional.",fontSize=12.sp)
+            Text("Count-in gives four seconds of preparation. Rest between loops is separate; both are optional.",fontSize=12.sp)
             Toggle("Metronome",p.metronome,{v->vm.edit{it.copy(metronome=v)}},!(p.running || p.listening))
             if(p.loop)Toggle("Adaptive tempo · +4 BPM after ≥90% score",p.autoTempo,{v->vm.edit{it.copy(autoTempo=v)}},!(p.running || p.listening))
             if(p.loop)Text("Adaptive tempo is optional: increase speed only after a successful repetition. Leave off for a fixed tempo.",fontSize=12.sp)
@@ -264,3 +275,18 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
 }
 
 @Composable private fun settingsLoopBreak(vm: PianoViewModel): Int = vm.settings.collectAsStateWithLifecycle().value.loopBreakSeconds
+
+@Composable private fun CountdownNumber(number: Int) {
+    val fill=MaterialTheme.colorScheme.primary
+    Canvas(Modifier.size(150.dp).semantics{contentDescription="Countdown $number"}) {
+        val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize=84.sp.toPx();typeface=android.graphics.Typeface.DEFAULT_BOLD;textAlign=android.graphics.Paint.Align.CENTER
+            strokeWidth=5.dp.toPx();strokeJoin=android.graphics.Paint.Join.ROUND
+        }
+        val baseline=size.height/2-(paint.fontMetrics.ascent+paint.fontMetrics.descent)/2
+        paint.style=android.graphics.Paint.Style.STROKE;paint.color=android.graphics.Color.WHITE
+        drawContext.canvas.nativeCanvas.drawText(number.toString(),size.width/2,baseline,paint)
+        paint.style=android.graphics.Paint.Style.FILL;paint.color=fill.toArgb()
+        drawContext.canvas.nativeCanvas.drawText(number.toString(),size.width/2,baseline,paint)
+    }
+}
