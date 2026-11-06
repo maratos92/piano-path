@@ -144,7 +144,7 @@ class FreePlayIntegrationTest {
     @Test fun progressIsReachableFromHomeAndShowsGoal() {
         compose.onNodeWithTag("home-feed").performScrollToNode(hasText("Your practice · goals & progress"))
         compose.onNodeWithText("Your practice · goals & progress").performClick()
-        compose.onNodeWithText("Your practice").assertIsDisplayed()
+        compose.onNodeWithText("Overview").assertIsDisplayed()
         compose.onNodeWithText("Daily goal",substring=true).performScrollTo().assertIsDisplayed()
     }
 

@@ -248,12 +248,15 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         support=false
         runCatching{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.SUPPORT_URL)))}.onFailure{vm.message.value="No browser is available to open the support page"}
     }){Text("Open Ko-fi")}},dismissButton={TextButton(onClick={support=false}){Text("Maybe later")}})
-    if(notices)AlertDialog(onDismissRequest={notices=false},confirmButton={TextButton(onClick={notices=false}){Text("Close")}},title={Text("Sound attribution and licence")},text={
+    if(notices)AlertDialog(onDismissRequest={notices=false},confirmButton={TextButton(onClick={notices=false}){Text("Close")}},title={Text("Open-source notices and licences")},text={
         Column(Modifier.verticalScroll(rememberScrollState())) {
             Text("Salamander Grand Piano · Alexander Holm\nCC BY 3.0\nhttps://creativecommons.org/licenses/by/3.0/\nSource: https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander\nAdapted to 24 kHz mono PCM, trimmed to ten seconds with a fade. One sampled dynamic layer; velocity controls amplitude.\n\n")
             Text(remember{context.assets.open("piano/LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
             Text("Music notation font: Bravura · Steinberg Media Technologies · SIL Open Font License 1.1",fontSize=12.sp)
             Text(remember{context.assets.open("fonts/Bravura-LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
+            listOf("licenses/NOTICE.txt","licenses/Apache-2.0.txt","licenses/PianoPath-MIT.txt","notation/OSMD-LICENSE","notation/OSMD-AUTHORS","notation/opensheetmusicdisplay.min.js.LICENSE.txt").forEach { path ->
+                Text(remember(path){context.assets.open(path).bufferedReader().use{it.readText()}},fontSize=11.sp)
+            }
         }
     })
     var section by remember {mutableStateOf("General")}
@@ -327,7 +330,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Text(if(BuildConfig.DEBUG)"Development APK" else "Release APK",fontSize=12.sp)
                     Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp)
                     Text("Open source · offline · no account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick={notices=true}){Text("Sound attribution and licences")}
+                    TextButton(onClick={notices=true}){Text("Open-source notices and licencess")}
                 }
                 if(BuildConfig.SUPPORT_URL.isNotBlank())OutlinedButton(onClick={support=true}) {
                     Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")

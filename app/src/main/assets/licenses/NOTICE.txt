@@ -1,0 +1,22 @@
+Piano Path third-party software notices
+
+AndroidX / Jetpack Compose / Material icons / Lifecycle / Room
+Copyright The Android Open Source Project and AndroidX contributors.
+https://android.googlesource.com/platform/frameworks/support/
+Apache License 2.0 (Apache-2.0.txt).
+
+Kotlin standard library
+Copyright JetBrains s.r.o. and Kotlin Programming Language contributors.
+https://github.com/JetBrains/kotlin
+Apache License 2.0 (Apache-2.0.txt).
+
+Kotlin Coroutines
+Copyright JetBrains s.r.o. and kotlinx.coroutines contributors.
+https://github.com/Kotlin/kotlinx.coroutines
+Apache License 2.0 (Apache-2.0.txt).
+
+OpenSheetMusicDisplay: BSD-3-Clause; see notation/OSMD-LICENSE and OSMD-AUTHORS.
+Its JavaScript dependency licences: notation/opensheetmusicdisplay.min.js.LICENSE.txt.
+Bravura music font: Steinberg Media Technologies, SIL OFL 1.1; see fonts/Bravura-LICENSE.txt.
+Salamander Grand Piano: Alexander Holm, CC BY 3.0; see piano/LICENSE.txt and provenance.json.
+Piano Path source: MIT (PianoPath-MIT.txt). Asset licences remain separate.

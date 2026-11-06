@@ -316,7 +316,7 @@ class AppSmokeTest {
         compose.waitUntil(20_000){compose.onAllNodesWithContentDescription("Open navigation menu").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
         compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("MIDI studio").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Studio").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("Record new take").performScrollTo().assertIsDisplayed()
     }
 

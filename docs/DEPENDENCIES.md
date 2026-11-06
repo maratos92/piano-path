@@ -1,6 +1,6 @@
 # Third-party notices
 
-OSMD 1.9.2 is vendored without modification from the published npm archive. Its licence and authors are in `app/src/main/assets/notation/OSMD-LICENSE` and `OSMD-AUTHORS`. The JavaScript bundle contains upstream dependency licence notices; preserve them.
+OSMD 1.9.2 is vendored without modification from the published npm archive. Its licence and authors are in `app/src/main/assets/notation/OSMD-LICENSE` and `OSMD-AUTHORS`. The upstream JavaScript banner names a companion licence file, but npm omits it. We bundle full notices for its declared runtime dependency family in `assets/notation/opensheetmusicdisplay.min.js.LICENSE.txt` (MIT/ISC/Zlib; JSZip uses its MIT option). The notice source package versions and URLs are recorded in that file; it is not a claim of a reconstructed binary dependency lockfile.
 
 Package integrity: `sha512-EKTb0H7f9eiJ1Q1kmtylN5lWNDzzwfH0Pmka1t1m9Gh6TODeCXjanw2y/IuNs+zgNdwhc0Qa7mB8tS5X6MI3nQ==`
 
@@ -25,3 +25,7 @@ Preserved upstream notice: `licenses/SALAMANDER-README.txt`; licence: `licenses/
 ## Music font
 
 Bravura, Steinberg Media Technologies, distributed unmodified under SIL Open Font License 1.1. Bundled font/notice/source record: `app/src/main/assets/fonts/Bravura.otf`, `Bravura-LICENSE.txt`, `Bravura-SOURCE.txt`. Native played/attempt staves use its SMuFL clefs, noteheads, flags, rests and accidentals. This font licence is separate from the MIT app source.
+
+## Offline notices
+
+Settings → About → Open-source notices and licences displays the asset credits, OSMD and JavaScript dependency notices, Apache 2.0 runtime-library licence and Piano Path MIT licence. Texts are bundled explicitly under `assets/licenses` because Android packaging excludes duplicate META-INF licence resources. The font and all 30 piano WAV hashes were checked against their source/provenance records. No third-party score catalogue or externally sourced decorative pictures are bundled. These licences grant redistribution permission; no paid asset licence or separate author approval is needed for the included uses. Preserve the notices when redistributing.
