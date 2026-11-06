@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <application android:allowBackup="false" android:label="Piano Path" android:icon="@drawable/ic_piano" android:theme="@style/Theme.PianoPath" android:supportsRtl="true">
+    <application android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:label="Piano Path" android:icon="@drawable/ic_piano" android:theme="@style/Theme.PianoPath" android:supportsRtl="true">
         <receiver android:name=".reminders.PracticeReminderReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

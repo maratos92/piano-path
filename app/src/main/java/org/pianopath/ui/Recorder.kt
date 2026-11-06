@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package org.pianopath.ui
 
 import androidx.compose.foundation.layout.*
@@ -16,7 +17,9 @@ import org.pianopath.core.*
 import java.text.DateFormat
 import java.util.Date
 
-@Composable fun RecorderScreen(vm: PianoViewModel) {
+@Composable fun RecorderScreen(vm: PianoViewModel,initialEvents: Boolean=false) {
+    var events by remember{mutableStateOf(initialEvents)}
+    val naming=LocalNoteNaming.current
     val r by vm.recorder.state.collectAsStateWithLifecycle()
     val recordings by vm.recorder.recordings.collectAsStateWithLifecycle()
     val midi by vm.midi.state.collectAsStateWithLifecycle()
@@ -26,8 +29,15 @@ import java.util.Date
     val current=r.current
     val keys=remember(current){current?.let{recordingKeys(it)}.orEmpty()}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { PageTitle("Play your way","Free play recordings","Record your piano or the touch keyboard. Saved privately on this device, with original MIDI timing and pedal events.") }
-        item { Panel(Modifier.fillMaxWidth()) {
+        item { PageTitle("Play · observe · save","MIDI studio","Play freely, monitor velocity and pedal, or save a take on this device.") }
+        item { PrimaryTabRow(selectedTabIndex=if(events)1 else 0){Tab(!events,{events=false},text={Text("Play & record")});Tab(events,{events=true},text={Text("MIDI events")})} }
+        if(events)item {Panel(Modifier.fillMaxWidth()) {
+            Text("Velocity ${midi.lastVelocity} · channel ${midi.lastChannel+1}")
+            Text("${midi.held.size} held · sustain ${if(midi.sustain)"down" else "up"}")
+            TextButton(onClick={vm.panic()}){Text("Clear sounding notes")}
+            midi.events.take(40).forEach{Text(displayNoteText(it,naming),style=MaterialTheme.typography.bodySmall)}
+        }}
+        if(!events)item { Panel(Modifier.fillMaxWidth()) {
             Text(if(r.recording)"Recording · ${timeLabel(r.elapsedSeconds)}" else r.status,fontWeight=FontWeight.SemiBold)
             if(r.recording)Text("${r.eventCount} MIDI events · leaving this screen saves your take")
             r.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
@@ -36,11 +46,11 @@ import java.util.Date
                 if(r.unsaved)OutlinedButton(onClick={vm.recorder.retrySave()}){Text("Retry save")}
                 if(r.saving)CircularProgressIndicator(Modifier.size(24.dp),strokeWidth=2.dp)
             }
-            Text(midi.held.keys.sorted().joinToString {noteName(it)}.ifEmpty{"Play any notes"})
-            KeyboardCanvas(midi.held.keys,midi.sounding,emptyList(),true,vm::key,100,1f,0f,r.held)
+            KeyboardCanvas(midi.held.keys,midi.sounding,emptyList(),true,vm::key,100,1f,0f,r.held,filledInput=true)
+            LiveNotes(vm,Modifier.fillMaxWidth(),includeReview=false)
             TextButton(onClick={vm.panic()}){Text("Clear sounding notes")}
         } }
-        if(current!=null && !r.recording)item { Panel(Modifier.fillMaxWidth()) {
+        if(current!=null && !r.recording && !events)item { Panel(Modifier.fillMaxWidth()) {
             Text(current.title,fontWeight=FontWeight.SemiBold)
             if(current.recovered)Text("Recovered draft · the last unsaved seconds may be missing.",color=MaterialTheme.colorScheme.primary)
             if(keys.isNotEmpty())RecordedNoteRoll(keys,r.positionSeconds,Modifier.fillMaxWidth().height(150.dp))

@@ -41,6 +41,7 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
         PianoSound.BRIGHT->bright.activeVoiceCount+recordingBright.activeVoiceCount
     }
     private val clicker=MetronomeClick()
+    fun setMetronomeVolume(value: Float){clicker.volume=value.coerceIn(0f,1f)}
     fun metronomeClick(downbeat: Boolean) {if(start())clicker.trigger(downbeat)}
     private val handler=Handler(Looper.getMainLooper())
     private data class Output(val track: AudioTrack,val alive: AtomicBoolean,val thread: Thread)

@@ -65,11 +65,12 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         if(!started || config.mode == PracticeMode.FREE)return
         // New attacks during a pause are not scored, but releases must still close
         // pre-pause notes. Their duration ends at the frozen musical clock.
-        val e = pausedAt?.let { paused -> when(event) {
+        val incoming=if(event is MidiEvent.On && event.velocity==0)MidiEvent.Off(event.pitch,0,event.timestamp,event.channel) else event
+        val e = pausedAt?.let { paused -> when(incoming) {
             is MidiEvent.On -> return
-            is MidiEvent.Off -> event.copy(timestamp=min(event.timestamp,paused))
-            is MidiEvent.Control -> event.copy(timestamp=min(event.timestamp,paused))
-        } } ?: event
+            is MidiEvent.Off -> incoming.copy(timestamp=min(incoming.timestamp,paused))
+            is MidiEvent.Control -> incoming.copy(timestamp=min(incoming.timestamp,paused))
+        } } ?: incoming
         val before=matchedIds
         val clockBefore=if(config.mode==PracticeMode.WAIT || !anchored)currentBeat else clockBeat(e.timestamp)
         val releaseIsExtra=e is MidiEvent.Off && recordingActive[e.channel to e.pitch]?.peekFirst()?.first?.let{recorded[it].expectedId==null}==true
@@ -85,14 +86,21 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
             is MidiEvent.Off -> recordingActive[e.channel to e.pitch]?.pollFirst()?.let { (index,time) ->
                 recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0))
             }
-            is MidiEvent.Control -> if(e.controller in listOf(120,123))recordingActive.keys.filter{it.first==e.channel}.forEach{recordingActive.remove(it)}
+            is MidiEvent.Control -> if(e.controller in listOf(120,123))recordingActive.keys.filter{it.first==e.channel}.toList().forEach{key->
+                recordingActive.remove(key)?.forEach{(index,time)->recorded[index]=recorded[index].copy(duration=((e.timestamp-time)/1e9*config.bpm/60.0).coerceAtLeast(0.0))}
+            }
         }
     }
     private fun acceptScored(e: MidiEvent) {
         if(!started || config.mode == PracticeMode.FREE) return
         // A driver may deliver buffered timestamps out of order across packets. Do not move time backwards.
         lastNanos = max(lastNanos,e.timestamp)
-        if(e is MidiEvent.Control && e.controller in listOf(120,123)) { active.clear(); return }
+        if(e is MidiEvent.Control && e.controller in listOf(120,123)) {
+            active.keys.filter{it.first==e.channel}.toList().forEach{key->
+                while(active[key]?.isNotEmpty()==true)acceptScored(MidiEvent.Off(key.second,0,e.timestamp,key.first))
+            }
+            return
+        }
         if(e is MidiEvent.Off) {
             val queue = active[e.channel to e.pitch]
             val played = queue?.pollFirst() ?: return

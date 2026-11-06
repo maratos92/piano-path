@@ -40,16 +40,29 @@ class KeyboardState {
     val held = mutableMapOf<Pair<Int,Int>, Int>()
     val sounding = mutableSetOf<Pair<Int,Int>>()
     val sustain = mutableSetOf<Int>()
+    private val strikes=mutableMapOf<Pair<Int,Int>,java.util.ArrayDeque<Int>>()
+    private var heldCount=0
     fun accept(e: MidiEvent) {
+        if(e is MidiEvent.On && e.velocity==0){accept(MidiEvent.Off(e.pitch,0,e.timestamp,e.channel));return}
         when(e) {
-            is MidiEvent.On -> { held[e.channel to e.pitch] = e.velocity; sounding.add(e.channel to e.pitch) }
-            is MidiEvent.Off -> { held.remove(e.channel to e.pitch); if(e.channel !in sustain) sounding.remove(e.channel to e.pitch) }
+            is MidiEvent.On -> {
+                if(heldCount>=4096)reset()
+                val key=e.channel to e.pitch
+                strikes.getOrPut(key){java.util.ArrayDeque()}.addLast(e.velocity);heldCount++
+                held[key]=strikes.getValue(key).maxOrNull() ?: e.velocity;sounding.add(key)
+            }
+            is MidiEvent.Off -> {
+                val key=e.channel to e.pitch;val queue=strikes[key]
+                if(queue?.pollFirst()!=null)heldCount--
+                if(queue.isNullOrEmpty()){strikes.remove(key);held.remove(key);if(e.channel !in sustain)sounding.remove(key)}
+                else held[key]=queue.maxOrNull() ?: 0
+            }
             is MidiEvent.Control -> when(e.controller) {
                 64 -> if(e.value >= 64) sustain.add(e.channel) else { sustain.remove(e.channel); sounding.removeAll { it.first == e.channel && it !in held } }
-                120,123 -> { held.keys.removeAll { it.first == e.channel }; sounding.removeAll { it.first == e.channel }; sustain.remove(e.channel) }
+                120,123 -> {heldCount-=strikes.filterKeys{it.first==e.channel}.values.sumOf{it.size};strikes.keys.removeAll{it.first==e.channel}; held.keys.removeAll { it.first == e.channel }; sounding.removeAll { it.first == e.channel }; sustain.remove(e.channel) }
                 121 -> { sustain.remove(e.channel); sounding.removeAll { it.first == e.channel && it !in held } }
             }
         }
     }
-    fun reset() { held.clear(); sounding.clear(); sustain.clear() }
+    fun reset() {strikes.clear();heldCount=0;held.clear(); sounding.clear(); sustain.clear() }
 }

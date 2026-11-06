@@ -79,6 +79,11 @@ import kotlin.math.*
             }
             IconButton(onClick={monitor=!monitor},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.QueueMusic,"Played notes",Modifier.size(19.dp),tint=if(monitor)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
         }
+        val outOfRange=remember(score,p.startMeasure,p.endMeasure,p.startOffset,p.endOffset,p.hand,settings.keyboardFirst,settings.keyboardLast) {
+            val a=score.measures[p.startMeasure-1].start+p.startOffset;val b=score.measures[p.endMeasure-1].start+p.endOffset
+            score.selected(a,b,p.hand).count{it.midi !in settings.keyboardFirst..settings.keyboardLast}
+        }
+        if(outOfRange>0)Text("$outOfRange score notes outside ${displayNoteName(settings.keyboardFirst,settings.noteNaming)}–${displayNoteName(settings.keyboardLast,settings.noteNaming)} · select another hand, passage or keyboard range",fontSize=11.sp,color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(horizontal=12.dp))
         if(monitor)Box(Modifier.fillMaxWidth().heightIn(max=if(landscape)140.dp else 220.dp).verticalScroll(rememberScrollState())) {LiveNotes(vm,Modifier.fillMaxWidth())}
         if(p.view==ScoreView.COMBINED && !landscape)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("Score height",fontSize=11.sp)
@@ -109,12 +114,12 @@ import kotlin.math.*
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
-                    ScoreView.SHEET -> Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor){vm.message.value="Notation: $it"}
-                    ScoreView.FALLING -> if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow)
+                    ScoreView.SHEET -> ScoreFrame(settings.sheetDecoration,Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}
+                    ScoreView.FALLING -> if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow,animate=!settings.reduceMotion)
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor){vm.message.value="Notation: $it"}}
+                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {ScoreFrame(settings.sheetDecoration,Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}}
                         HorizontalDivider()
-                        Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow)}
+                        Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow,animate=!settings.reduceMotion)}
                     }
                 }
                 if(p.hidden)Box(Modifier.matchParentSize().background(Color(0xfffffefb))) {
@@ -129,7 +134,7 @@ import kotlin.math.*
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(if(p.focusRemainingMs>0)"${(p.focusRemainingMs/1000)}s focus · ${p.feedback}" else p.feedback,fontSize=12.sp,maxLines=1)
+                Text(if(p.focusRemainingMs>0)"${(p.focusRemainingMs/1000)}s focus · ${p.feedback}" else displayNoteText(p.feedback,settings.noteNaming),fontSize=12.sp,maxLines=1)
 
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
@@ -145,12 +150,12 @@ import kotlin.math.*
         if(!p.review)Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             val start=score.measures[p.startMeasure-1].start+p.startOffset
             val end=score.measures[p.endMeasure-1].start+p.endOffset
-            Text("A ${"%.1f".format(start)}",fontSize=10.sp)
+            if(p.selectingLoop)Text("A ${"%.1f".format(start)}",fontSize=10.sp)
             Slider(value=p.transportBeat.toFloat().coerceIn(0f,score.endBeat.toFloat()),onValueChange={vm.seek(it.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f),modifier=Modifier.weight(1f).height(34.dp))
-            Text("B ${"%.1f".format(end)}",fontSize=10.sp)
-            IconButton(onClick={vm.edit{it.copy(loop=!it.loop)}},enabled=!(p.running||p.listening),modifier=Modifier.size(34.dp)){
-                Icon(Icons.Outlined.Repeat,if(p.loop)"Loop enabled" else "Enable loop",Modifier.size(19.dp),tint=if(p.loop)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            if(p.selectingLoop)Text("B ${"%.1f".format(end)}",fontSize=10.sp)
+            IconButton(onClick={vm.toggleLoopSelection()},enabled=!(p.running||p.listening),modifier=Modifier.size(34.dp)){
+                Icon(Icons.Outlined.Repeat,if(p.selectingLoop)"Return to cursor mode" else "Select A–B passage",Modifier.size(19.dp),tint=if(p.selectingLoop)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if(p.result!=null && !p.review)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -171,6 +176,7 @@ fun modeName(m: PracticeMode)=when(m){PracticeMode.FREE->"Free play";PracticeMod
 fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Hand.BOTH->"Both hands"}
 @Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,readerControls: @Composable ()->Unit = {},close: ()->Unit) {
     val score=p.score ?: return
+    val naming=LocalNoteNaming.current
     var sectionName by remember{mutableStateOf("")}
     var advanced by remember{mutableStateOf(false)}
     ModalBottomSheet(onDismissRequest=close) {
@@ -193,12 +199,13 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             if(score.expressiveTempo)Text("Expressive tempo text (e.g. accelerando or ritardando) detected; words alone do not define an exact BPM curve.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows explicit BPM changes; scored Practice uses your selected fixed tempo.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
+            TextButton(onClick=vm::toggleLoopSelection,enabled=!(p.running||p.listening)){Text(if(p.selectingLoop)"Use whole piece / cursor" else "Select A–B near cursor")}
             Text("Loop · drag A/B on the sheet",fontWeight=FontWeight.SemiBold)
             val from=score.measures[p.startMeasure-1].start+p.startOffset
             val to=score.measures[p.endMeasure-1].start+p.endOffset
-            RangeSlider(value=from.toFloat()..to.toFloat(),onValueChange={vm.setPassage(it.start.toDouble(),it.endInclusive.toDouble())},
+            if(p.selectingLoop)RangeSlider(value=from.toFloat()..to.toFloat(),onValueChange={vm.setPassage(it.start.toDouble(),it.endInclusive.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.25f),enabled=!(p.running || p.listening))
-            Text("A ${"%.1f".format(from)}  →  B ${"%.1f".format(to)}",fontSize=12.sp)
+            if(p.selectingLoop)Text("A ${"%.1f".format(from)}  →  B ${"%.1f".format(to)}",fontSize=12.sp)
             TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide fine adjustments" else "Fine adjustments")}
             if(advanced) {
             MeasureStepper("From measure",p.startMeasure,score.measures.size,!(p.running || p.listening)) { n -> vm.edit { val end=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=end,startOffset=0.0,endOffset=score.measures[end-1].length) } }
@@ -208,7 +215,7 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             Text("End offset · ${"%.2f".format(p.endOffset)} quarter beats",fontSize=12.sp)
             Slider(p.endOffset.toFloat(),{v->vm.edit{it.copy(endOffset=v.toDouble())}},valueRange=.25f..score.measures[p.endMeasure-1].length.toFloat().coerceAtLeast(.26f),enabled=!(p.running || p.listening))
             }
-            Toggle("Repeat A–B passage",p.loop,{v->vm.edit{it.copy(loop=v)}},!(p.running || p.listening))
+            Toggle("Repeat selected passage",p.loop,{v->vm.edit{it.copy(loop=v)}},!(p.running || p.listening))
             Toggle("Count-in before each repetition",p.countIn,{v->vm.edit{it.copy(countIn=v)}},!(p.running || p.listening))
             Text("Count-in plays a bar of preparation clicks. Rest between loops is separate; both are optional.",fontSize=12.sp)
             Toggle("Metronome",p.metronome,{v->vm.edit{it.copy(metronome=v)}},!(p.running || p.listening))
@@ -236,6 +243,7 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     }
 }
 @Composable fun ResultDialog(r: SessionResult,simulated: Boolean,close: ()->Unit) {
+    val naming=LocalNoteNaming.current
     AlertDialog(onDismissRequest=close,confirmButton={TextButton(onClick=close){Text("Keep practicing")}},title={Text("Every note is progress",fontFamily=FontFamily.Serif)},text={
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             if(simulated)Text("TOUCH / TEST INPUT",color=MaterialTheme.colorScheme.primary,fontSize=11.sp)
@@ -248,7 +256,7 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             } else Text("Wait mode measures pitch completion without a tempo requirement.",fontSize=12.sp)
             HorizontalDivider()
             Text("Note detail",fontWeight=FontWeight.SemiBold)
-            r.details.take(80).forEach { n -> Text("m.${n.note.measure}  ${noteName(n.note.midi)}  "+if(n.missing)"Missing" else if(r.rhythm==null)"Correct" else "onset ${n.onsetMs?.toInt() ?: 0} ms · release ${n.durationErrorMs?.toInt()?.let{"$it ms"} ?: "—"}",fontSize=12.sp) }
+            r.details.take(80).forEach { n -> Text("m.${n.note.measure}  ${displayNoteName(n.note.midi,naming)}  "+if(n.missing)"Missing" else if(r.rhythm==null)"Correct" else "onset ${n.onsetMs?.toInt() ?: 0} ms · release ${n.durationErrorMs?.toInt()?.let{"$it ms"} ?: "—"}",fontSize=12.sp) }
             if(r.details.size>80)Text("Showing the first 80 notes. Aggregate scores include all notes.",fontSize=11.sp)
         }
     })

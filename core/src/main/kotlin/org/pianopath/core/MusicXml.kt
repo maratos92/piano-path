@@ -11,6 +11,15 @@ object MusicXml {
     private fun Element.children(name: String? = null): List<Element> = (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }.filter { name == null || it.tagName == name }
     private fun Element.one(name: String) = children(name).firstOrNull()
     private fun Element.txt(name: String, default: String = "") = one(name)?.textContent?.trim() ?: default
+    private fun number(text: String,label: String,min: Double=0.0,max: Double=1_000_000_000.0): Double {
+        val value=text.toDoubleOrNull()
+        require(value!=null && value.isFinite() && value in min..max) {"Invalid $label"}
+        return value
+    }
+    private fun integer(text: String,label: String,min: Int,max: Int): Int {
+        val value=text.toIntOrNull();require(value!=null && value in min..max){"Invalid $label"};return value
+    }
+    private fun safePath(name: String): Boolean = name.isNotBlank() && !name.startsWith("/") && '\\' !in name && ':' !in name && '\u0000' !in name && name.split('/').none{it==".." || it=="."}
     private fun document(bytes: ByteArray): org.w3c.dom.Document {
         require(!Regex("<!\\s*ENTITY\\b").containsMatchIn(bytes.toString(Charsets.UTF_8))) { "Entity declarations are not supported" }
         return DocumentBuilderFactory.newInstance().apply {
@@ -27,13 +36,15 @@ object MusicXml {
         if(bytes.size < 2 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4b.toByte()) return bytes.toString(Charsets.UTF_8)
         val files = linkedMapOf<String, ByteArray>()
         var total = 0
+        val names=mutableSetOf<String>();var entryCount=0
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
             var entry = zip.nextEntry
             while(entry != null) {
-                require(files.size < 256) { "Too many archive entries" }
+                require(++entryCount <= 256) { "Too many archive entries" }
                 val name = entry.name
-                require(!name.startsWith("/") && name.split('/').none { it == ".." }) { "Unsafe archive path" }
-                if(!entry.isDirectory) {
+                require(safePath(name)) { "Unsafe archive path" }
+                require(names.add(name)) {"Duplicate archive path"}
+                if(entry.isDirectory) { require(zip.read()==-1){"Archive directory contains data"} } else {
                     val out = java.io.ByteArrayOutputStream()
                     val buffer = ByteArray(8192)
                     var read = zip.read(buffer)
@@ -45,6 +56,7 @@ object MusicXml {
         }
         val container = files["META-INF/container.xml"]
         val root = container?.let { document(it).getElementsByTagName("rootfile").item(0) as? Element }?.getAttribute("full-path")
+        if(root!=null)require(safePath(root) && files.containsKey(root)){"Invalid MusicXML rootfile"}
         val xml = files[root] ?: files.entries.firstOrNull { !it.key.startsWith("META-INF/") && (it.key.endsWith(".xml") || it.key.endsWith(".musicxml")) }?.value
         return requireNotNull(xml) { "No MusicXML document in archive" }.toString(Charsets.UTF_8)
     }
@@ -63,14 +75,16 @@ object MusicXml {
         require(root.children("part").size == 1) { "Import a single piano part with grand staff; multi-instrument scores are not supported" }
         var divisions = 1.0; var start = 0.0; var beats = 4; var beatType = 4; var transpose = 0
         val ties = mutableMapOf<Triple<Int,Int,String>,Int>()
-        for((index,m) in part.children("measure").withIndex()) {
+        val sourceMeasures=part.children("measure")
+        require(sourceMeasures.size in 1..20_000){"Unsupported measure count"}
+        for((index,m) in sourceMeasures.withIndex()) {
             var pos = 0.0; var extent = 0.0; var chordStart = 0.0
             for(e in m.children()) when(e.tagName) {
                 "attributes" -> {
-                    divisions = e.txt("divisions", divisions.toString()).toDoubleOrNull()?.coerceAtLeast(1.0) ?: divisions
-                    e.one("time")?.let { t -> beats = t.txt("beats","4").split('+').sumOf { it.toIntOrNull() ?: 0 }.coerceAtLeast(1); beatType = t.txt("beat-type","4").toIntOrNull()?.coerceAtLeast(1) ?: 4 }
-                    e.one("transpose")?.let { transpose = it.txt("chromatic","0").toInt() + 12 * it.txt("octave-change","0").toInt() }
-                    if(index == 0) { fifths = e.one("key")?.txt("fifths","0")?.toIntOrNull() ?: 0; initialBeats = beats; initialType = beatType }
+                    divisions = number(e.txt("divisions",divisions.toString()),"divisions",1.0)
+                    e.one("time")?.let { t -> val count=t.txt("beats","4").split('+').sumOf{integer(it,"time beats",1,1024).toLong()};require(count in 1..1024){"Invalid time beats"};beats=count.toInt();beatType=integer(t.txt("beat-type","4"),"beat type",1,1024) }
+                    e.one("transpose")?.let { transpose = integer(it.txt("chromatic","0"),"chromatic transpose",-127,127) + 12 * integer(it.txt("octave-change","0"),"octave transpose",-10,10) }
+                    if(index == 0) { fifths = e.one("key")?.txt("fifths","0")?.let{integer(it,"key signature",-21,21)} ?: 0; initialBeats = beats; initialType = beatType }
                 }
                 "direction" -> {
                     val sound = e.one("sound")?.getAttribute("tempo")?.toDoubleOrNull()
@@ -84,25 +98,33 @@ object MusicXml {
                     if(Regex("(?i)\\b(accel|accelerando|rit|ritard|ritardando|rall|rallentando|rubato)\\b")
                         .containsMatchIn(e.one("direction-type")?.txt("words") ?: "")) expressiveTempo=true
                 }
-                "backup" -> pos = (pos - e.txt("duration","0").toDouble() / divisions).coerceAtLeast(0.0)
-                "forward" -> { pos += e.txt("duration","0").toDouble() / divisions; extent = max(extent,pos) }
+                "backup" -> {val amount=number(e.txt("duration","0"),"backup duration")/divisions;require(amount<=pos+.0001){"Backup precedes measure"};pos=(pos-amount).coerceAtLeast(0.0)}
+                "forward" -> { pos += number(e.txt("duration","0"),"forward duration") / divisions;require(pos<=1_000_000){"Measure is too long"}; extent = max(extent,pos) }
                 "note" -> {
                     if(e.one("grace") != null) continue // ornaments render but are not assessed
-                    val duration = e.txt("duration","0").toDoubleOrNull()?.div(divisions) ?: 0.0
+                    val duration = number(e.txt("duration","0"),"note duration")/divisions
+                    require(duration in 0.0..1_000_000.0){"Note is too long"}
                     val chord = e.one("chord") != null
                     if(!chord) chordStart = pos
                     val beat = start + if(chord) chordStart else pos
                     val pitch = e.one("pitch")
                     val rest = e.one("rest") != null
-                    val midi = if(pitch == null) 0 else (pitch.txt("octave","4").toInt() + 1) * 12 + (mapOf("C" to 0,"D" to 2,"E" to 4,"F" to 5,"G" to 7,"A" to 9,"B" to 11)[pitch.txt("step")] ?: 0) + pitch.txt("alter","0").toDouble().toInt() + transpose
-                    val staff = e.txt("staff","1").toIntOrNull() ?: 1
+                    require(rest || pitch!=null){"Unpitched notes are not supported"}
+                    val midi = if(pitch == null) 0 else {
+                        val step=requireNotNull(mapOf("C" to 0,"D" to 2,"E" to 4,"F" to 5,"G" to 7,"A" to 9,"B" to 11)[pitch.txt("step")]){"Invalid pitch step"}
+                        val alter=number(pitch.txt("alter","0"),"pitch alteration",-12.0,12.0)
+                        require(alter==alter.toInt().toDouble()){"Microtonal pitches are not supported"}
+                        (integer(pitch.txt("octave","4"),"pitch octave",-1,10)+1)*12+step+alter.toInt()+transpose
+                    }
+                    require(rest || midi in 0..127){"Pitch is outside MIDI range"}
+                    val staff = integer(e.txt("staff","1"),"staff",1,16)
                     val voice = e.txt("voice","1")
                     val key = Triple(midi,staff,voice)
                     val types = (e.children("tie") + (e.one("notations")?.children("tied") ?: emptyList())).map { it.getAttribute("type") }
                     val previous = if("stop" in types) ties[key] else null
                     val id: Int
                     if(previous != null) { id = previous; all[id] = all[id].copy(duration = max(all[id].duration,beat + duration - all[id].beat)) }
-                    else { id = all.size; all.add(ScoreNote(id,midi,beat,duration,index+1,staff,voice,e.one("notations")?.one("technical")?.txt("fingering") ?: "",rest)) }
+                    else { require(all.size<100_000){"Score contains too many notes"};id = all.size; all.add(ScoreNote(id,midi,beat,duration,index+1,staff,voice,e.one("notations")?.one("technical")?.txt("fingering") ?: "",rest)) }
                     if("start" in types) ties[key] = id else ties.remove(key)
                     if(!chord) pos += duration
                     extent = max(extent, if(chord) chordStart + duration else pos)
@@ -112,7 +134,9 @@ object MusicXml {
             val length = if(m.getAttribute("implicit") == "yes" || index == 0 && extent < nominal) extent.coerceAtLeast(0.25) else max(nominal,extent)
             measures.add(Measure(index+1,start,length,m.getAttribute("number").ifBlank { (index+1).toString() }))
             start += length
+            require(start.isFinite() && start<=1_000_000){"Score is too long"}
         }
+        require(all.all{it.beat.isFinite() && it.beat>=0 && it.duration.isFinite() && it.duration>=0 && (it.beat+it.duration)<=start+.001}){"Invalid score timing"}
         require(all.any { !it.rest }) { "The score has no pitched notes" }
         require(all.size <= 100_000) { "Score contains too many notes" }
         return Score(title,composer,all,measures,tempo.coerceIn(20.0,300.0),fifths,initialBeats,initialType,tempoMarks.sortedBy {it.beat},expressiveTempo)

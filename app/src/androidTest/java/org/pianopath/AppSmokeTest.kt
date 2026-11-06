@@ -234,7 +234,7 @@ class AppSmokeTest {
         assertEquals(.5,p.score!!.measures[p.startMeasure-1].start+p.startOffset,.01)
         assertEquals(3.5,p.score!!.measures[p.endMeasure-1].start+p.endOffset,.01)
     }
-    @Test fun cursorSeekEndsScoredTakeAndMovesNextPracticeStart() {
+    @Test fun cursorSeekEndsScoredTakeWithoutChangingPassageBounds() {
         lateinit var vm: PianoViewModel
         compose.runOnUiThread {
             vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
@@ -243,18 +243,22 @@ class AppSmokeTest {
         compose.waitUntil(15_000){vm.ui.value.score!=null}
         compose.runOnUiThread {
             vm.edit {it.copy(countIn=false,loop=false)}
+            val before=vm.ui.value
+            val start=before.score!!.measures[before.startMeasure-1].start+before.startOffset
+            val end=before.score!!.measures[before.endMeasure-1].start+before.endOffset
             vm.start()
             assertTrue(vm.ui.value.running)
             vm.seek(2.0)
             assertFalse("Dragging a score cursor must end the graded take",vm.ui.value.running)
             assertEquals(2.0,vm.ui.value.transportBeat,0.01)
             val p=vm.ui.value
-            val actualStart=p.score!!.measures[p.startMeasure-1].start+p.startOffset
-            assertEquals(2.0,actualStart,0.01)
+            assertEquals(start,p.score!!.measures[p.startMeasure-1].start+p.startOffset,0.01)
+            assertEquals(end,p.score!!.measures[p.endMeasure-1].start+p.endOffset,0.01)
             vm.seek(1.0)
             val moved=vm.ui.value
             assertEquals(1.0,moved.transportBeat,0.01)
-            assertEquals(1.0,moved.score!!.measures[moved.startMeasure-1].start+moved.startOffset,0.01)
+            assertEquals(start,moved.score!!.measures[moved.startMeasure-1].start+moved.startOffset,0.01)
+            assertEquals(end,moved.score!!.measures[moved.endMeasure-1].start+moved.endOffset,0.01)
         }
     }
     @Test fun listeningAcceptsTouchKeysWithoutSimulatorAndReleasesAfterStop() {
@@ -312,8 +316,8 @@ class AppSmokeTest {
         compose.waitUntil(20_000){compose.onAllNodesWithContentDescription("Open navigation menu").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Open navigation menu").assertIsDisplayed().performClick()
         compose.onNodeWithText("Settings").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Note monitor").performScrollTo().assertIsDisplayed().performClick()
-        compose.onNodeWithText("Played notes").assertIsDisplayed()
+        compose.onNodeWithText("MIDI studio").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Record new take").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun voluntarySupportExplainsTheExternalProviderWithoutLaunchingPayment() {

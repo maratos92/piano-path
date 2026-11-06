@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.semantics.*
@@ -17,27 +18,29 @@ import org.pianopath.PracticeUi
 import org.pianopath.core.*
 import kotlin.math.*
 
-@Composable fun FallingNotes(p: PracticeUi,zoom: Float,pan: Float,modifier: Modifier=Modifier,onSeek: (Double)->Unit={},onPreview: (Double?)->Unit={},glow: Boolean=false) {
+@Composable fun FallingNotes(p: PracticeUi,zoom: Float,pan: Float,modifier: Modifier=Modifier,onSeek: (Double)->Unit={},onPreview: (Double?)->Unit={},glow: Boolean=false,animate: Boolean=true) {
     val score=p.score ?: return
+    val naming=LocalNoteNaming.current
+    val range=LocalKeyboardRange.current
+    val geometry=remember(range){KeyboardGeometry(range)}
     val start=score.measures[p.startMeasure-1].start+p.startOffset
     val end=score.measures[p.endMeasure-1].start+p.endOffset
     val roll=remember(score,start,end,p.hand){PianoRoll(score,start,end,p.hand)}
-    val position=p.cursorPreview ?: if(p.transportBeat in start..end)p.transportBeat else start
+    val position=(p.cursorPreview ?: p.transportBeat).coerceIn(start,end)
     val lookAhead=(p.bpm/60.0*4).coerceAtLeast(2.0)/p.fallingScale
     val latestPosition by rememberUpdatedState(position)
     val latestSeek by rememberUpdatedState(onSeek)
     val latestPreview by rememberUpdatedState(onPreview)
-    val animated by animateFloatAsState(position.toFloat(),animationSpec=tween(85,easing=LinearEasing),label="falling timeline")
-    val visualPosition=if(p.cursorPreview==null && (p.running || p.listening))animated.toDouble() else position
-    Canvas(modifier.pointerInput(score,lookAhead) {
+    val visualPosition=position
+    Canvas(modifier.clipToBounds().pointerInput(score,lookAhead) {
         var destination=0.0
         detectVerticalDragGestures(onDragStart={destination=latestPosition},onDragEnd={latestSeek(destination);latestPreview(null)},onDragCancel={latestPreview(null)}) {change,dy->
             change.consume();destination=(destination+dy/size.height*lookAhead).coerceIn(0.0,score.endBeat);latestPreview(destination)
         }
-    }.semantics{contentDescription="Falling notes aligned to the 88-key piano"}) {
+    }.semantics{contentDescription=if(range==21..108)"Falling notes aligned to the 88-key piano" else "Falling notes aligned to the ${range.last-range.first+1}-key piano, ${noteName(range.first)} to ${noteName(range.last)}"}) {
         drawRect(Color(0xff102c2d))
-        val w=size.width/52f*zoom;val offset=pan*(zoom-1)*size.width
-        for(key in PianoLayout.keys) {
+        val w=size.width/geometry.whiteSpan.toFloat()*zoom;val offset=pan.coerceIn(0f,1f)*(zoom-1)*size.width
+        for(key in geometry.keys) {
             val x=key.left.toFloat()*w-offset
             if(x+key.width*w<0||x>size.width)continue
             if(key.black)drawRect(Color(0xff0c2325),Offset(x,0f),Size(key.width.toFloat()*w,size.height))
@@ -50,7 +53,7 @@ import kotlin.math.*
             drawLine(Color(0xff35534d),Offset(0f,y),Offset(size.width,y),if(beat%4==0)1.dp.toPx() else .4.dp.toPx())
         }
         for(bar in roll.visible(visualPosition,lookAhead)) {
-            val n=bar.note;val key=PianoLayout.key(n.midi) ?: continue
+            val n=bar.note;val key=geometry.key(n.midi) ?: continue
             val x=key.left.toFloat()*w-offset
             if(x+key.width*w<0||x>size.width)continue
             val top=bar.top.toFloat()*size.height
@@ -60,7 +63,7 @@ import kotlin.math.*
             if(glow)drawRoundRect(color.copy(alpha=.18f),Offset(x-2.dp.toPx(),top-2.dp.toPx()),Size(width+5.dp.toPx(),height+4.dp.toPx()),CornerRadius(6.dp.toPx()))
             drawRoundRect(color,Offset(x+.5.dp.toPx(),top),Size(width,height),CornerRadius(min(3.dp.toPx(),width/3)))
             if(width>14.dp.toPx()&&height>20.dp.toPx()) {
-                val label=n.finger.ifBlank {noteName(n.midi)}
+                val label=n.finger.ifBlank {displayNoteName(n.midi,naming)}
                 drawContext.canvas.nativeCanvas.drawText(label,x+width*.15f,top+min(height-4.dp.toPx(),14.dp.toPx()),android.graphics.Paint().apply {
                     this.color=android.graphics.Color.rgb(16,44,45);textSize=10.sp.toPx();isAntiAlias=true
                 })

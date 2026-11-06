@@ -57,8 +57,8 @@ class ScoreScroller {
     const entering = !this.following || this.system !== frame.system;
     const seeking = this.beat !== null && (beat < this.beat - .01 || beat > this.beat + 2);
     let left = v.left, top = v.top;
-    if (frame.x < left + v.width * .12 || frame.x > left + v.width * .82) {
-      left = frame.x - v.width * .28;
+    if (frame.x < left + v.width * .12 || frame.x > left + v.width * .60) {
+      left = frame.x - v.width * .60;
     }
     // Use an entire system, never the changing extrema of the current chord or
     // measure. An oversized system gets one stable top alignment; users can pan

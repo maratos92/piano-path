@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package org.pianopath.ui
 
 import android.Manifest
@@ -28,6 +29,7 @@ import java.util.*
 
 @Composable fun ProgressScreen(vm: PianoViewModel) {
     val sessions by vm.history.collectAsStateWithLifecycle()
+    var tab by remember{mutableIntStateOf(0)}
     var showAll by remember{mutableStateOf(false)}
     val entries by vm.progress.entries.collectAsStateWithLifecycle()
     val goal by vm.progress.goalMinutes.collectAsStateWithLifecycle()
@@ -40,6 +42,8 @@ import java.util.*
     val earRounds=remember(entries){entries.filter{it.category=="Ear training"}.groupBy{it.roundId}.values.sortedByDescending{it.maxOf{e->e.date}}}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         item { PageTitle("Small steps, real progress","Your practice","Private on-device progress. No account is needed.") }
+        item { PrimaryScrollableTabRow(selectedTabIndex=tab) {listOf("Overview","Pitch & rhythm","Listening","Sessions").forEachIndexed{i,label->Tab(tab==i,{tab=i},text={Text(label)})}} }
+        if(tab==0) {
         item { Panel(Modifier.fillMaxWidth()) {
             Text("Today · ${"%.1f".format(todayMs/60000.0)} / $goal minutes",fontWeight=FontWeight.SemiBold)
             LinearProgressIndicator(progress={(todayMs/(goal*60000f)).coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
@@ -58,23 +62,8 @@ import java.util.*
             }
         } }
         item { ReminderControls() }
-        item { Panel(Modifier.fillMaxWidth()) {
-            Text("Your next 5–10 minutes",style=MaterialTheme.typography.titleMedium)
-            if(queue.isEmpty()) {
-                Text("Build a baseline with a short session. Future suggestions use the latest result for each passage and setting.")
-                TextButton(onClick={vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}){Text("Technique · C major · about 2 minutes")}
-                TextButton(onClick={vm.screen.value="Ear training"}){Text("Listen · ear training · about 2 minutes")}
-                TextButton(onClick={vm.screen.value="Sight reading"}){Text("Read · a fresh exercise · about 2 minutes")}
-            } else {
-                Text("Repeat each passage for roughly two minutes. Finish the current repetition at the target; no interruption mid-note.",style=MaterialTheme.typography.bodySmall)
-                queue.forEach {e->OutlinedButton(onClick={vm.practiseEntry(e)},modifier=Modifier.fillMaxWidth()) {Column(Modifier.fillMaxWidth()) {
-                    Text(e.title,maxLines=1)
-                    Text("${e.weakMeasure?.let{"Measure $it · "} ?: ""}${e.bpm.toInt()} BPM · ${e.hand.lowercase().replace('_',' ')} · ${e.missing} missing, ${e.extra} extra",style=MaterialTheme.typography.labelSmall)
-                }} }
-                if(queue.size==1)TextButton(onClick={vm.screen.value="Sight reading"}){Text("Add a short sight-reading exercise")}
-                if(queue.size<3)TextButton(onClick={vm.screen.value="Ear training"}){Text("Add a short listening round")}
-            }
-        } }
+        }
+        if(tab==1) {
         item { Text("Comparable passage trends",style=MaterialTheme.typography.titleMedium) }
         if(trends.isEmpty())item {Text("Complete scored practice to see pitch and rhythm separately here.")}
         items(trends.take(20),key={it.latest.id}) { trend->val e=trend.latest
@@ -88,9 +77,10 @@ import java.util.*
                 }
                 Text("${trend.trials} comparable attempt(s) · ${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(e.date))}",style=MaterialTheme.typography.labelSmall)
                 if(e.rhythm==null)Text("Wait mode: pitch completion only; rhythm is not graded.",style=MaterialTheme.typography.bodySmall)
-                if(e.reviewFile!=null)TextButton(onClick={vm.practiseEntry(e)}){Text("Practise this passage")}
             }
         }
+        }
+        if(tab==2) {
         item { Text("Listening rounds",style=MaterialTheme.typography.titleMedium) }
         if(earRounds.isEmpty())item {Text("Ear-training answers will be dated here. Lifetime totals are shown in Ear training.")}
         items(earRounds.take(20),key={it.first().roundId}) { round->Panel(Modifier.fillMaxWidth()) {
@@ -99,6 +89,8 @@ import java.util.*
             Text("${DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(latest.date))} · ${latest.title}",style=MaterialTheme.typography.bodySmall)
             Text("A round contains up to 10 answers at the same difficulty.",style=MaterialTheme.typography.labelSmall)
         } }
+        }
+        if(tab==3) {
         item { Text("Session history",style=MaterialTheme.typography.titleMedium) }
         if(sessions.isEmpty())item {Text("Completed scored sessions appear here, alongside your trends and listening rounds.")}
         items(if(showAll)sessions else sessions.take(20),key={"session-${it.id}"}) {session->Panel(Modifier.fillMaxWidth()) {
@@ -108,10 +100,7 @@ import java.util.*
             if(session.reviewFile!=null)Row {TextButton(onClick={vm.openReview(session)}){Text("Review score")};TextButton(onClick={vm.openReview(session,true)}){Text("Replay MIDI roll")}}
         }}
         if(sessions.size>20)item {TextButton(onClick={showAll=!showAll}){Text(if(showAll)"Show recent" else "Show all stored results")}}
-        item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-
-            TextButton(onClick={vm.openRecorder()}){Text("Free play recordings")}
-        } }
+        }
     }
 }
 private fun changeLabel(value: Double?)=value?.let{String.format(Locale.getDefault(),"%+.1f points",it)} ?: "· first result"
