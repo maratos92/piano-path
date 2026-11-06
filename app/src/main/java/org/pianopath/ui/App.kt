@@ -330,7 +330,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Text(if(BuildConfig.DEBUG)"Development APK" else "Release APK",fontSize=12.sp)
                     Text("Revision ${BuildConfig.BUILD_REVISION}",fontSize=12.sp)
                     Text("Open source · offline · no account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick={notices=true}){Text("Open-source notices and licencess")}
+                    TextButton(onClick={notices=true}){Text("Open-source notices and licences")}
                 }
                 if(BuildConfig.SUPPORT_URL.isNotBlank())OutlinedButton(onClick={support=true}) {
                     Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")
