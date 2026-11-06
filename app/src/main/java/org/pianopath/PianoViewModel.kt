@@ -759,7 +759,7 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         playbackSeek=null;playbackPauseAdjustment=0L;playbackRestore=false
         lastClick=Long.MIN_VALUE
         if(p.metronome) tone=tone ?: try {ToneGenerator(AudioManager.STREAM_MUSIC,65)} catch(_: Exception){null}
-        ui.value=p.copy(listening=true,paused=false,hidden=false,review=false,result=null,matched=emptySet(),missed=emptySet(),beat=firstBeat,transportBeat=firstBeat,feedback="Listening · no assessment",playbackHeld=emptySet())
+        ui.value=p.copy(listening=true,paused=false,hidden=false,review=false,performedRoll=false,counting=0,cursorPreview=null,result=null,take=emptyList(),loops=emptyList(),matched=emptySet(),missed=emptySet(),beat=firstBeat,transportBeat=firstBeat,feedback="Listening · no assessment",playbackHeld=emptySet())
         val generation=++playbackGeneration
         playback=viewModelScope.launch {
             try {
