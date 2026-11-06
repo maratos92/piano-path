@@ -191,7 +191,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val favourites by vm.favourites.collectAsStateWithLifecycle()
     var onlyFavourites by remember{mutableStateOf(false)}
     val visible=imports.filter {(it.title+it.composer).contains(query,true) && (!onlyFavourites || it.key in favourites)}.sortedByDescending{it.key in favourites}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("library-feed"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Library") }
         item { Button(onClick=onImport,modifier=Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL")
