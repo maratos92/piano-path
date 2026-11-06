@@ -48,6 +48,7 @@ class LocalProgressStore(context: Context,scope: CoroutineScope,private val onEr
         require(e.startBeat.isFinite() && e.endBeat.isFinite() && e.startBeat>=0 && e.endBeat>=e.startBeat)
         require(e.tolerance.isFinite() && e.tolerance in 0.0..2000.0 && e.latency.isFinite() && kotlin.math.abs(e.latency)<=10000)
         require(listOf(e.pitch,e.rhythm,e.overall).all{it==null || it.isFinite() && it in 0.0..100.0})
+        require(e.onTimeCorrect==null || e.onTimeCorrect in 0..e.expected)
         require(listOf(e.expected,e.missing,e.extra,e.correct,e.total).all{it>=0})
     }
     private fun encode(e: PracticeEntry)=JSONObject().put("version",1).put("id",e.id).put("date",e.date).put("title",e.title).put("category",e.category)
@@ -56,11 +57,11 @@ class LocalProgressStore(context: Context,scope: CoroutineScope,private val onEr
         .put("pitch",e.pitch ?: JSONObject.NULL).put("rhythm",e.rhythm ?: JSONObject.NULL).put("overall",e.overall ?: JSONObject.NULL)
         .put("expected",e.expected).put("missing",e.missing).put("extra",e.extra).put("weak",e.weakMeasure ?: JSONObject.NULL)
         .put("review",e.reviewFile ?: JSONObject.NULL).put("scoring",e.scoringVersion).put("correct",e.correct).put("total",e.total)
-        .put("round",e.roundId).put("exercise",e.exercise)
+        .put("round",e.roundId).put("exercise",e.exercise).put("onTimeCorrect",e.onTimeCorrect ?: JSONObject.NULL)
     private fun decode(o: JSONObject): PracticeEntry {
         require(o.getInt("version")==1)
         fun optional(k: String)=if(o.isNull(k))null else o.getDouble(k)
         val id=o.getString("id");require(id.matches(Regex("[a-f0-9-]{36}")))
-        return PracticeEntry(id,o.getLong("date"),o.getString("title"),o.getString("category"),o.optString("scoreKey"),o.optDouble("start",0.0),o.optDouble("end",0.0),o.getDouble("bpm"),o.optString("mode"),o.optString("hand","BOTH"),o.getDouble("tolerance"),o.getDouble("latency"),o.getString("source"),o.getLong("activeMs").coerceAtLeast(0),optional("pitch"),optional("rhythm"),optional("overall"),o.getInt("expected"),o.getInt("missing"),o.getInt("extra"),if(o.isNull("weak"))null else o.getInt("weak"),if(o.isNull("review"))null else o.getString("review"),o.getInt("scoring"),o.getInt("correct"),o.getInt("total"),o.optString("round"),o.optString("exercise"))
+        return PracticeEntry(id,o.getLong("date"),o.getString("title"),o.getString("category"),o.optString("scoreKey"),o.optDouble("start",0.0),o.optDouble("end",0.0),o.getDouble("bpm"),o.optString("mode"),o.optString("hand","BOTH"),o.getDouble("tolerance"),o.getDouble("latency"),o.getString("source"),o.getLong("activeMs").coerceAtLeast(0),optional("pitch"),optional("rhythm"),optional("overall"),o.getInt("expected"),o.getInt("missing"),o.getInt("extra"),if(o.isNull("weak"))null else o.getInt("weak"),if(o.isNull("review"))null else o.getString("review"),o.getInt("scoring"),o.getInt("correct"),o.getInt("total"),o.optString("round"),o.optString("exercise"),if(o.isNull("onTimeCorrect"))null else o.getInt("onTimeCorrect"))
     }
 }

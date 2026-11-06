@@ -9,25 +9,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.pianopath.PianoViewModel
-import org.pianopath.PracticeUi
-import org.pianopath.core.*
+import org.pianopath.core.PlayedAttack
 
 @Composable fun EarTraining(vm: PianoViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    var touchHeld by remember{mutableStateOf(emptySet<Int>())}
     val ear by vm.ear.collectAsStateWithLifecycle()
     val midi by vm.midi.state.collectAsStateWithLifecycle()
     val playing by vm.earReferencePlaying.collectAsStateWithLifecycle()
     val pianoOutput by vm.earPianoOutput.collectAsStateWithLifecycle()
-    var start by remember {mutableIntStateOf(4)}
-    var span by remember {mutableIntStateOf(1)}
-    var voices by remember {mutableIntStateOf(1)}
-    var full by remember {mutableStateOf(false)}
-    var triads by remember {mutableStateOf(true)}
+    var touchHeld by remember{mutableStateOf(emptySet<Int>())}
+    var start by remember{mutableIntStateOf(ear.startOctave)}
+    var span by remember{mutableIntStateOf(ear.octaves)}
+    var voices by remember{mutableIntStateOf(ear.voices)}
+    var full by remember{mutableStateOf(ear.fullKeyboard)}
+    var triads by remember{mutableStateOf(ear.triads)}
+    var setupExpanded by remember{mutableStateOf(ear.target.isEmpty())}
     val canStart=ear.target.isEmpty() || ear.revealed
+    LaunchedEffect(ear.target){if(ear.target.isNotEmpty())setupExpanded=false;touchHeld=emptySet()}
+    val columns=remember(ear.history,ear.guesses,ear.revealed,ear.target,settings.earAttempts) {
+        fun notes(pitches: Set<Int>)=pitches.sorted().map{PlayedAttack(it,0,0L,750L)}
+        buildList {
+            ear.history.forEachIndexed {i,pitches->
+                val correct=pitches==ear.target
+                add(StaffColumn(notes(pitches),"Attempt ${i+1}",if(correct)"Correct" else "Incorrect",correct=correct))
+            }
+            // No answer pitches enter the staff model before correct/exhausted revelation.
+            if(ear.revealed)add(StaffColumn(notes(ear.target),"Answer","●",correct=true))
+            else if(ear.target.isNotEmpty())add(StaffColumn(notes(ear.guesses),"Attempt ${ear.history.size+1}","${ear.voices-ear.guesses.size} more note(s)"))
+        }
+    }
+    val badges=remember(ear.history,ear.revealed,ear.target) {
+        val values=linkedMapOf<Int,MutableList<String>>()
+        ear.history.forEachIndexed{i,pitches->pitches.forEach{values.getOrPut(it){mutableListOf()}.add("${i+1}")}}
+        if(ear.revealed)ear.target.forEach{values.getOrPut(it){mutableListOf()}.add("●")}
+        values.mapValues{it.value.toList()}
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         PageTitle("Listen · answer · learn","Ear training")
-        Panel(Modifier.widthIn(max=680.dp).fillMaxWidth()) {
+        if(!setupExpanded)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+            Text("${ear.voices} note(s) · ${if(ear.fullKeyboard)"instrument range" else "${ear.octaves} octave(s)"}",style=MaterialTheme.typography.bodySmall)
+            TextButton(onClick={setupExpanded=true},enabled=canStart && !playing){Text("Exercise setup")}
+        }
+        if(setupExpanded)Panel(Modifier.fillMaxWidth()) {
             Toggle("Instrument range · ${displayNoteName(settings.keyboardFirst,settings.noteNaming)}–${displayNoteName(settings.keyboardLast,settings.noteNaming)}",full,{full=it},canStart)
             if(!full) {
                 Text("Start octave",fontWeight=FontWeight.SemiBold)
@@ -43,38 +66,30 @@ import org.pianopath.core.*
                 (1..3).forEach{n->FilterChip(voices==n,{voices=n},enabled=canStart,label={Text(when(n){1->"Single note";2->"Two notes";else->"Three notes"})})}
             }
             if(voices==3)Toggle("Major / minor triads",triads,{triads=it},canStart)
-            Text(if(voices==3 && triads)"Listen for a root-position major or minor chord, then find its notes." else "Single pitches build pitch memory; pairs train simultaneous listening. Random three-note clusters are an advanced option.",style=MaterialTheme.typography.bodySmall)
             Toggle("Hear reference on piano",pianoOutput,vm::setEarPianoOutput,midi.canSend && !playing)
-            Text(if(midi.canSend)"Piano MIDI output available; test your instrument's receiving/sound settings." else "Phone sound · connect a piano with a MIDI receive port to try instrument playback.",style=MaterialTheme.typography.bodySmall)
+            Text(if(midi.canSend)"Piano MIDI output available; check your instrument's receiving/sound settings." else "Phone sound · MIDI output requires a piano receive port.",style=MaterialTheme.typography.bodySmall)
         }
-        Panel(Modifier.widthIn(max=680.dp).fillMaxWidth()) {
+        Panel(Modifier.fillMaxWidth()) {
             Text(if(playing)"Listen first…" else ear.feedback,fontWeight=FontWeight.SemiBold)
             if(ear.target.isNotEmpty()) {
-                Text("${ear.guesses.size} selected")
                 Text("Attempt ${if(ear.revealed)ear.questionAttempts else (ear.questionAttempts+1).coerceAtMost(settings.earAttempts)} / ${settings.earAttempts} · answers check automatically")
-                if(!ear.revealed)Surface(Modifier.fillMaxWidth().height(120.dp),color=MaterialTheme.colorScheme.surfaceContainerLow){Box(contentAlignment=androidx.compose.ui.Alignment.Center){Text("Score hidden · listen and play your answer")}}
-                if(ear.revealed) {
-                    Text("Answer: ${ear.target.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
-                    Text("Your notes: ${ear.guesses.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
-                    val answer=remember(ear.target) {
-                        val notes=ear.target.sorted().mapIndexed {index,pitch->ScoreNote(index,pitch,0.0,1.0,1,if(pitch>=60)1 else 2)}
-                        val score=Score("Answer","Piano Path",notes,listOf(Measure(1,0.0,1.0)),80.0)
-                        PracticeUi(score=score,xml=Exercises.write(score),endMeasure=1,endOffset=1.0)
-                    }
-                    Notation(answer,Modifier.fillMaxWidth().height(160.dp),animate=!settings.reduceMotion)
-                }
+                if(!ear.revealed)Text("Answer hidden · listen and play your answer")
+                PlayedStaff(columns,bpm=80.0,followKey=ear.questionAttempts to ear.guesses,naming=settings.noteNaming)
+                if(ear.revealed)Text("Answer: ${ear.target.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick=vm::earReplay,enabled=!playing){Text("Replay")}
                     OutlinedButton(onClick=vm::earClear,enabled=!ear.revealed && !playing){Text("Clear")}
                 }
             }
-            Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing) {Text(if(ear.target.isEmpty())"Start game" else "Next question")}
+            Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing){Text(if(ear.target.isEmpty())"Start game" else "Next question")}
+        }
+        if(ear.target.isNotEmpty()) {
+            Text("Play ${ear.voices} distinct note${if(ear.voices==1)"" else "s"}. Numbered keys show your attempts; ● shows the revealed answer.",style=MaterialTheme.typography.bodySmall)
+            PianoKeyboard(if(playing)emptySet() else ear.guesses+touchHeld+midi.held.keys,emptySet(),emptyList(),!playing && !ear.revealed,
+                {pitch,down->touchHeld=if(down)touchHeld+pitch else touchHeld-pitch;if(down)vm.earGuess(pitch)},146,
+                if(ear.fullKeyboard)settings.keyboardFirst..settings.keyboardLast else ((ear.startOctave+1)*12)..minOf(108,(ear.startOctave+ear.octaves+1)*12),
+                filledInput=true,attemptBadges=badges)
         }
         Text("${ear.correct*10} points · ${ear.correct}/${ear.attempts} correct · accuracy ${if(ear.attempts==0)"—" else "${100*ear.correct/ear.attempts}%"}",style=MaterialTheme.typography.bodyMedium)
-        if(ear.target.isNotEmpty()) {
-            Text("Tap or play ${ear.voices} distinct note${if(ear.voices==1)"" else "s"} after the reference ends. Each complete answer checks automatically.",style=MaterialTheme.typography.bodySmall)
-            PianoKeyboard(if(playing)emptySet() else ear.guesses+touchHeld+midi.held.keys,emptySet(),emptyList(),!playing && !ear.revealed,{pitch,down->touchHeld=if(down)touchHeld+pitch else touchHeld-pitch;if(down)vm.earGuess(pitch)},146,
-                if(ear.fullKeyboard)settings.keyboardFirst..settings.keyboardLast else ((ear.startOctave+1)*12)..minOf(108,(ear.startOctave+ear.octaves+1)*12),filledInput=true)
-        }
     }
 }

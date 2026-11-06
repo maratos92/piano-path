@@ -1,6 +1,7 @@
 package org.pianopath
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.*
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.*
@@ -27,6 +28,8 @@ class EarFeedbackTest {
         }
         try {
             compose.waitUntil(15_000){vm.ear.value.target.isNotEmpty() && !vm.earReferencePlaying.value}
+            compose.onNodeWithText("Answer hidden · listen and play your answer").assertExists()
+            compose.onNodeWithText("Answer:",substring=true).assertDoesNotExist()
             val target=vm.ear.value.target.single()
             val wrong=(60..72).first{it!=target}
             val initialAttempts=vm.ear.value.attempts
@@ -41,7 +44,13 @@ class EarFeedbackTest {
                 assertEquals(i+1,vm.ear.value.questionAttempts)
                 assertEquals(i==2,vm.ear.value.revealed)
                 assertEquals(setOf(target),vm.ear.value.target)
+                assertEquals(List(i+1){setOf(wrong)},vm.ear.value.history)
+                if(i<2)compose.onNodeWithText("Answer:",substring=true).assertDoesNotExist()
             }
+            compose.onNodeWithText("Answer:",substring=true).assertExists()
+            compose.onNode(hasContentDescription("Played staff.",substring=true) and hasContentDescription("Answer:",substring=true)).assertExists()
+            compose.runOnUiThread {vm.earQuestion(4,1,1)}
+            assertTrue("A new question starts a new attempt history",vm.ear.value.history.isEmpty())
         } finally {
             compose.runOnUiThread {vm.setSettings{it.copy(earAttempts=previousLimit,keyboardFirst=previousFirst,keyboardLast=previousLast)}}
         }

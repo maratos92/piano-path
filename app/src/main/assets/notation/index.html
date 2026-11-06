@@ -1,6 +1,6 @@
 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4"><meta charset="utf-8"><style>
-html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:var(--cursor,#1b554b);box-shadow:0 0 0 3px #1b554b18}#playhead::after{content:'';position:absolute;left:5px;top:-6px;width:34px;height:29px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:var(--cursor,#1b554b)}#playhead.dragging{filter:brightness(.72)}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:6px;top:28px;width:24px;height:27px;pointer-events:auto;touch-action:none;border-radius:50%;background:#d39d46;color:#24302c;font:bold 14px system-ui;text-align:center;line-height:26px;box-shadow:0 1px 4px #0004}.loop-handle[aria-disabled=true]{opacity:.55}
-</style></head><body><div id="viewport"><div id="loading">Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
+html,body{width:100%;height:100%;overflow:hidden;overflow-anchor:none;scroll-behavior:auto;margin:0;background:#fffefb;color:#173c3b;font-family:system-ui}#viewport{position:fixed;inset:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none}#loading{padding:20px;color:#617471}#score{position:relative;padding:0;min-height:180px}#range{display:none}svg{overflow:visible}#error:empty{display:none}#error{padding:20px;color:#c34d45;white-space:pre-wrap}#playhead{position:absolute;width:44px;margin-left:-22px;background:transparent;z-index:32;pointer-events:auto;touch-action:none;cursor:ew-resize}#playhead::before{content:'';position:absolute;left:21px;top:0;height:100%;width:3px;border-radius:2px;background:var(--cursor,#1b554b);box-shadow:0 0 0 3px #1b554b18}#playhead::after{content:'';position:absolute;position:fixed;left:calc(var(--cursor-screen-x, 20px) - 12px);top:4px;width:24px;height:24px;border-radius:50%;transform:none;background:var(--cursor,#1b554b)}#playhead.dragging{filter:brightness(.72)}#playhead[aria-disabled=true]{pointer-events:none;opacity:.6}.take-layer,.loop-layer{pointer-events:none}.loop-handle{position:absolute;width:36px;margin-left:-18px;background:transparent;z-index:40;pointer-events:none;cursor:ew-resize;touch-action:none;user-select:none;display:none}.loop-handle::before{content:'';position:absolute;left:17px;top:2px;bottom:0;border-left:2px dashed #b17a2d}.loop-handle b{position:absolute;left:2px;top:50%;transform:translateY(-50%);width:32px;height:54px;pointer-events:auto;touch-action:none;background:transparent}.loop-handle b::after{content:"";position:absolute;left:11px;top:5px;width:10px;height:44px;border-radius:5px;background:#b68b3f;box-shadow:0 1px 3px #0003}.loop-handle[aria-disabled=true]{opacity:.55}
+.loading-note{display:inline-block;font-size:32px;margin-right:10px;animation:loading-note 1s ease-in-out infinite alternate}@keyframes loading-note{to{transform:translateY(-6px) rotate(8deg);opacity:.5}}@media(prefers-reduced-motion:reduce){.loading-note{animation:none}}html[data-reduced-motion=true] .loading-note{animation:none}</style></head><body><div id="viewport"><div id="loading"><span class="loading-note" aria-hidden="true">♫</span>Engraving your score…</div><div id="range"></div><div id="score"></div><div id="error"></div></div><script src="opensheetmusicdisplay.min.js"></script><script src="scroll.js"></script><script>
 let osmd,ready=false,entries=[],hitGroups=[],lastBeat=-1,lastState='',lastSelection='',lastZoom=1,lastHorizontal=false,lastMargin=4,lastDark=false,lastArgs=null,canSeek=false,dragging=false,dragPointer=null,dragBeat=null,loopEnabled=true,loopEditable=true,loopDragging=null,loopPointer=null,loopStart=0,loopEnd=0,scoreEnd=0;
 let lastLayoutWidth=0;const scrollRoot=document.getElementById('viewport');const scroller=new ScoreScroller(),systemBounds=new Map();
 let allowCursorAnimation=false,lastCursorSystem=null,lastCursorBeat=-1,lastTakePaint='',lastTakeTime=0;
@@ -10,7 +10,7 @@ function setPerformanceData(matched,missed,take,expected){performanceData={match
 const NS='http://www.w3.org/2000/svg';
 function fail(e){document.getElementById('loading').style.display='none';document.getElementById('error').textContent='Notation could not be rendered. '+e;if(window.Android)Android.error(String(e));}
 function layout(){
-const anchor=scroller.capture(entries);lastCursorSystem=null;
+stopCursorMotion();const anchor=scroller.capture(entries);lastCursorSystem=null;
 const r=osmd.EngravingRules;r.PageLeftMargin=lastMargin/(10*lastZoom);r.PageRightMargin=r.PageLeftMargin;r.SystemLeftMargin=0;r.PageTopMargin=1.5;osmd.Zoom=lastZoom;
 osmd.setOptions({autoResize:false,renderSingleHorizontalStaffline:lastHorizontal,defaultColorMusic:lastDark?'#dce8df':'#173c3b',defaultColorLabel:lastDark?'#dce8df':'#173c3b'});
 document.body.style.background=lastDark?'#142421':'#fffefb';document.documentElement.style.background=document.body.style.background;
@@ -18,6 +18,7 @@ osmd.render();indexNotes();lastLayoutWidth=scrollRoot.clientWidth;scroller.resto
 }
 async function init(){try{
 osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay('score',{autoResize:false,backend:'svg',drawTitle:false,drawSubtitle:false,drawComposer:false,drawPartNames:false,drawMeasureNumbers:true,drawFingerings:true,followCursor:false});
+if(window.Android?.reducedMotion?.())document.documentElement.dataset.reducedMotion='true';
 await osmd.load(Android.score());
 await new Promise((resolve,reject)=>{let frames=0;function measurable(){if(scrollRoot.clientWidth>40&&scrollRoot.clientHeight>20)return resolve();if(++frames>600)return reject('Score viewport is not ready');requestAnimationFrame(measurable);}measurable();});
 document.getElementById('loading').style.display='none';layout();installScrubber();ready=true;Android.ready();
@@ -35,30 +36,26 @@ for(const g of c.GNotesUnderCursor()){
 }c.next();}c.reset();c.hide();lastBeat=-1;lastState='';lastSelection='';
 for(const svg of document.querySelectorAll('#score svg')){for(const cls of ['loop-layer','take-layer']){const layer=document.createElementNS(NS,'g');layer.setAttribute('class',cls);if(cls==='loop-layer')svg.insertBefore(layer,svg.firstChild);else svg.appendChild(layer);}}
 let line=document.getElementById('playhead');if(!line){line=document.createElement('div');line.id='playhead';line.setAttribute('role','slider');line.setAttribute('tabindex','0');line.setAttribute('aria-label','Score cursor. Drag to seek');document.getElementById('score').appendChild(line);}
-for(const [id,label] of [['loop-start','A'],['loop-end','B']]){if(!document.getElementById(id)){const marker=document.createElement('div');marker.id=id;marker.className='loop-handle';marker.setAttribute('role','slider');marker.setAttribute('aria-label',label==='A'?'Loop start':'Loop end');const cap=document.createElement('b');cap.textContent=label;marker.appendChild(cap);document.getElementById('score').appendChild(marker);}}
-indexHitGroups();beatIndex=new Map();
-for(const staff of [...new Set(entries.map(e=>e.staff))]){
- const measures=[];
- for(const m of hitGroups){const group=entries.filter(e=>e.svg===m.svg&&e.measure===m.measure),e=group.find(n=>n.staff===staff);if(!e)continue;
-  const points=[...new Map(group.filter(n=>n.staff===staff).map(n=>[n.beat,n.x])).entries()].sort((a,b)=>a[0]-b[0]);
-  if(points.length){if(points[0][0]>m.start)points.unshift([m.start,m.left]);points.push([m.end,m.right-1]);measures.push({e,group,points,start:m.start,end:m.end});}
- }
- beatIndex.set(staff,measures.sort((a,b)=>a.start-b.start));
-}
-installScrubber();}
+for(const [id,label] of [['loop-start','A'],['loop-end','B']]){if(!document.getElementById(id)){const marker=document.createElement('div');marker.id=id;marker.className='loop-handle';marker.setAttribute('role','slider');marker.setAttribute('aria-label',label==='A'?'Loop start':'Loop end');const cap=document.createElement('b');cap.textContent='';marker.appendChild(cap);document.getElementById('score').appendChild(marker);}}
+indexHitGroups();installScrubber();}
 // Index measure positions for inverse mouse/touch hit-testing. Layout uses SVG coordinates.
 function indexHitGroups(){
- hitGroups=[];const svgs=new Map();
- for(const e of entries){let measures=svgs.get(e.svg);if(!measures){measures=new Map();svgs.set(e.svg,measures);}
-  if(!measures.has(e.measure))measures.set(e.measure,[]);measures.get(e.measure).push(e);}
- for(const [svg,measures] of svgs)for(const [measure,notes] of measures){
-  const upper=notes.filter(e=>e.staff===1);const source=upper.length?upper:notes;
-  const points=new Map(source.map(e=>[e.beat,e.x]));const start=Math.min(...notes.map(e=>e.start)),end=Math.max(...notes.map(e=>e.end));
-  const firstX=Math.min(...notes.map(e=>e.x)),lastX=Math.max(...notes.map(e=>e.right-5));
-  if(!points.has(start))points.set(start,firstX-12);points.set(end,lastX);
-  hitGroups.push({svg,measure,start,end,points:[...points.entries()].sort((a,b)=>a[1]-b[1]),
-   left:Math.min(...notes.map(e=>e.left)),right:Math.max(...notes.map(e=>e.right)),top:systemBounds.get(notes[0].system).top,bottom:systemBounds.get(notes[0].system).bottom});
+ hitGroups=[];const svgs=[...document.querySelectorAll('#score svg')];beatIndex=new Map();
+ for(const row of osmd.GraphicSheet.MeasureList)for(const m of row){
+  if(!m)continue;const system=m.ParentMusicSystem,source=m.parentSourceMeasure;if(!system||!source)continue;
+  const svg=entries.find(e=>e.system===system)?.svg||svgs[Math.max(0,osmd.GraphicSheet.MusicPages.indexOf(system.Parent))];if(!svg)continue;
+  if(!systemBounds.has(system)){const b=system.PositionAndShape;systemBounds.set(system,{top:(b.AbsolutePosition.y+b.BorderTop)*10,bottom:(b.AbsolutePosition.y+b.BorderBottom)*10});}
+  const bounds=systemBounds.get(system),staff=m.ParentStaff.idInMusicSheet+1,measure=source.MeasureNumber;
+  const start=source.AbsoluteTimestamp.RealValue*4,end=start+source.Duration.RealValue*4,left=m.PositionAndShape.AbsolutePosition.x*10,right=left+m.PositionAndShape.Size.width*10;
+  const group=entries.filter(e=>e.svg===svg&&e.measure===measure),own=group.filter(e=>e.staff===staff);
+  const e=own[0]||{svg,system,staff,measure,start,end,left,right,beat:start,y:m.PositionAndShape.AbsolutePosition.y*10,pitch:-1};
+  const notes=own.length?own:group;
+  const points=[...new Map(notes.map(n=>[n.beat,n.x])).entries()].sort((a,b)=>a[0]-b[0]);
+  if(!points.length||points[0][0]>start)points.unshift([start,left+(m.beginInstructionsWidth||0)*10]);points.push([end,right-1]);
+  const geometry={svg,system,staff,measure,start,end,left,right,top:bounds.top,bottom:bounds.bottom,points,e,group};
+  hitGroups.push(geometry);if(!beatIndex.has(staff))beatIndex.set(staff,[]);beatIndex.get(staff).push(geometry);
  }
+ for(const rows of beatIndex.values())rows.sort((a,b)=>a.start-b.start);
 }
 // Get the closest measure *on the touched system*, then interpolate between noteheads.
 function beatAtClient(clientX,clientY){
@@ -111,13 +108,35 @@ function moveLoopHandles(start,end,enabled,editable){
   el.setAttribute('aria-disabled',editable?'false':'true');el.setAttribute('aria-valuenow',beat.toFixed(2));
  }
 }
+let cursorMotion=null,cursorFrame=0;
+function stopCursorMotion(){if(cursorFrame)cancelAnimationFrame(cursorFrame);cursorFrame=0;cursorMotion=null;}
+function motionBeat(m,now){
+ if(m.rate>0)return Math.min(m.end,m.anchor+(now-m.at)/1000*m.rate);
+ const t=Math.min(1,(now-m.at)/120);return m.anchor+(m.target-m.anchor)*t;
+}
+function animateCursor(beat,end,rate,follow){
+ const now=performance.now(),previous=cursorMotion;
+ if(previous&&rate===0&&previous.rate===0&&beat===previous.target)return;
+ const current=previous?motionBeat(previous,now):beat;
+ const snap=!previous || (beat<previous.target-.1 || rate>0&&Math.abs(beat-previous.target)>Math.max(2,rate*.5));
+ const anchor=snap?beat:current;
+ const corrected=rate>0?Math.max(rate*.75,Math.min(rate*1.25,rate+(beat-anchor)*3)):0;
+ cursorMotion={anchor,target:beat,end,at:now,rate:corrected,follow};
+ if(cursorFrame)return;
+ function frame(time){cursorFrame=0;const m=cursorMotion;if(!m)return;moveCursor(motionBeat(m,time),0,m.end,m.follow);if(m.rate>0&&motionBeat(m,time)<m.end || m.rate===0&&time-m.at<120)cursorFrame=requestAnimationFrame(frame);}
+ cursorFrame=requestAnimationFrame(frame);
+}
+window.addEventListener('pagehide',stopCursorMotion);
+scrollRoot.addEventListener('scroll',()=>{const line=document.getElementById('playhead');if(line)document.documentElement.style.setProperty('--cursor-screen-x',(parseFloat(line.style.left||0)-scrollRoot.scrollLeft)+'px');},{passive:true});
 function moveCursor(beat,start,end,follow=false){
  const pos=atBeatPosition(Math.max(start,Math.min(end,beat)));if(!pos)return;
  const line=document.getElementById('playhead');line.style.display='block';
  line.style.transition='none';
  lastCursorSystem=pos.frame.system;lastCursorBeat=beat;
+ document.documentElement.style.setProperty('--cursor-screen-x',(pos.x-scrollRoot.scrollLeft)+'px');
  line.style.left=pos.x+'px';line.style.top=pos.y+'px';line.style.height=pos.h+'px';
  if(!dragging&&!loopDragging)scroller.follow(pos.frame,beat,follow);
+ document.documentElement.style.setProperty('--cursor-screen-x',(pos.x-scrollRoot.scrollLeft)+'px');
 }
 function installScrubber(){
  const score=document.getElementById('score'),line=document.getElementById('playhead');
@@ -190,11 +209,11 @@ function drawTake(take,expected,tolerance,beat,bpm){
  append(pos.e.svg,'line',{x1:pos.x,y1:traceY,x2:Math.max(pos.x+2,last.x),y2:traceY,stroke:color,'stroke-width':2.4,opacity:.7,'data-hold-id':n.id},label);cursor=until+.001;}
  }
 }
-function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end,follow=true,accent='#1b554b',animate=false){if(!ready)return;
+function progress(beat,matched,missed,start,end,zoom,horizontal,take=[],expected=[],tolerance=180,margin=4,dark=false,bpm=80,hand='BOTH',seekEnabled=true,loopOn=true,loopEdit=true,fullEnd=end,follow=true,accent='#1b554b',animate=false,clockRate=0){if(!ready)return;
 try{
 allowCursorAnimation=animate;
 if(/^#[0-9a-f]{6}$/i.test(accent))document.documentElement.style.setProperty('--cursor',accent);
-lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm,hand,seekEnabled,loopOn,loopEdit,fullEnd,follow,accent,animate];canSeek=seekEnabled;loopEditable=loopEdit;scoreEnd=fullEnd;if(!loopDragging){loopStart=start;loopEnd=end;loopEnabled=loopOn;}const cursor=document.getElementById('playhead');cursor.setAttribute('aria-disabled',seekEnabled?'false':'true');cursor.setAttribute('aria-valuenow',beat.toFixed(2));
+lastArgs=[beat,matched,missed,start,end,zoom,horizontal,take,expected,tolerance,margin,dark,bpm,hand,seekEnabled,loopOn,loopEdit,fullEnd,follow,accent,animate,clockRate];canSeek=seekEnabled;loopEditable=loopEdit;scoreEnd=fullEnd;if(!loopDragging){loopStart=start;loopEnd=end;loopEnabled=loopOn;}const cursor=document.getElementById('playhead');cursor.setAttribute('aria-disabled',seekEnabled?'false':'true');cursor.setAttribute('aria-valuenow',beat.toFixed(2));
 if(zoom!==lastZoom||horizontal!==lastHorizontal||margin!==lastMargin||dark!==lastDark){lastZoom=zoom;lastHorizontal=horizontal;lastMargin=margin;lastDark=dark;layout();}
 const state=animate?[dataRevision,start,end,hand].join(':'):JSON.stringify([matched,missed,start,end,take,hand]);
 if(state!==lastState){lastState=state;for(const e of entries){let color=e.beat>=start-.001&&e.beat<end-.001?(lastDark?'#dce8df':'#173c3b'):'#86958d';
@@ -209,7 +228,8 @@ const paint=animate?[dataRevision,tolerance,bpm,zoom,horizontal,margin,dark].joi
 if(paint!==lastTakePaint || (take.some(n=>n.duration===null)&&now-lastTakeTime>=80)){
 lastTakePaint=paint;lastTakeTime=now;drawTake(take,expected,tolerance,beat,bpm);
 for(const e of entries.filter(e=>missed.some(n=>Math.abs(n[0]-e.beat)<.001&&n[1]===e.pitch)))append(e.svg,'ellipse',{cx:e.x,cy:e.y,rx:8,ry:6,fill:'none',stroke:'#c04438','stroke-width':1.4,'stroke-dasharray':'2 2'},'Missing note');}
-moveCursor(dragging&&dragBeat!==null?dragBeat:beat,0,fullEnd,follow);
+if(animate&&follow&&!dragging&&!loopDragging)animateCursor(beat,end,clockRate,follow);
+else{stopCursorMotion();moveCursor(dragging&&dragBeat!==null?dragBeat:beat,0,fullEnd,follow);}
  moveLoopHandles(loopStart,loopEnd,loopEnabled,loopEditable);
  lastBeat=beat;
 }catch(e){console.warn(e)}}

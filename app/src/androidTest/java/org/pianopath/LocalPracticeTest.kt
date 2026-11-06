@@ -84,13 +84,19 @@ class LocalPracticeTest {
             val first=LocalProgressStore(context,scope){messages.add(it)}
             val entry=PracticeEntry(UUID.randomUUID().toString(),1234,"Intervals","Ear training",activeMs=12_000,correct=4,total=5,roundId="round",exercise="interval")
             first.add(entry);first.setGoal(25)
+            val scored=PracticeEntry(UUID.randomUUID().toString(),2345,"Scale","Scales",expected=4,correct=3,onTimeCorrect=3,scoringVersion=2)
+            first.add(scored)
+            val legacy=File(dir,"progress/${entry.id}.json")
+            legacy.writeText(org.json.JSONObject(legacy.readText()).apply{remove("onTimeCorrect")}.toString())
             val broken=File(dir,"progress/${UUID.randomUUID()}.json");broken.writeText("{broken")
             // A valid payload under a different filename must not impersonate a saved entry.
             val mismatched=File(dir,"progress/${UUID.randomUUID()}.json")
             mismatched.writeText(File(dir,"progress/${entry.id}.json").readText())
             val reopened=LocalProgressStore(context,scope){messages.add(it)}
             reopened.reload()
-            assertEquals(listOf(entry),reopened.entries.value)
+            assertEquals(listOf(scored,entry),reopened.entries.value)
+            assertEquals(75.0,requireNotNull(reopened.entries.value.first().onTime),.001)
+            assertNull(reopened.entries.value.last().onTime)
             assertEquals(25,reopened.goalMinutes.value)
             assertTrue(messages.isNotEmpty());assertEquals("{broken",broken.readText());assertTrue(mismatched.exists())
         } finally {scope.cancel();dir.deleteRecursively();base.deleteSharedPreferences(prefsName)}
@@ -117,6 +123,11 @@ class FreePlayIntegrationTest {
         val id=requireNotNull(vm.recorder.state.value.current).id
         try {
             compose.waitUntil(10_000){!vm.recorder.state.value.saving && vm.recorder.recordings.value.any{it.id==id}}
+            compose.waitUntil(10_000){vm.progress.entries.value.any{it.id==id}}
+            val entry=vm.progress.entries.value.single{it.id==id}
+            assertEquals("Free play",entry.category)
+            assertNull(entry.pitch);assertNull(entry.rhythm);assertNull(entry.overall)
+            assertEquals(0,entry.expected)
             compose.runOnUiThread {vm.recorder.open(id)}
             compose.waitUntil(10_000){vm.recorder.state.value.status=="Ready" && vm.recorder.state.value.current?.id==id}
             val take=requireNotNull(vm.recorder.state.value.current)
@@ -133,7 +144,7 @@ class FreePlayIntegrationTest {
     @Test fun progressIsReachableFromHomeAndShowsGoal() {
         compose.onNodeWithTag("home-feed").performScrollToNode(hasText("Your practice · goals & progress"))
         compose.onNodeWithText("Your practice · goals & progress").performClick()
-        compose.onNodeWithText("Your practice").assertIsDisplayed()
+        compose.onNodeWithText("Overview").assertIsDisplayed()
         compose.onNodeWithText("Daily goal",substring=true).performScrollTo().assertIsDisplayed()
     }
 

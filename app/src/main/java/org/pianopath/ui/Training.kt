@@ -15,9 +15,9 @@ import org.pianopath.core.*
 @Composable fun ScaleSetup(vm: PianoViewModel) {
     val naming=LocalNoteNaming.current
     var root by remember {mutableIntStateOf(0)};var kind by remember{mutableStateOf(ScaleKind.MAJOR)};var octaves by remember{mutableIntStateOf(1)};var hand by remember{mutableStateOf(Hand.BOTH)};var descending by remember{mutableStateOf(true)}
-    Column(Modifier.fillMaxHeight().widthIn(max=640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxHeight().fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Practice","Scales & technique")
-        Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Choose a tonic",fontWeight=FontWeight.SemiBold)
             (0..11).chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -44,9 +44,9 @@ import org.pianopath.core.*
 }
 @Composable fun SightSetup(vm: PianoViewModel) {
     var level by remember{mutableIntStateOf(0)};var fifths by remember{mutableIntStateOf(0)};var beats by remember{mutableIntStateOf(4)};var hand by remember{mutableStateOf(Hand.BOTH)};var preview by remember{mutableIntStateOf(10)};var tempo by remember{mutableFloatStateOf(80f)}
-    Column(Modifier.fillMaxHeight().widthIn(max=640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxHeight().fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         PageTitle("Practice","Sight reading")
-        Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Difficulty",fontWeight=FontWeight.SemiBold)
             listOf("Beginner","Elementary","Intermediate","Advanced").chunked(2).forEachIndexed{row,names->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){names.forEachIndexed{col,name->val n=row*2+col;FilterChip(level==n,{level=n},modifier=Modifier.weight(1f),label={Text(name)})}}}
             HorizontalDivider()
