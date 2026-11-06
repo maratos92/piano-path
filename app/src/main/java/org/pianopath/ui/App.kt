@@ -66,7 +66,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val requestScan: ()->Unit={ if(vm.midi.hasPermissions())vm.midi.scan() else permission.launch(vm.midi.requiredPermissions()) }
     val drawer=rememberDrawerState(DrawerValue.Closed)
     val scope=rememberCoroutineScope()
-    val destinations=listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Recorder" to Icons.Outlined.Piano,"Progress" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)
+    val destinations=listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Recorder" to Icons.Outlined.GraphicEq,"Progress" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)
     val dark=settings.theme==ThemeMode.DARK || settings.theme==ThemeMode.SYSTEM && isSystemInDarkTheme()
     val accent=Color(settings.accent)
     val primary=if(dark)lerp(accent,Color.White,.45f) else lerp(accent,Color.Black,.12f)
@@ -91,7 +91,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                         Spacer(Modifier.weight(1f))
                         AssistChip(onClick={vm.screen.value="Connect"},label={Text(if(midi.connected)"Piano connected" else "Connect piano",fontSize=12.sp)},leadingIcon={Icon(Icons.Outlined.Bluetooth, null,Modifier.size(16.dp))})
                     } },bottomBar={ if(screen!="Practice") NavigationBar {
-                        destinations.forEach { (name,icon) -> NavigationBarItem(selected=navigationSection(screen)==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(navLabel(name),fontSize=10.sp,maxLines=1)}) }
+                        destinations.forEach { (name,icon) -> NavigationBarItem(selected=navigationSection(screen)==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(navLabel(name),fontSize=11.sp,maxLines=1,softWrap=false,textAlign=androidx.compose.ui.text.style.TextAlign.Center)}) }
                     } }) { padding ->
                     Box(Modifier.padding(padding).fillMaxSize()) { when(screen) {
                         "Home" -> Home(vm)
@@ -139,7 +139,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                 Icon(Icons.Outlined.MusicNote,null)
             }
             OutlinedButton(onClick={vm.screen.value="Ear training"},modifier=Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.Hearing,null);Spacer(Modifier.width(10.dp));Text("Listening",Modifier.weight(1f))
+                Icon(Icons.Outlined.SurroundSound,null);Spacer(Modifier.width(10.dp));Text("Listening",Modifier.weight(1f))
                 Icon(Icons.Outlined.MusicNote,null)
             }
             OutlinedButton(onClick={vm.screen.value="Scales"},modifier=Modifier.fillMaxWidth()) {
@@ -153,7 +153,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                 Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score?.title ?: "Current score"}",maxLines=1)
             }
             OutlinedButton(onClick={vm.screen.value="Library"},modifier=Modifier.fillMaxWidth()){Text("Choose a piece from Library")}
-            OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("MIDI studio · play, monitor & record")}
+            OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("Studio · play, monitor & record")}
         } }
         item { TextButton(onClick={vm.screen.value="Progress"}){Icon(Icons.Outlined.Insights,null);Spacer(Modifier.width(8.dp));Text("Your practice · goals & progress")} }
     }
@@ -180,7 +180,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             FocusCard("Scales","",Icons.Outlined.Piano,Modifier.weight(1f)){vm.screen.value="Scales"}
             FocusCard("Sight reading","",Icons.Outlined.Visibility,Modifier.weight(1f)){vm.screen.value="Sight reading"}
-            FocusCard("Listening","",Icons.Outlined.Hearing,Modifier.weight(1f)){vm.screen.value="Ear training"}
+            FocusCard("Listening","",Icons.Outlined.SurroundSound,Modifier.weight(1f)){vm.screen.value="Ear training"}
         } }
 
     }
@@ -252,6 +252,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         Column(Modifier.verticalScroll(rememberScrollState())) {
             Text("Salamander Grand Piano · Alexander Holm\nCC BY 3.0\nhttps://creativecommons.org/licenses/by/3.0/\nSource: https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander\nAdapted to 24 kHz mono PCM, trimmed to ten seconds with a fade. One sampled dynamic layer; velocity controls amplitude.\n\n")
             Text(remember{context.assets.open("piano/LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
+            Text("Music notation font: Bravura · Steinberg Media Technologies · SIL Open Font License 1.1",fontSize=12.sp)
+            Text(remember{context.assets.open("fonts/Bravura-LICENSE.txt").bufferedReader().use{it.readText()}},fontSize=11.sp)
         }
     })
     var section by remember {mutableStateOf("General")}
@@ -268,7 +270,6 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Toggle("Keep device awake",s.keepAwake,{v->vm.setSettings{it.copy(keepAwake=v)}})
                     Text("Note names",fontWeight=FontWeight.SemiBold)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(s.noteNaming=="LETTERS",{vm.setSettings{it.copy(noteNaming="LETTERS")}},label={Text("C D E")});FilterChip(s.noteNaming=="SOLFEGE",{vm.setSettings{it.copy(noteNaming="SOLFEGE")}},label={Text("Do Re Mi")})}
-                    OutlinedButton(onClick={vm.screen.value="Connect"}){Text("Connect piano")}
                     KeyboardRangeSettings(s.keyboardFirst,s.keyboardLast){a,b->vm.setSettings{it.copy(keyboardFirst=a,keyboardLast=b)}}
                     Text("Appearance",fontWeight=FontWeight.SemiBold)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -361,4 +362,4 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 
 private fun navigationSection(screen: String)=when(screen){"Practice","Scales","Sight reading","Ear training"->"Practice hub";"History"->"Progress";else->screen}
 
-private fun navLabel(screen: String)=when(screen){"Practice hub"->"Practice";"Recorder"->"MIDI studio";else->screen}
+private fun navLabel(screen: String)=when(screen){"Practice hub"->"Practice";"Recorder"->"Studio";else->screen}

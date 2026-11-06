@@ -18,7 +18,8 @@ data class PracticeEntry(val id: String,val date: Long,val title: String,val cat
     val source: String="MIDI",val activeMs: Long=0,val pitch: Double?=null,val rhythm: Double?=null,
     val overall: Double?=null,val expected: Int=0,val missing: Int=0,val extra: Int=0,
     val weakMeasure: Int?=null,val reviewFile: String?=null,val scoringVersion: Int=1,
-    val correct: Int=0,val total: Int=0,val roundId: String="",val exercise: String="") {
+    val correct: Int=0,val total: Int=0,val roundId: String="",val exercise: String="",val onTimeCorrect: Int?=null) {
+    val onTime get()=onTimeCorrect?.let{if(expected>0)100.0*it/expected else null}
     /** Only genuinely comparable trials share a trend; device calibration/input is part of context. */
     val comparisonKey get()=listOf(scoreKey,startBeat,endBeat,bpm,mode,hand,tolerance,latency,source,scoringVersion,exercise).joinToString("|")
 }

@@ -142,7 +142,7 @@ class AppSmokeTest {
         // The practice toolbar uses the short "Falling" label on narrow devices.
         // Wait for the score to load, then verify the view controls separately.
         compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}
-        compose.onNodeWithText("Falling").assertIsDisplayed()
+        compose.onNodeWithText("Falling").assertIsDisplayed().performClick()
         compose.onNodeWithText("Both").assertIsDisplayed()
         compose.onNodeWithContentDescription("88-key piano, A0 to C8").assertIsDisplayed()
         compose.onNodeWithContentDescription("Falling notes aligned to the 88-key piano").assertIsDisplayed()

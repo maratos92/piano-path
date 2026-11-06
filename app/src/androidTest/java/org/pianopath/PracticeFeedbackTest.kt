@@ -22,6 +22,7 @@ class PracticeFeedbackTest {
         compose.waitUntil(15_000){vm.ui.value.score!=null}
         val initial=vm.ui.value
         assertFalse("A new practice session should play once by default",initial.loop)
+        assertEquals("Newly loaded scores should open as sheet music",ScoreView.SHEET,initial.view)
         val first=initial.score!!.notes.first{!it.rest && it.hand==Hand.RIGHT}
         val middle=first.beat+first.duration/2
         compose.runOnUiThread {vm.seek(middle)}
@@ -86,5 +87,50 @@ class PracticeFeedbackTest {
         compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.sight(1,0,4,Hand.RIGHT,0)}
         compose.waitUntil(15_000){vm.ui.value.category=="Sight reading" && vm.ui.value.score!=null}
         assertEquals(ScoreView.SHEET,vm.ui.value.view)
+    }
+
+    @Test fun countInLastsFourSecondsAtDifferentTempos() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.scale(0,ScaleKind.MAJOR,1,Hand.RIGHT,true)}
+        compose.waitUntil(15_000){vm.ui.value.score!=null}
+        try {
+            for(bpm in listOf(60.0,240.0)) {
+                compose.runOnUiThread {vm.edit{it.copy(bpm=bpm,countIn=true,loop=false,metronome=false)};vm.start()}
+                val started=android.os.SystemClock.elapsedRealtime()
+                compose.waitUntil(5_000){vm.ui.value.counting>0}
+                Thread.sleep(2200)
+                assertTrue("Count-in must still be active after 2.2 seconds at $bpm BPM",vm.ui.value.counting>0)
+                compose.waitUntil(7_000){vm.ui.value.counting==0}
+                val elapsed=android.os.SystemClock.elapsedRealtime()-started
+                assertTrue("Count-in should finish near four seconds at $bpm BPM; was $elapsed ms",elapsed in 3300L..7000L)
+                compose.runOnUiThread {vm.stop()}
+            }
+        } finally {compose.runOnUiThread {vm.stop()}}
+    }
+
+    @Test fun cancellationDoesNotSaveButExplicitFinishSavesPartialPractice() {
+        lateinit var vm: PianoViewModel
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java];vm.sight(1,0,4,Hand.RIGHT,0)}
+        compose.waitUntil(15_000){vm.ui.value.category=="Sight reading" && vm.ui.value.score!=null}
+        val scoreKey=vm.ui.value.key
+        compose.runOnUiThread {
+            vm.edit{it.copy(countIn=false,loop=false,metronome=false)}
+            vm.start();assertTrue(vm.ui.value.running);vm.stop()
+        }
+        Thread.sleep(700)
+        assertTrue("Cancelling must not add an accuracy record",vm.progress.entries.value.none{it.scoreKey==scoreKey})
+        compose.runOnUiThread {vm.edit{it.copy(countIn=true)};vm.start();vm.stop(saveResult=true)}
+        Thread.sleep(700)
+        assertTrue("Finishing before the count-in ends must not save an empty result",vm.progress.entries.value.none{it.scoreKey==scoreKey})
+        compose.runOnUiThread {
+            vm.edit{it.copy(countIn=false)}
+            vm.start();assertTrue(vm.ui.value.running)
+            val pitch=vm.ui.value.score!!.notes.first{!it.rest && it.hand==Hand.RIGHT}.midi
+            vm.midi.simulate(MidiEvent.On(pitch,80,System.nanoTime()))
+        }
+        Thread.sleep(100)
+        compose.runOnUiThread {vm.stop(saveResult=true)}
+        compose.waitUntil(10_000){vm.progress.entries.value.any{it.scoreKey==scoreKey}}
+        assertEquals(1,vm.progress.entries.value.count{it.scoreKey==scoreKey})
     }
 }

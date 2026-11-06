@@ -21,3 +21,7 @@ AndroidX (Compose, Lifecycle, Room), Kotlin and Coroutines are Apache-2.0. JUnit
 Salamander Grand Piano, recorded by Alexander Holm, licensed under **CC BY 3.0**. Source: https://github.com/Tonejs/audio/tree/869b6f8d9cddb47d966238c012041480b1ce517a/salamander
 
 Preserved upstream notice: `licenses/SALAMANDER-README.txt`; licence: `licenses/CC-BY-3.0.txt`. Both are also installed under `assets/piano`. Each source/asset SHA-256 and URL is recorded in `app/src/main/assets/piano/provenance.json`. Thirty MP3 samples, one every minor third across A0–C8, were decoded to mono PCM16 at 24 kHz, capped to ten seconds, with a final 300 ms fade. A single sampled dynamic layer is used; velocity controls amplitude. The adaptation and licence apply to the sample assets separately from the MIT app source and original CC0 test exercises. Attribution and full licence are accessible offline in Settings.
+
+## Music font
+
+Bravura, Steinberg Media Technologies, distributed unmodified under SIL Open Font License 1.1. Bundled font/notice/source record: `app/src/main/assets/fonts/Bravura.otf`, `Bravura-LICENSE.txt`, `Bravura-SOURCE.txt`. Native played/attempt staves use its SMuFL clefs, noteheads, flags, rests and accidentals. This font licence is separate from the MIT app source.

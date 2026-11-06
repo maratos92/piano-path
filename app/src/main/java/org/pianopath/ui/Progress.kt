@@ -28,83 +28,102 @@ import java.time.format.TextStyle
 import java.util.*
 
 @Composable fun ProgressScreen(vm: PianoViewModel) {
-    val sessions by vm.history.collectAsStateWithLifecycle()
-    var tab by remember{mutableIntStateOf(0)}
-    var showAll by remember{mutableStateOf(false)}
     val entries by vm.progress.entries.collectAsStateWithLifecycle()
+    val sessions by vm.history.collectAsStateWithLifecycle()
     val goal by vm.progress.goalMinutes.collectAsStateWithLifecycle()
-    var now by remember {mutableLongStateOf(System.currentTimeMillis())}
+    var tab by remember{mutableIntStateOf(0)}
+    val tabs=listOf("Overview","Pieces","Scales","Sight reading","Listening")
+    val list=androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(tab){list.scrollToItem(0)}
+    var now by remember{mutableLongStateOf(System.currentTimeMillis())}
     LaunchedEffect(Unit){while(true){kotlinx.coroutines.delay(60_000);now=System.currentTimeMillis()}}
-    val today=PracticeInsights.day(now)
-    val todayMs=PracticeInsights.activeToday(entries,now)
-    val queue=remember(entries){PracticeInsights.queue(entries)}
-    val trends=remember(entries){PracticeInsights.trends(entries)}
-    val earRounds=remember(entries){entries.filter{it.category=="Ear training"}.groupBy{it.roundId}.values.sortedByDescending{it.maxOf{e->e.date}}}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        item { PageTitle("Small steps, real progress","Your practice","Private on-device progress. No account is needed.") }
-        item { PrimaryScrollableTabRow(selectedTabIndex=tab) {listOf("Overview","Pitch & rhythm","Listening","Sessions").forEachIndexed{i,label->Tab(tab==i,{tab=i},text={Text(label)})}} }
-        if(tab==0) {
-        item { Panel(Modifier.fillMaxWidth()) {
-            Text("Today · ${"%.1f".format(todayMs/60000.0)} / $goal minutes",fontWeight=FontWeight.SemiBold)
-            LinearProgressIndicator(progress={(todayMs/(goal*60000f)).coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
-            Text("Daily goal · $goal minutes")
-            Slider(goal.toFloat(),{vm.progress.setGoal(it.toInt())},valueRange=5f..30f,steps=24)
-            Text("Practice excludes count-in and pauses. Recording time includes rests. A goal is a guide, not a streak to protect.",style=MaterialTheme.typography.bodySmall)
-            val days=(6 downTo 0).map{today.minusDays(it.toLong())}
-            val minutes=days.map{d->entries.filter{PracticeInsights.day(it.date)==d}.sumOf{it.activeMs}/60000.0}
-            val highest=maxOf(goal.toDouble(),minutes.maxOrNull() ?: 0.0)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                days.forEachIndexed {i,d->Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally) {
-                    Box(Modifier.height(70.dp).fillMaxWidth(),contentAlignment=Alignment.BottomCenter){Box(Modifier.fillMaxWidth(.65f).fillMaxHeight((minutes[i]/highest).toFloat().coerceIn(0f,1f)).background(MaterialTheme.colorScheme.primary))}
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT,Locale.getDefault()),style=MaterialTheme.typography.labelSmall)
-                    Text("${minutes[i].toInt()}m",style=MaterialTheme.typography.labelSmall)
+    val graded=entries.filter{it.category!="Free play"}
+    val selected=graded.filter{progressCategory(it)==tabs[tab]}
+    Column(Modifier.fillMaxSize()) {
+        Text("Progress",style=MaterialTheme.typography.headlineMedium,modifier=Modifier.padding(horizontal=20.dp,vertical=12.dp))
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if(maxWidth>=600.dp)PrimaryTabRow(selectedTabIndex=tab){tabs.forEachIndexed{i,label->Tab(tab==i,{tab=i},text={Text(label,maxLines=1)})}}
+            else PrimaryScrollableTabRow(selectedTabIndex=tab,edgePadding=0.dp){tabs.forEachIndexed{i,label->Tab(tab==i,{tab=i},text={Text(label,maxLines=1)})}}
+        }
+        LazyColumn(state=list,modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+            if(tab==0) {
+                item {Panel(Modifier.fillMaxWidth()) {
+                    val minutes=PracticeInsights.activeToday(graded,now)/60000.0
+                    Text("Today · ${"%.1f".format(minutes)} / $goal minutes",fontWeight=FontWeight.SemiBold)
+                    LinearProgressIndicator(progress={(minutes/goal).toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
+                    Text("Daily goal · $goal minutes")
+                    Slider(goal.toFloat(),{vm.progress.setGoal(it.toInt())},valueRange=5f..30f,steps=24)
+                    Text("Completed runs and Finish actions are tracked. Opening scores, cancelled sessions and free play do not earn accuracy results.",style=MaterialTheme.typography.bodySmall)
                 }}
-            }
-        } }
-        item { ReminderControls() }
-        }
-        if(tab==1) {
-        item { Text("Comparable passage trends",style=MaterialTheme.typography.titleMedium) }
-        if(trends.isEmpty())item {Text("Complete scored practice to see pitch and rhythm separately here.")}
-        items(trends.take(20),key={it.latest.id}) { trend->val e=trend.latest
-            Panel(Modifier.fillMaxWidth()) {
-                Text(e.title,fontWeight=FontWeight.SemiBold)
-                Text("${e.bpm.toInt()} BPM · ${e.mode} · ${e.hand} · ${e.source}",style=MaterialTheme.typography.bodySmall)
-                Text("Beats ${"%.1f".format(e.startBeat)}–${"%.1f".format(e.endBeat)} · ±${e.tolerance.toInt()} ms · latency ${e.latency.toInt()} ms",style=MaterialTheme.typography.labelSmall)
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                    Metric("${e.pitch?.toInt() ?: 0}%","pitch ${changeLabel(trend.pitchChange)}",Modifier.weight(1f))
-                    Metric(e.rhythm?.let{"${it.toInt()}%"} ?: "—","rhythm ${changeLabel(trend.rhythmChange)}",Modifier.weight(1f))
+                item {MetricChart(graded,now,activity=true)}
+                item {ReminderControls()}
+                item {Text("Modes",style=MaterialTheme.typography.titleMedium)}
+                item {Text("Wait: note accuracy only. Rhythm: note accuracy and on-time notes against a fixed clock. Follow score: both, with timing aligned to your playing. Free play: no accuracy score.")}
+                item {Text("Previous session results",style=MaterialTheme.typography.titleMedium)}
+                items(sessions.take(15),key={"old-${it.id}"}) {session->Panel(Modifier.fillMaxWidth()) {
+                    Text(session.title,fontWeight=FontWeight.SemiBold)
+                    Text("${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(session.date))} · ${session.mode} · ${session.bpm.toInt()} BPM",style=MaterialTheme.typography.bodySmall)
+                    Text("Note accuracy ${session.pitch.toInt()}% · ${session.missing} missing · ${session.extra} extra")
+                    if(session.reviewFile!=null)TextButton(onClick={vm.openReview(session)}){Text("Review performance")}
+                }}
+            } else {
+                item {MetricChart(selected,now,listening=tab==4)}
+                item {Text(if(tab==4)"Listening precision = correct complete answers / submitted attempts." else "Note accuracy = matched / (expected + extra). On-time = expected notes played within your timing tolerance / expected. Missing notes receive no credit.",style=MaterialTheme.typography.bodySmall)}
+                if(tab==4) {
+                    val rounds=selected.groupBy{it.roundId}.values.sortedByDescending{it.maxOf{e->e.date}}
+                    if(rounds.isEmpty())item{Text("Your listening attempts will appear here.")}
+                    items(rounds.take(30),key={it.first().id}){round->Panel(Modifier.fillMaxWidth()) {
+                        Text(round.maxBy{it.date}.title,fontWeight=FontWeight.SemiBold)
+                        Text("${round.sumOf{it.correct}} / ${round.sumOf{it.total}} correct · ${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(round.maxOf{it.date}))}")
+                    }}
+                } else {
+                    val comparable=PracticeInsights.trends(selected.filter{it.scoringVersion>=2})
+                    if(comparable.isEmpty())item{Text("Finish a practice run in this category to start these metrics. Earlier composite rhythm scores remain in previous results.")}
+                    items(comparable.take(30),key={it.latest.id}){trend->val e=trend.latest
+                        Panel(Modifier.fillMaxWidth()) {
+                            Text(e.title,fontWeight=FontWeight.SemiBold)
+                            Text("${e.bpm.toInt()} BPM · ${e.mode} · ${e.hand} · ${e.source}",style=MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement=Arrangement.spacedBy(18.dp)) {
+                                Metric("${e.pitch?.toInt() ?: 0}%","note accuracy",Modifier.weight(1f))
+                                Metric(e.onTime?.let{"${it.toInt()}%"} ?: "—","on time",Modifier.weight(1f))
+                            }
+                            Text("${e.correct} matched · ${e.expected} expected · ${e.extra} extra · ${trend.trials} comparable run(s)",style=MaterialTheme.typography.bodySmall)
+                            if(e.mode=="WAIT")Text("Wait mode does not measure rhythm.",style=MaterialTheme.typography.bodySmall)
+                            if(e.mode=="FOLLOW")Text("Performance-aligned timing; not a strict metronome test.",style=MaterialTheme.typography.bodySmall)
+                            trend.pitchChange?.let{Text("Accuracy change ${String.format(Locale.getDefault(),"%+.1f",it)} points at the same settings",style=MaterialTheme.typography.bodySmall)}
+                        }
+                    }
                 }
-                Text("${trend.trials} comparable attempt(s) · ${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(e.date))}",style=MaterialTheme.typography.labelSmall)
-                if(e.rhythm==null)Text("Wait mode: pitch completion only; rhythm is not graded.",style=MaterialTheme.typography.bodySmall)
             }
-        }
-        }
-        if(tab==2) {
-        item { Text("Listening rounds",style=MaterialTheme.typography.titleMedium) }
-        if(earRounds.isEmpty())item {Text("Ear-training answers will be dated here. Lifetime totals are shown in Ear training.")}
-        items(earRounds.take(20),key={it.first().roundId}) { round->Panel(Modifier.fillMaxWidth()) {
-            val latest=round.maxBy{it.date}
-            Text("${round.sumOf{it.correct}} / ${round.sumOf{it.total}} correct",fontWeight=FontWeight.SemiBold)
-            Text("${DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(latest.date))} · ${latest.title}",style=MaterialTheme.typography.bodySmall)
-            Text("A round contains up to 10 answers at the same difficulty.",style=MaterialTheme.typography.labelSmall)
-        } }
-        }
-        if(tab==3) {
-        item { Text("Session history",style=MaterialTheme.typography.titleMedium) }
-        if(sessions.isEmpty())item {Text("Completed scored sessions appear here, alongside your trends and listening rounds.")}
-        items(if(showAll)sessions else sessions.take(20),key={"session-${it.id}"}) {session->Panel(Modifier.fillMaxWidth()) {
-            Text(session.title,fontWeight=FontWeight.SemiBold)
-            Text("${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(session.date))} · ${session.bpm.toInt()} BPM · ${session.mode}",style=MaterialTheme.typography.bodySmall)
-            Text("Pitch ${session.pitch.toInt()}% · rhythm ${session.rhythm?.toInt()?.let{"$it%"} ?: "—"} · ${session.missing} missing · ${session.extra} extra")
-            if(session.reviewFile!=null)Row {TextButton(onClick={vm.openReview(session)}){Text("Review score")};TextButton(onClick={vm.openReview(session,true)}){Text("Replay MIDI roll")}}
-        }}
-        if(sessions.size>20)item {TextButton(onClick={showAll=!showAll}){Text(if(showAll)"Show recent" else "Show all stored results")}}
         }
     }
 }
-private fun changeLabel(value: Double?)=value?.let{String.format(Locale.getDefault(),"%+.1f points",it)} ?: "· first result"
 
+@Composable private fun MetricChart(entries: List<PracticeEntry>,now: Long,activity: Boolean=false,listening: Boolean=false) {
+    val today=PracticeInsights.day(now)
+    val days=(6 downTo 0).map{today.minusDays(it.toLong())}
+    val groups=days.map{day->entries.filter{PracticeInsights.day(it.date)==day && (activity || listening || it.scoringVersion>=2)}}
+    val first=groups.map {g->when {
+        activity->g.sumOf{it.activeMs}/60000.0
+        listening->g.sumOf{it.total}.takeIf{it>0}?.let{100.0*g.sumOf{e->e.correct}/it}
+        else->g.sumOf{it.expected+it.extra}.takeIf{it>0}?.let{100.0*g.sumOf{e->e.correct}/it}
+    }}
+    val second=groups.map{g->val timed=g.filter{it.onTimeCorrect!=null};timed.sumOf{it.expected}.takeIf{it>0}?.let{100.0*timed.sumOf{e->e.onTimeCorrect ?: 0}/it}}
+    val primary=MaterialTheme.colorScheme.primary;val timing=MaterialTheme.colorScheme.tertiary;val grid=MaterialTheme.colorScheme.outlineVariant
+    Panel(Modifier.fillMaxWidth()) {
+        Text(if(activity)"Practice minutes · 7 days" else if(listening)"Listening precision · 7 days" else "Accuracy and on-time notes · 7 days",fontWeight=FontWeight.SemiBold)
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(130.dp)) {
+            val top=12.dp.toPx();val bottom=size.height-12.dp.toPx();val maximum=if(activity)maxOf(5.0,first.filterNotNull().maxOrNull() ?: 0.0) else 100.0
+            for(i in 0..4)drawLine(grid,androidx.compose.ui.geometry.Offset(0f,top+(bottom-top)*i/4),androidx.compose.ui.geometry.Offset(size.width,top+(bottom-top)*i/4),1f)
+            fun line(values: List<Double?>,colour: androidx.compose.ui.graphics.Color){var previous: androidx.compose.ui.geometry.Offset?=null;values.forEachIndexed{i,value->
+                if(value==null){previous=null}else{val point=androidx.compose.ui.geometry.Offset(size.width*(i+.5f)/7,(bottom-(bottom-top)*value/maximum).toFloat());previous?.let{drawLine(colour,it,point,2.5.dp.toPx())};drawCircle(colour,3.5.dp.toPx(),point);previous=point}
+            }}
+            line(first,primary);if(!activity && !listening)line(second,timing)
+        }
+        Row(Modifier.fillMaxWidth()){days.forEach{day->Text(day.dayOfWeek.getDisplayName(TextStyle.SHORT,Locale.getDefault()),Modifier.weight(1f),style=MaterialTheme.typography.labelSmall)}}
+        Text(if(activity)"Minutes exclude pauses and count-in." else if(listening)"Complete answers, including retries." else "Accuracy (primary) · on time (secondary). Daily totals use selected settings; only matching contexts are compared below.",style=MaterialTheme.typography.bodySmall)
+    }
+}
 @Composable private fun ReminderControls() {
     val context=LocalContext.current
     var config by remember { mutableStateOf(PracticeReminders.config(context)) }

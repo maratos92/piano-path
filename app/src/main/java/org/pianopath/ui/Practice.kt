@@ -2,6 +2,8 @@
 package org.pianopath.ui
 
 import androidx.compose.foundation.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -77,6 +79,7 @@ import kotlin.math.*
                 IconButton(onClick={vm.scaleFalling(-.2)},modifier=Modifier.size(32.dp)){Icon(Icons.Outlined.UnfoldLess,"Compress falling timeline")}
                 IconButton(onClick={vm.scaleFalling(.2)},modifier=Modifier.size(32.dp)){Icon(Icons.Outlined.UnfoldMore,"Stretch falling timeline")}
             }
+            IconButton(onClick=vm::toggleLoopSelection,enabled=!(p.running||p.listening),modifier=Modifier.size(34.dp)){Icon(Icons.Outlined.Repeat,"Select loop",Modifier.size(19.dp),tint=if(p.selectingLoop)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
             IconButton(onClick={monitor=!monitor},modifier=Modifier.size(36.dp)) {Icon(Icons.Outlined.QueueMusic,"Played notes",Modifier.size(19.dp),tint=if(monitor)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
         }
         val outOfRange=remember(score,p.startMeasure,p.endMeasure,p.startOffset,p.endOffset,p.hand,settings.keyboardFirst,settings.keyboardLast) {
@@ -125,12 +128,13 @@ import kotlin.math.*
                 if(p.hidden)Box(Modifier.matchParentSize().background(Color(0xfffffefb))) {
                     Text("Score hidden · press Practice to begin",Modifier.align(Alignment.Center),color=Ink)
                 }
-                if(p.counting>0)Surface(Modifier.align(Alignment.Center),shape=RoundedCornerShape(20.dp),color=Pine.copy(alpha=.94f)) {
-                    Text(p.counting.toString(),fontSize=48.sp,color=Color.White,modifier=Modifier.padding(horizontal=30.dp,vertical=8.dp))
+                if(p.counting>0)Box(Modifier.align(Alignment.Center)) {
+                    if(settings.reduceMotion)Text(p.counting.toString(),fontSize=80.sp,color=MaterialTheme.colorScheme.primary)
+                    else AnimatedContent(targetState=p.counting,transitionSpec={ (fadeIn(tween(150))+scaleIn(tween(300),initialScale=.65f)) togetherWith (fadeOut(tween(300))+scaleOut(tween(300),targetScale=1.5f)) },label="Practice countdown"){number->Text(number.toString(),fontSize=80.sp,color=MaterialTheme.colorScheme.primary)}
                 }
             }
             KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else if(p.cursorPreview!=null || !p.running)expectedAt(score,p.cursorPreview ?: if(p.review)p.reviewBeat else p.transportBeat,p.hand) else p.expected,true,vm::key,
-                if(landscape)64 else 100,1f,0f,if(p.review && p.performedRoll)p.take.filter {n->p.reviewBeat>=n.beat && p.reviewBeat<=n.beat+(n.duration ?: .12)}.map {it.pitch}.toSet() else p.playbackHeld)
+                if(landscape)64 else 100,1f,0f,if(p.review && p.performedRoll)p.take.filter {n->p.reviewBeat>=n.beat && p.reviewBeat<=n.beat+(n.duration ?: .12)}.map {it.pitch}.toSet() else if(p.paused)expectedAt(score,p.transportBeat,p.hand).toSet() else p.playbackHeld,paused=p.paused)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
@@ -142,7 +146,7 @@ import kotlin.math.*
                 Text(if(p.listening)"Stop music" else "Listen",fontSize=12.sp)
             }
             if(p.running || p.listening)IconButton(onClick={vm.togglePause()}) {Icon(if(p.paused)Icons.Outlined.PlayArrow else Icons.Outlined.Pause,if(p.paused)"Resume" else "Pause")}
-            Button(onClick={if(p.running)vm.stop() else vm.start()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
+            Button(onClick={if(p.running)vm.stop("Practice finished",saveResult=true) else vm.start()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.running)Icons.Outlined.Stop else Icons.Outlined.PlayArrow,null,Modifier.size(18.dp))
                 Text(if(p.running)"Finish" else "Practice",fontSize=12.sp)
             }
@@ -150,13 +154,10 @@ import kotlin.math.*
         if(!p.review)Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             val start=score.measures[p.startMeasure-1].start+p.startOffset
             val end=score.measures[p.endMeasure-1].start+p.endOffset
-            if(p.selectingLoop)Text("A ${"%.1f".format(start)}",fontSize=10.sp)
+            if(p.selectingLoop)Text("${"%.1f".format(start)}",fontSize=10.sp)
             Slider(value=p.transportBeat.toFloat().coerceIn(0f,score.endBeat.toFloat()),onValueChange={vm.seek(it.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.1f),modifier=Modifier.weight(1f).height(34.dp))
-            if(p.selectingLoop)Text("B ${"%.1f".format(end)}",fontSize=10.sp)
-            IconButton(onClick={vm.toggleLoopSelection()},enabled=!(p.running||p.listening),modifier=Modifier.size(34.dp)){
-                Icon(Icons.Outlined.Repeat,if(p.selectingLoop)"Return to cursor mode" else "Select A–B passage",Modifier.size(19.dp),tint=if(p.selectingLoop)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if(p.selectingLoop)Text("${"%.1f".format(end)}",fontSize=10.sp)
         }
         if(p.result!=null && !p.review)Row(Modifier.fillMaxWidth().height(30.dp).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick={vm.review()},contentPadding=PaddingValues(0.dp)){Text("Review on score",fontSize=11.sp)}
@@ -170,7 +171,7 @@ import kotlin.math.*
             Slider(scoreFraction,{scoreFraction=it},valueRange=.25f..0.75f)
         }
     }){controls=false}
-    if(result&&p.result!=null)ResultDialog(p.result!!,p.simulated){result=false}
+    if(result&&p.result!=null)ResultDialog(p.result!!,p.simulated,p.mode,p.visualTolerance){result=false}
 }
 fun modeName(m: PracticeMode)=when(m){PracticeMode.FREE->"Free play";PracticeMode.FOLLOW->"Follow score";PracticeMode.WAIT->"Wait mode";PracticeMode.RHYTHM->"Rhythm"}
 fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Hand.BOTH->"Both hands"}
@@ -199,13 +200,12 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             if(score.expressiveTempo)Text("Expressive tempo text (e.g. accelerando or ritardando) detected; words alone do not define an exact BPM curve.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows explicit BPM changes; scored Practice uses your selected fixed tempo.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider()
-            TextButton(onClick=vm::toggleLoopSelection,enabled=!(p.running||p.listening)){Text(if(p.selectingLoop)"Use whole piece / cursor" else "Select A–B near cursor")}
-            Text("Loop · drag A/B on the sheet",fontWeight=FontWeight.SemiBold)
+            Text("Loop · drag the edge handles",fontWeight=FontWeight.SemiBold)
             val from=score.measures[p.startMeasure-1].start+p.startOffset
             val to=score.measures[p.endMeasure-1].start+p.endOffset
             if(p.selectingLoop)RangeSlider(value=from.toFloat()..to.toFloat(),onValueChange={vm.setPassage(it.start.toDouble(),it.endInclusive.toDouble())},
                 valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.25f),enabled=!(p.running || p.listening))
-            if(p.selectingLoop)Text("A ${"%.1f".format(from)}  →  B ${"%.1f".format(to)}",fontSize=12.sp)
+            if(p.selectingLoop)Text("${"%.1f".format(from)}  →  ${"%.1f".format(to)}",fontSize=12.sp)
             TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide fine adjustments" else "Fine adjustments")}
             if(advanced) {
             MeasureStepper("From measure",p.startMeasure,score.measures.size,!(p.running || p.listening)) { n -> vm.edit { val end=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=end,startOffset=0.0,endOffset=score.measures[end-1].length) } }
@@ -225,8 +225,8 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
             Slider(settingsLoopBreak(vm).toFloat(),{v->vm.setSettings{it.copy(loopBreakSeconds=v.toInt())}},valueRange=0f..5f,steps=4)
             OutlinedButton(onClick={close();vm.screen.value="Connect"}){Text("Piano MIDI connection")}
             Toggle("Horizontal score layout",p.horizontal,{v->vm.edit{it.copy(horizontal=v)}},!(p.running || p.listening))
-            OutlinedTextField(sectionName,{sectionName=it},label={Text("Passage name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!(p.running || p.listening))
-            OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkAdd,null);Spacer(Modifier.width(8.dp));Text("Save passage")}
+            OutlinedTextField(sectionName,{sectionName=it},label={Text("Loop name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!(p.running || p.listening))
+            OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkAdd,null);Spacer(Modifier.width(8.dp));Text("Save loop")}
             p.sections.forEach { s->TextButton(onClick={vm.useSection(s)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkBorder,null);Spacer(Modifier.width(8.dp));Text("${s.name} · ${s.bpm.toInt()} BPM")} }
             Button(onClick=close,modifier=Modifier.fillMaxWidth()){Text("Back to score")}
         }
@@ -242,12 +242,13 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
         Text("/ $max",fontSize=12.sp)
     }
 }
-@Composable fun ResultDialog(r: SessionResult,simulated: Boolean,close: ()->Unit) {
+@Composable fun ResultDialog(r: SessionResult,simulated: Boolean,mode: PracticeMode=PracticeMode.RHYTHM,tolerance: Double=180.0,close: ()->Unit) {
     val naming=LocalNoteNaming.current
+    val metrics=PracticeMetrics.from(r,mode,tolerance)
     AlertDialog(onDismissRequest=close,confirmButton={TextButton(onClick=close){Text("Keep practicing")}},title={Text("Every note is progress",fontFamily=FontFamily.Serif)},text={
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             if(simulated)Text("TOUCH / TEST INPUT",color=MaterialTheme.colorScheme.primary,fontSize=11.sp)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(14.dp)){Metric("${r.pitch.toInt()}%","pitch",Modifier.weight(1f));Metric(r.rhythm?.let{"${it.toInt()}%"}?:"—","rhythm",Modifier.weight(1f));Metric("${r.overall.toInt()}%","overall",Modifier.weight(1f))}
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(14.dp)){Metric("${r.pitch.toInt()}%","note accuracy",Modifier.weight(1f));Metric(metrics.onTime?.let{"${it.toInt()}%"}?:"—","on time",Modifier.weight(1f))}
             Text("${r.correct} correct · ${r.missing} missing · ${r.extra} extra\nChords complete: ${r.completeChords} / ${r.totalChords}")
             Text("Left hand: ${r.leftPitch?.let{"${it.toInt()}%"}?:"—"}    Right hand: ${r.rightPitch?.let{"${it.toInt()}%"}?:"—"}")
             if(r.rhythm!=null) {

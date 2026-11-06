@@ -22,6 +22,7 @@ import org.pianopath.PracticeUi
     val currentSeek by rememberUpdatedState(onSeek)
     val currentLoop by rememberUpdatedState(onLoop)
     val currentPreview by rememberUpdatedState(onPreview)
+    val reduced by rememberUpdatedState(!animate)
     val accent="#%06x".format(MaterialTheme.colorScheme.primary.toArgb() and 0xffffff)
     if(renderFailed)Column(modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text("Score renderer stopped. Your score and practice data are kept.")
@@ -45,6 +46,7 @@ import org.pianopath.PracticeUi
                 override fun shouldOverrideUrlLoading(view: WebView,request: WebResourceRequest)=true
             }
             addJavascriptInterface(object {
+                @JavascriptInterface fun reducedMotion()=reduced
                 @JavascriptInterface fun score() = p.xml
                 @JavascriptInterface fun ready() { post { if(web===scoreView)ready=true } }
                 @JavascriptInterface fun seek(beat: Double) { if(beat.isFinite()) post { currentSeek(beat) } }
@@ -64,12 +66,18 @@ import org.pianopath.PracticeUi
     LaunchedEffect(ready,matched,missed,take,expected){
         if(ready)web?.evaluateJavascript("setPerformanceData($matched,$missed,$take,$expected)",null)
     }
-    LaunchedEffect(ready,p.cursorPreview,p.transportBeat,p.beat,p.reviewBeat,p.review,p.running,p.listening,p.paused,p.bpm,p.visualTolerance,p.matched,p.missed,p.take,p.startMeasure,p.endMeasure,p.startOffset,p.endOffset,p.zoom,p.horizontal,p.sheetMargin,dark,p.hand,p.loop,p.selectingLoop,accent,animate) {
+    LaunchedEffect(ready,p.counting,p.feedback,p.hidden,p.cursorPreview,p.transportBeat,p.beat,p.reviewBeat,p.review,p.running,p.listening,p.paused,p.bpm,p.visualTolerance,p.matched,p.missed,p.take,p.startMeasure,p.endMeasure,p.startOffset,p.endOffset,p.zoom,p.horizontal,p.sheetMargin,dark,p.hand,p.loop,p.selectingLoop,accent,animate) {
         if(!ready) return@LaunchedEffect
         if(score==null)return@LaunchedEffect
         val start=score.measures[p.startMeasure-1].start+p.startOffset
         val end=score.measures[p.endMeasure-1].start+p.endOffset
         val beat=p.cursorPreview ?: if(p.review && !p.running)p.reviewBeat else if(p.listening || p.running)p.transportBeat else p.beat
-        web?.evaluateJavascript("progress($beat,performanceData.matched,performanceData.missed,$start,$end,${p.zoom},${p.horizontal},performanceData.take,performanceData.expected,${p.visualTolerance},${p.sheetMargin},$dark,${p.bpm},'${p.hand.name}',true,${p.selectingLoop},${!p.running && !p.listening},${score.endBeat},${p.cursorPreview==null && !p.paused && (p.running || p.listening || p.review)},'$accent',$animate)",null)
+        val rate=when {
+            p.paused || p.hidden || p.counting>0 || p.feedback.startsWith("Preview ·") || p.feedback.startsWith("Rest ·") || p.cursorPreview!=null->0.0
+            p.listening->score.tempoAt(beat)*p.bpm/score.tempo/60
+            p.running && p.mode!=org.pianopath.core.PracticeMode.WAIT->p.bpm/60
+            else->0.0
+        }
+        web?.evaluateJavascript("progress($beat,performanceData.matched,performanceData.missed,$start,$end,${p.zoom},${p.horizontal},performanceData.take,performanceData.expected,${p.visualTolerance},${p.sheetMargin},$dark,${p.bpm},'${p.hand.name}',true,${p.selectingLoop},${!p.running && !p.listening},${score.endBeat},${p.cursorPreview==null && !p.paused && (p.running || p.listening || p.review)},'$accent',$animate,$rate)",null)
     }
 }
