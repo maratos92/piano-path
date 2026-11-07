@@ -25,12 +25,13 @@ class PracticeControlsRegressionTest {
         }
         compose.waitUntil(15_000) { vm.ui.value.score != null && vm.screen.value == "Practice" }
         compose.onNodeWithContentDescription("Practice controls").performClick()
+        compose.onNodeWithTag("practice-settings-overlay").assertIsDisplayed()
         return vm
     }
 
     @Test fun exerciseSettingsReturnToScaleSetup() {
         val vm=openPractice()
-        compose.onNode(hasText("Exercise settings") and hasAnyAncestor(isDialog())).performClick()
+        compose.onNode(hasText("Exercise settings") and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performClick()
         compose.waitUntil(5_000) { vm.screen.value == "Scales" }
         compose.onNodeWithText("Scales & technique").assertIsDisplayed()
         compose.onNodeWithTag("start-scale").assertExists()
@@ -38,7 +39,7 @@ class PracticeControlsRegressionTest {
 
     @Test fun exerciseSettingsReturnToSightReadingSetup() {
         val vm=openPractice(sight=true)
-        compose.onNode(hasText("Exercise settings") and hasAnyAncestor(isDialog())).performClick()
+        compose.onNode(hasText("Exercise settings") and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performClick()
         compose.waitUntil(5_000) { vm.screen.value == "Sight reading" }
         compose.onNodeWithText("Difficulty").assertIsDisplayed()
         compose.onNodeWithTag("start-sight-reading").assertExists()
@@ -49,9 +50,9 @@ class PracticeControlsRegressionTest {
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == configuration }
         openPractice()
         for(tab in listOf("Practice", "Loop", "Score")) {
-            compose.onNode(hasText(tab) and hasAnyAncestor(isDialog())).performClick()
+            compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performClick()
             // Deliberately do not scroll: the action must stay visible on every page.
-            val start=compose.onNode(hasTestTag("start-practice") and hasAnyAncestor(isDialog()))
+            val start=compose.onNode(hasTestTag("start-practice") and hasAnyAncestor(hasTestTag("practice-settings-overlay")))
             if(!start.isDisplayed()) {
                 val bounds=start.fetchSemanticsNode().boundsInWindow
                 throw AssertionError("Start footer hidden on tab=$tab, orientation=$configuration, boundsInWindow=$bounds")
