@@ -445,15 +445,15 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         val out=java.io.ByteArrayOutputStream(); val buffer=ByteArray(8192)
         var n=read(buffer); while(n>0) { require(out.size()+n<=limit) { "Score exceeds 12 MB" }; out.write(buffer,0,n); n=read(buffer) }; return out.toByteArray()
     }
-    private suspend fun load(xml: String,key: String,category: String,guidance: String,preview: Int = 0,selectionToken: Long): Boolean {
+    private suspend fun load(xml: String,key: String,category: String,guidance: String,preview: Int = 0,selectionToken: Long,initialise: (PracticeUi)->PracticeUi = {it}): Boolean {
         val score = withContext(Dispatchers.Default) { MusicXml.parse(xml) }
         val sections=dao.sections(key)
         if(selectionToken!=scoreSelection)return false
         stopListening();if(ui.value.running)stop()
         recorder.interrupt("Score opened")
-        ui.value = PracticeUi(score=score,xml=xml,key=key,category=category,bpm=score.tempo,endMeasure=score.measures.size,sheetMargin=settings.value.sheetMargin,
+        ui.value = initialise(PracticeUi(score=score,xml=xml,key=key,category=category,bpm=score.tempo,endMeasure=score.measures.size,sheetMargin=settings.value.sheetMargin,
             endOffset=score.measures.last().length,sections=sections,guidance=guidance,previewSeconds=preview,
-            hidden=category=="Sight reading",feedback="Ready · ${score.notes.count { !it.rest }} notes",expected=score.notes.filter { !it.rest && it.beat==0.0 }.map { it.midi })
+            hidden=category=="Sight reading",feedback="Ready · ${score.notes.count { !it.rest }} notes",expected=score.notes.filter { !it.rest && it.beat==0.0 }.map { it.midi }))
         if(category=="Imported score") {
             recentKeys.value=(listOf(key)+recentKeys.value).distinct().take(8)
             preferences.edit().putString("recentScores",recentKeys.value.joinToString("\n")).apply()
@@ -464,15 +464,14 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
     fun scale(root: Int,kind: ScaleKind,octaves: Int,hand: Hand,descending: Boolean) = viewModelScope.launch {
         val token=++scoreSelection
         val ex = Exercises.scale(root,kind,octaves,hand,descending)
-        if(!load(ex.xml,"scale-$root-$kind-$octaves-$hand-$descending","Scales",ex.guidance,selectionToken=token))return@launch
-        edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM) }
+        if(!load(ex.xml,"scale-$root-$kind-$octaves-$hand-$descending","Scales",ex.guidance,selectionToken=token,initialise={it.copy(hand=hand,mode=PracticeMode.RHYTHM)}))return@launch
     }
     fun sight(level: Int,fifths: Int,beats: Int,hand: Hand,preview: Int,bpm: Double = 80.0) = viewModelScope.launch {
         sightSettings=SightSettings(level,fifths,beats,hand,preview.coerceIn(0,60),bpm)
         val token=++scoreSelection
         val ex = Exercises.sight(level,fifths,beats,hand)
-        if(!load(ex.xml,"sight-${System.currentTimeMillis()}","Sight reading",ex.guidance,preview.coerceIn(0,60),selectionToken=token))return@launch
-        edit { it.copy(hand=hand,mode=PracticeMode.RHYTHM,loop=false,bpm=bpm.coerceIn(20.0,200.0),view=ScoreView.SHEET) }
+        if(!load(ex.xml,"sight-${System.currentTimeMillis()}","Sight reading",ex.guidance,preview.coerceIn(0,60),selectionToken=token,
+                initialise={it.copy(hand=hand,mode=PracticeMode.RHYTHM,loop=false,bpm=bpm.coerceIn(20.0,200.0),view=ScoreView.SHEET)}))return@launch
     }
     fun nextSight() {
         val previous=sightSettings ?: return
