@@ -194,7 +194,10 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     var loopPage by remember{mutableIntStateOf(0)}
     var sectionName by remember{mutableStateOf("")}
     val editable=!(p.running || p.listening)
-    Dialog(onDismissRequest=close,properties=DialogProperties(usePlatformDefaultWidth=false)) {
+    // The Activity uses enableEdgeToEdge(). Give this full-screen dialog the same
+    // window inset policy, then apply safeDrawing padding once to the content.
+    // A floating/decor-fitting dialog could measure its footer beneath the system bar.
+    Dialog(onDismissRequest=close,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
         Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=12.dp,vertical=4.dp)) {
                 Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
