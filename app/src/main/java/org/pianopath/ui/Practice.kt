@@ -2,6 +2,7 @@
 package org.pianopath.ui
 
 import androidx.compose.foundation.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
@@ -22,11 +23,6 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
-import android.view.WindowManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.text.KeyboardOptions
@@ -68,7 +64,11 @@ import kotlin.math.*
         replaying=false
     }
     if(score==null) {Column(Modifier.padding(24.dp)){PageTitle("Choose your music");Button(onClick={vm.screen.value="Library"}){Text("Open library")}};return}
-    Column(Modifier.fillMaxSize()) {
+    // The app Activity already applies safeDrawing insets. Rendering settings as
+    // an in-app full-screen destination avoids Dialog's separate native window,
+    // whose bottom navigation-bar inset clipped the pinned Start footer on API 35/36.
+    BackHandler(enabled=controls) { controls=false }
+    if(!controls) Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(if(landscape)44.dp else 54.dp).padding(horizontal=6.dp),verticalAlignment=Alignment.CenterVertically) {
             IconButton(onClick=openMenu){Icon(Icons.Outlined.Menu,"Open navigation menu")}
             Column(Modifier.weight(1f)) {
@@ -197,23 +197,11 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     var loopPage by remember{mutableIntStateOf(0)}
     var sectionName by remember{mutableStateOf("")}
     val editable=!(p.running || p.listening)
-    // The Activity uses enableEdgeToEdge(). Give this full-screen dialog the same
-    // window inset policy, then apply safeDrawing padding once to the content.
-    // A floating/decor-fitting dialog could measure its footer beneath the system bar.
-    Dialog(onDismissRequest=close,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
-        // Compose Dialog defaults to a WRAP_CONTENT-height window; neither
-        // fillMaxSize nor screenHeightDp on child content is guaranteed to resize
-        // the actual dialog window. Force MATCH_PARENT on the dialog Window itself.
-        // safeDrawing below keeps the fixed footer clear of system bars.
-        val host=(LocalView.current.parent as? DialogWindowProvider)
-        LaunchedEffect(host) {
-            host?.window?.setLayout(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT
-            )
-        }
-        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=12.dp,vertical=4.dp)) {
+    // Full-screen inside Practice, not a separate Android Dialog Window.
+    // PianoApp's root already provides safeDrawing padding, including navigation.
+    // Keep the settings pane at a finite height, with a fixed action footer.
+    Surface(Modifier.fillMaxSize().testTag("practice-settings-overlay"),color=MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=4.dp)) {
                 Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("Practice settings",Modifier.weight(1f),fontSize=20.sp,fontFamily=FontFamily.Serif)
                     if(p.category=="Scales" || p.category=="Sight reading")TextButton(onClick={
@@ -295,7 +283,6 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
                     OutlinedButton(onClick=close,modifier=Modifier.weight(1f)){Text("Back to score")}
                     Button(onClick={close();vm.start()},enabled=editable,modifier=Modifier.weight(1f).testTag("start-practice")){Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Start")}
                 }
-            }
         }
     }
 }
