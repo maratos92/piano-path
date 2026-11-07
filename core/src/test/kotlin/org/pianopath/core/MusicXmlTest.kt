@@ -15,8 +15,8 @@ class MusicXmlTest {
         assertEquals(62,score.graceNotes.single().midi)
         assertEquals(1,score.notes.size)
         assertEquals(OrnamentKind.TRILL,score.ornaments.single().kind)
-        assertEquals(1,score.selected(0.0,3.0,Hand.BOTH).size)
-        assertTrue(PlaybackPlan.create(score,0.0,3.0).size>2)
+        assertEquals(1,score.selected(0.0,score.endBeat,Hand.BOTH).size)
+        assertTrue(PlaybackPlan.create(score,0.0,score.endBeat).size>2)
     }
     @Test fun chordBackupMultipleVoicesAndFingering() {
         val xml=wrap("""<direction><sound tempo="96"/></direction><note>$c<duration>6</duration><voice>1</voice><type>quarter</type><dot/><staff>1</staff><notations><technical><fingering>1</fingering></technical></notations></note><note><chord/><pitch><step>E</step><alter>-1</alter><octave>4</octave></pitch><duration>6</duration><voice>1</voice><staff>1</staff></note><note><rest/><duration>6</duration><voice>1</voice></note><backup><duration>12</duration></backup><note><pitch><step>C</step><octave>3</octave></pitch><duration>12</duration><voice>2</voice><staff>2</staff></note>""")
