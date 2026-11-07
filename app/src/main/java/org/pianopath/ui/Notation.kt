@@ -31,7 +31,7 @@ import org.pianopath.PracticeUi
     } else key(p.xml) {
         AndroidView(modifier=modifier,factory={ context -> WebView(context).apply {
             val scoreView=this
-            setBackgroundColor(android.graphics.Color.rgb(255,254,251))
+            setBackgroundColor(if(dark) android.graphics.Color.rgb(20,36,33) else android.graphics.Color.rgb(255,254,251))
             settings.javaScriptEnabled=true
             settings.blockNetworkLoads=true
             settings.allowFileAccess=false; settings.allowContentAccess=false
@@ -48,6 +48,7 @@ import org.pianopath.PracticeUi
             }
             addJavascriptInterface(object {
                 @JavascriptInterface fun reducedMotion()=reduced
+                @JavascriptInterface fun darkTheme()=dark
                 @JavascriptInterface fun score() = p.xml
                 @JavascriptInterface fun ready() { post { if(web===scoreView)ready=true } }
                 @JavascriptInterface fun seek(beat: Double) { if(beat.isFinite()) post { currentSeek(beat) } }

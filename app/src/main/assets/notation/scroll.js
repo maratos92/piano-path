@@ -65,10 +65,14 @@ class ScoreScroller {
     // to the bass staff without the next beat pulling it back to the treble.
     if (entering || seeking) {
       const padding = Math.min(16, v.height * .08);
+      // With wrapped systems keep the next passage near the top, not below already played lines.
+      if (!lastHorizontal && entering) top = frame.top - padding;
       const height = frame.bottom - frame.top;
       if (height > v.height - 2 * padding) top = frame.top - padding;
-      else if (frame.top < top + padding) top = frame.top - padding;
-      else if (frame.bottom > top + v.height - padding) top = frame.bottom - v.height + padding;
+      else if (lastHorizontal || !entering) {
+        if (frame.top < top + padding) top = frame.top - padding;
+        else if (frame.bottom > top + v.height - padding) top = frame.bottom - v.height + padding;
+      }
     }
     this.move(left, top);
     this.system = frame.system;
