@@ -231,7 +231,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val history by vm.history.collectAsStateWithLifecycle(); val p by vm.ui.collectAsStateWithLifecycle()
     val imports by vm.imports.collectAsStateWithLifecycle();val recents by vm.recentKeys.collectAsStateWithLifecycle()
     val recent=recents.mapNotNull{key->imports.find{it.key==key}}
-    LazyColumn(Modifier.fillMaxSize().testTag("home-feed"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("home-feed"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Home") }
         item { Surface(modifier=Modifier.testTag("home-start-session"),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.primary,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}) {
             Row(Modifier.fillMaxWidth().padding(24.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -263,7 +263,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val favourites by vm.favourites.collectAsStateWithLifecycle()
     var onlyFavourites by remember{mutableStateOf(false)}
     val visible=imports.filter {(it.title+it.composer).contains(query,true) && (!onlyFavourites || it.key in favourites)}.sortedByDescending{it.key in favourites}
-    LazyColumn(Modifier.fillMaxSize().testTag("library-feed"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("library-feed"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Library") }
         item { Button(onClick=onImport,modifier=Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL")
@@ -292,7 +292,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable private fun Connection(vm: PianoViewModel,midi: MidiStatus,scan: ()->Unit,bluetoothSettings: ()->Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { PageTitle("Connect piano") }
         item { Text("Connect a compatible instrument by Bluetooth LE MIDI or USB MIDI. No microphone is used.",style=MaterialTheme.typography.bodyMedium) }
         item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { ConnectionStatusIcon(midi.connected,settings.reduceMotion);Spacer(Modifier.width(12.dp));Text(midi.status,fontWeight=FontWeight.Medium) };if(midi.scanning)LinearProgressIndicator(Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick=scan,enabled=!midi.scanning){Text("Find piano")};if(midi.connected)OutlinedButton(onClick={vm.midi.disconnect()}){Text("Disconnect")}} } }
@@ -335,7 +335,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
     })
     var section by remember {mutableStateOf("General")}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         PageTitle("Settings")
         PrimaryTabRow(selectedTabIndex=listOf("General","Practice","About").indexOf(section)) {
             listOf("General","Practice","About").forEach { tab ->
