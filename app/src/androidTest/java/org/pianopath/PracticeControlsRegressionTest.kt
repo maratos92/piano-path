@@ -83,7 +83,7 @@ class PracticeControlsRegressionTest {
             vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
             vm.screen.value=screen
         }
-        compose.onNodeWithTag(startTag).performScrollTo().performClick()
+        compose.onNodeWithTag(startTag).assertIsDisplayed().performClick()
         compose.waitUntil(15_000) { vm.screen.value == "Practice" && vm.ui.value.score != null }
         compose.waitForIdle()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
