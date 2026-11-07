@@ -22,8 +22,11 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import android.view.WindowManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.text.KeyboardOptions
@@ -198,14 +201,18 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     // window inset policy, then apply safeDrawing padding once to the content.
     // A floating/decor-fitting dialog could measure its footer beneath the system bar.
     Dialog(onDismissRequest=close,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
-        // Compose Dialog windows are WRAP_CONTENT vertically by default. A weighted
-        // Column inside fillMaxSize() does not force a bounded viewport in that case,
-        // allowing the fixed Start footer to be measured below the visible window.
-        // Give the dialog an explicit screen-height bound in both orientations.
-        Surface(
-            Modifier.fillMaxWidth().height(LocalConfiguration.current.screenHeightDp.dp),
-            color=MaterialTheme.colorScheme.background
-        ) {
+        // Compose Dialog defaults to a WRAP_CONTENT-height window; neither
+        // fillMaxSize nor screenHeightDp on child content is guaranteed to resize
+        // the actual dialog window. Force MATCH_PARENT on the dialog Window itself.
+        // safeDrawing below keeps the fixed footer clear of system bars.
+        val host=(LocalView.current.parent as? DialogWindowProvider)
+        LaunchedEffect(host) {
+            host?.window?.setLayout(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT
+            )
+        }
+        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=12.dp,vertical=4.dp)) {
                 Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("Practice settings",Modifier.weight(1f),fontSize=20.sp,fontFamily=FontFamily.Serif)
