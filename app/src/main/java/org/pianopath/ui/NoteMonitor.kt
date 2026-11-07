@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
@@ -37,7 +38,7 @@ data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: St
 
 /** Native shared staff: Bravura SMuFL glyphs, licensed under the bundled SIL OFL notice. */
 @Composable fun PlayedStaff(columns: List<StaffColumn>,modifier: Modifier=Modifier,bpm: Double=80.0,
-    followKey: Any?=null,naming: String=LocalNoteNaming.current) {
+    followKey: Any?=null,naming: String=LocalNoteNaming.current,fitColumns: Boolean=false) {
     val context=LocalContext.current
     val font=remember(context){Typeface.createFromAsset(context.assets,"fonts/Bravura.otf")}
     val scroll=rememberScrollState()
@@ -49,107 +50,143 @@ data class StaffColumn(val notes: List<PlayedAttack> = emptyList(),val label: St
     val height=if(LocalConfiguration.current.screenHeightDp<500)124f else 160f
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val names=columns.map{column->column.notes.joinToString(" "){displayNoteName(it.pitch,naming)}}
-        val widths=columns.mapIndexed {i,column->max(64f,max(names[i].length,column.label.length)*6f+24f)}
-        val contentWidth=max(maxWidth.value,42f+widths.sum()+24f)
-        LaunchedEffect(followKey,contentWidth,scroll.maxValue) {
+        // Keep clefs outside the scrolling viewport so the active staff remains identifiable.
+        val clefWidth=38f
+        val availableWidth=(maxWidth.value-clefWidth).coerceAtLeast(1f)
+        val widths=columns.mapIndexed {i,column->
+            if(fitColumns)availableWidth/columns.size.coerceAtLeast(1)
+            else max(20f+column.notes.size.coerceAtMost(3)*8f,max(names[i].length,column.label.length)*5.5f+16f)
+        }
+        val contentWidth=if(fitColumns)availableWidth else max(availableWidth,widths.sum()+16f)
+        // Three-note chords and accidentals still fit when ten attempts plus the answer are shown.
+        val notationScale=if(fitColumns && columns.isNotEmpty())(widths.min()/42f).coerceAtMost(1f) else 1f
+        LaunchedEffect(followKey,contentWidth,scroll.maxValue,fitColumns) {
             // Wait for the newest column to be measured before reading the new scroll range.
             withFrameNanos { }
-            scroll.scrollTo(scroll.maxValue)
+            if(!fitColumns)scroll.scrollTo(scroll.maxValue)
         }
-        Canvas(Modifier.fillMaxWidth().horizontalScroll(scroll).width(contentWidth.dp).height(height.dp).semantics {
-            contentDescription=if(columns.isEmpty())"Played staff empty. Play a note to start the sequence." else
-                "Played staff. "+columns.joinToString {column->
-                    column.label+": "+if(column.pause)"pause" else column.notes.joinToString(" with "){n->
-                        "${displayNoteName(n.pitch,naming)}, channel ${n.channel+1}, at ${n.startedNs} nanoseconds, "+
-                            (n.durationMs?.let{"held $it milliseconds"} ?: "still held")
-                    }+(column.correct?.let{if(it)" correct" else " incorrect"} ?: "")
+        Box(Modifier.fillMaxWidth().height(height.dp).padding(start=clefWidth.dp).clipToBounds()) {
+            val viewport=if(fitColumns)Modifier.fillMaxWidth() else Modifier.fillMaxWidth().horizontalScroll(scroll).width(contentWidth.dp)
+            Canvas(viewport.height(height.dp).semantics {
+                contentDescription=if(columns.isEmpty())"Played staff empty. Play a note to start the sequence." else
+                    "Played staff. "+columns.joinToString {column->
+                        column.label+": "+if(column.pause)"pause" else column.notes.joinToString(" with "){n->
+                            "${displayNoteName(n.pitch,naming)}, channel ${n.channel+1}, at ${n.startedNs} nanoseconds, "+
+                                (n.durationMs?.let{"held $it milliseconds"} ?: "still held")
+                        }+(column.correct?.let{if(it)" correct" else " incorrect"} ?: "")
+                    }
+            }) {
+                val d=density;val vertical=d*height/160f
+                val space=7f*vertical*notationScale;val step=space/2
+                val trebleBottom=53f*vertical;val bassBottom=104f*vertical
+                fun argb(color: Color)=android.graphics.Color.argb((color.alpha*255).toInt(),(color.red*255).toInt(),(color.green*255).toInt(),(color.blue*255).toInt())
+                val glyphPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{typeface=font;textSize=space*4;textAlign=Paint.Align.LEFT}
+                val textPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{textAlign=Paint.Align.CENTER}
+                fun glyph(code: Int,x: Float,y: Float,color: Color=ink) {
+                    glyphPaint.color=argb(color)
+                    drawContext.canvas.nativeCanvas.drawText(code.toChar().toString(),x,y,glyphPaint)
                 }
-        }) {
-            val d=density;val vertical=d*height/160f
-            val space=7f*vertical;val step=space/2
-            val trebleBottom=53f*vertical;val bassBottom=104f*vertical
-            fun argb(color: Color)=android.graphics.Color.argb((color.alpha*255).toInt(),(color.red*255).toInt(),(color.green*255).toInt(),(color.blue*255).toInt())
-            val glyphPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{typeface=font;textSize=space*4;textAlign=Paint.Align.LEFT}
-            val textPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{textAlign=Paint.Align.CENTER}
-            fun glyph(code: Int,x: Float,y: Float,color: Color=ink) {
-                glyphPaint.color=argb(color)
-                drawContext.canvas.nativeCanvas.drawText(code.toChar().toString(),x,y,glyphPaint)
-            }
-            fun text(value: String,x: Float,y: Float,dp: Float,color: Color=ink) {
-                textPaint.color=argb(color);textPaint.textSize=dp*d*if(height<160f).85f else 1f
-                drawContext.canvas.nativeCanvas.drawText(value,x,y,textPaint)
-            }
-            for(bottom in listOf(trebleBottom,bassBottom))for(line in 0..4)
-                drawLine(lines,Offset(5*d,bottom-line*space),Offset(size.width-8*d,bottom-line*space),.8f*d)
-            // SMuFL clef origins are the G4 and F3 staff lines, respectively.
-            glyph(0xE050,7*d,trebleBottom-space)
-            glyph(0xE062,7*d,bassBottom-3*space)
-            if(columns.isEmpty())text("Play a note to start the sequence",size.width/2,70*vertical,11f,muted)
-            var left=42f*d
-            columns.forEachIndexed {index,column->
-                val x=left+widths[index]*d/2
-                val columnColor=when(column.correct){true->primary;false->wrong;null->ink}
-                if(column.pause) {
-                    for(bottom in listOf(trebleBottom,bassBottom))glyph(0xE4E5,x-.54f*space,bottom-2*space,muted)
-                } else {
-                    // Stable low-to-high order makes seconds alternate sides regardless of attack order.
-                    val placements=column.notes.map{it to pitchForNotation(it.pitch)}.sortedWith(
-                        compareBy({it.second.diatonic},{it.first.pitch},{it.first.channel}))
-                    val lanes=mutableListOf<Int>()
-                    val laneWidth=placements.maxOfOrNull { (note,_)->
-                        (if(approximateDuration(note.durationMs,bpm).first>=4.0)1.688f else 1.18f)*space
-                    } ?: 0f
-                    placements.forEachIndexed {noteIndex,(note,pitch)->
-                        val treble=pitch.writtenPitch>=60
-                        val bottom=if(treble)trebleBottom else bassBottom
-                        val relative=pitch.diatonic-if(treble)37 else 25
-                        val y=bottom-relative*step
-                        val occupied=placements.take(noteIndex).mapIndexedNotNull {i,(_,prior)->
-                            lanes[i].takeIf {(prior.writtenPitch>=60)==treble && abs(prior.diatonic-pitch.diatonic)<=1}
-                        }.toSet()
-                        val lane=generateSequence(0){it+1}.first{it !in occupied}
-                        lanes.add(lane)
-                        val headX=x+lane*laneWidth
-                        val value=approximateDuration(note.durationMs,bpm)
-                        val color=if(column.correct==null && note.durationMs==null)primary else columnColor
-                        val whole=value.first>=4.0
-                        val headWidth=(if(whole)1.688f else 1.18f)*space
-                        val headLeft=headX-headWidth/2
-                        ledgerStepsFromStaffBottom(relative).forEach{line->
-                            val ledgerY=bottom-line*step
-                            drawLine(color,Offset(headLeft-3*d,ledgerY),Offset(headLeft+headWidth+3*d,ledgerY),.9f*d)
-                        }
-                        glyph(if(whole)0xE0A2 else if(value.first>=2.0)0xE0A3 else 0xE0A4,headLeft,y,color)
-                        if(!whole) {
-                            val up=relative<4
-                            // Official Bravura notehead stem anchors, in SMuFL staff-space units.
-                            val stemX=if(up)headLeft+1.18f*space else headLeft
-                            val start=y+if(up)-.168f*space else .168f*space
-                            val end=y+(if(up)-3.5f else 3.5f)*space
-                            drawLine(color,Offset(stemX,start),Offset(stemX,end),.12f*space)
-                            if(value.first>0 && value.first<=.5) {
-                                val sixteenth=value.first==.25
-                                val code=if(up){if(sixteenth)0xE242 else 0xE240}else{if(sixteenth)0xE243 else 0xE241}
-                                val anchor=if(up){if(sixteenth)-.088f else -.04f}else{if(sixteenth).128f else .132f}
-                                glyph(code,stemX,end+anchor*space,color)
+                fun text(value: String,x: Float,y: Float,dp: Float,color: Color=ink,maxWidth: Float=Float.POSITIVE_INFINITY) {
+                    textPaint.color=argb(color);textPaint.textSize=dp*d*if(height<160f).85f else 1f
+                    val measured=textPaint.measureText(value)
+                    if(measured>maxWidth)textPaint.textSize*=maxWidth/measured
+                    drawContext.canvas.nativeCanvas.drawText(value,x,y,textPaint)
+                }
+                for(bottom in listOf(trebleBottom,bassBottom))for(line in 0..4)
+                    drawLine(lines,Offset(0f,bottom-line*space),Offset(size.width,bottom-line*space),.8f*d)
+                if(columns.isEmpty())text("Play a note to start the sequence",size.width/2,70*vertical,11f,muted)
+                var left=0f
+                columns.forEachIndexed {index,column->
+                    val x=left+widths[index]*d/2
+                    val columnColor=when(column.correct){true->primary;false->wrong;null->ink}
+                    if(column.pause) {
+                        for(bottom in listOf(trebleBottom,bassBottom))glyph(0xE4E5,x-.54f*space,bottom-2*space,muted)
+                    } else {
+                        // Stable low-to-high order makes seconds alternate sides regardless of attack order.
+                        val placements=column.notes.map{it to pitchForNotation(it.pitch)}.sortedWith(
+                            compareBy({it.second.diatonic},{it.first.pitch},{it.first.channel}))
+                        val lanes=mutableListOf<Int>()
+                        val laneWidth=placements.maxOfOrNull { (note,_)->
+                            (if(approximateDuration(note.durationMs,bpm).first>=4.0)1.688f else 1.18f)*space
+                        } ?: 0f
+                        placements.forEachIndexed {noteIndex,(note,pitch)->
+                            val treble=pitch.writtenPitch>=60
+                            val bottom=if(treble)trebleBottom else bassBottom
+                            val relative=pitch.diatonic-if(treble)37 else 25
+                            val y=bottom-relative*step
+                            val occupied=placements.take(noteIndex).mapIndexedNotNull {i,(_,prior)->
+                                lanes[i].takeIf {(prior.writtenPitch>=60)==treble && abs(prior.diatonic-pitch.diatonic)<=1}
+                            }.toSet()
+                            val lane=generateSequence(0){it+1}.first{it !in occupied}
+                            lanes.add(lane)
+                            val headX=x+lane*laneWidth
+                            val value=approximateDuration(note.durationMs,bpm)
+                            val color=if(column.correct==null && note.durationMs==null)primary else columnColor
+                            val whole=value.first>=4.0
+                            val headWidth=(if(whole)1.688f else 1.18f)*space
+                            val headLeft=headX-headWidth/2
+                            ledgerStepsFromStaffBottom(relative).forEach{line->
+                                val ledgerY=bottom-line*step
+                                drawLine(color,Offset(headLeft-3*d,ledgerY),Offset(headLeft+headWidth+3*d,ledgerY),.9f*d)
+                            }
+                            glyph(if(whole)0xE0A2 else if(value.first>=2.0)0xE0A3 else 0xE0A4,headLeft,y,color)
+                            if(!whole) {
+                                val up=relative<4
+                                // Official Bravura notehead stem anchors, in SMuFL staff-space units.
+                                val stemX=if(up)headLeft+1.18f*space else headLeft
+                                val start=y+if(up)-.168f*space else .168f*space
+                                val end=y+(if(up)-3.5f else 3.5f)*space
+                                drawLine(color,Offset(stemX,start),Offset(stemX,end),.12f*space)
+                                if(value.first>0 && value.first<=.5) {
+                                    val sixteenth=value.first==.25
+                                    val code=if(up){if(sixteenth)0xE242 else 0xE240}else{if(sixteenth)0xE243 else 0xE241}
+                                    val anchor=if(up){if(sixteenth)-.088f else -.04f}else{if(sixteenth).128f else .132f}
+                                    glyph(code,stemX,end+anchor*space,color)
+                                }
+                            }
+                            // Accidentals stay left of the chord, including a head displaced to the right.
+                            if(pitch.writtenPitch%12 in listOf(1,3,6,8,10))glyph(0xE262,x-headWidth/2-1.3f*space,y,color)
+                            if(pitch.octaves!=0) {
+                                val mark=when(pitch.octaves){1->"8va";-1->"8vb";2->"15ma";-2->"15mb";3->"22ma";-3->"22mb";else->"${pitch.octaves} oct"}
+                                if(fitColumns)text(mark,x,max(8*d,y-14*d),7f,color,((widths[index]-2f)*d).coerceAtLeast(1f))
+                                else text(mark,headX+17*d,max(8*d,y+2*d),8f,color)
                             }
                         }
-                        // Accidentals stay left of the chord, including a head displaced to the right.
-                        if(pitch.writtenPitch%12 in listOf(1,3,6,8,10))glyph(0xE262,x-headWidth/2-1.3f*space,y,color)
-                        if(pitch.octaves!=0) {
-                            val mark=when(pitch.octaves){1->"8va";-1->"8vb";2->"15ma";-2->"15mb";3->"22ma";-3->"22mb";else->"${pitch.octaves} oct"}
-                            text(mark,headX+17*d,max(8*d,y+2*d),8f,color)
-                        }
                     }
+                    if(fitColumns) {
+                        val label=if(column.label.startsWith("Attempt "))column.label.removePrefix("Attempt ") else if(column.label=="Answer")"●" else column.label
+                        val result=when(column.correct){true->" ✓";false->" ×";null->""}
+                        val textWidth=((widths[index]-2f)*d).coerceAtLeast(1f)
+                        text(label+result,x,120*vertical,10f,columnColor,textWidth)
+                        // Stack chord names rather than reducing an entire chord to unreadable tiny text.
+                        column.notes.sortedBy{it.pitch}.forEachIndexed {noteIndex,note->
+                            text(displayNoteName(note.pitch,naming),x,(132+noteIndex*12)*vertical,10f,ink,textWidth)
+                        }
+                    } else {
+                        if(column.label.isNotEmpty())text(column.label,x,132*vertical,10f,columnColor)
+                        text(if(column.pause)"pause" else names[index],x,145*vertical,10f)
+                        val detail=column.detail.ifEmpty {
+                            column.notes.map{approximateDuration(it.durationMs,bpm).second}.distinct().let{if(it.size==1)it.first() else if(it.isNotEmpty())"mixed holds" else ""}
+                        }
+                        text(detail,x,157*vertical,9f,muted)
+                    }
+                    left+=widths[index]*d
                 }
-                if(column.label.isNotEmpty())text(column.label,x,132*vertical,10f,columnColor)
-                text(if(column.pause)"pause" else names[index],x,145*vertical,10f)
-                val detail=column.detail.ifEmpty {
-                    column.notes.map{approximateDuration(it.durationMs,bpm).second}.distinct().let{if(it.size==1)it.first() else if(it.isNotEmpty())"mixed holds" else ""}
-                }
-                text(detail,x,157*vertical,9f,muted)
-                left+=widths[index]*d
             }
+        }
+        Canvas(Modifier.width(clefWidth.dp).height(height.dp)) {
+            val vertical=density*height/160f
+            val space=7f*vertical*notationScale
+            val trebleBottom=53f*vertical;val bassBottom=104f*vertical
+            for(bottom in listOf(trebleBottom,bassBottom))for(line in 0..4)
+                drawLine(lines,Offset(5*density,bottom-line*space),Offset(size.width,bottom-line*space),.8f*density)
+            val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface=font;textSize=space*4
+                color=android.graphics.Color.argb((ink.alpha*255).toInt(),(ink.red*255).toInt(),(ink.green*255).toInt(),(ink.blue*255).toInt())
+            }
+            // SMuFL clef origins are the G4 and F3 staff lines, respectively.
+            drawContext.canvas.nativeCanvas.drawText("\uE050",7*density,trebleBottom-space,paint)
+            drawContext.canvas.nativeCanvas.drawText("\uE062",7*density,bassBottom-3*space,paint)
         }
     }
 }

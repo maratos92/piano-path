@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,7 +40,7 @@ import org.pianopath.core.*
             HorizontalDivider()
             Toggle("Ascend and descend",descending,{descending=it})
         }
-        Button(onClick={vm.scale(root,kind,octaves,hand,descending)},modifier=Modifier.fillMaxWidth()){Text("Start scale")}
+        Button(onClick={vm.scale(root,kind,octaves,hand,descending)},modifier=Modifier.fillMaxWidth().testTag("start-scale")){Text("Start")}
         TextButton(onClick={vm.screen.value="History"}){Text("History")}
     }
 }
@@ -68,7 +69,7 @@ import org.pianopath.core.*
             Text("Preview",fontWeight=FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(0,5,10,20).forEach{n->FilterChip(preview==n,{preview=n},modifier=Modifier.weight(1f),label={Text(if(n==0)"None" else "$n sec")})}}
         }
-        Button(onClick={vm.sight(level,fifths,beats,hand,preview,tempo.toDouble())},modifier=Modifier.fillMaxWidth()){Text("Start reading")}
+        Button(onClick={vm.sight(level,fifths,beats,hand,preview,tempo.toDouble())},modifier=Modifier.fillMaxWidth().testTag("start-sight-reading")){Text("Start")}
         TextButton(onClick={vm.screen.value="History"}){Text("History")}
     }
 }

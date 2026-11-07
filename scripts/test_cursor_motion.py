@@ -33,6 +33,17 @@ def run(browser):
     page.wait_for_timeout(250)
     assert before==page.locator('#playhead').get_attribute('style'),'Paused motion must freeze'
     assert page.locator('#playhead').evaluate("e=>getComputedStyle(e,'::after').borderRadius")=='50%'
+    # A bounded FOLLOW phase correction is a speed adjustment, not a backward seek.
+    page.evaluate("progress(4,[],[],0,64,.7,true,[],[],180,4,false,60,'BOTH',true,false,true,64,true,'#315f72',true,1,true)")
+    page.wait_for_timeout(40)
+    corrected=page.evaluate('''async() => {
+      const before=lastCursorBeat;
+      progress(3.85,[],[],0,64,.7,true,[],[],180,4,false,60,'BOTH',true,false,true,64,true,'#315f72',true,1,true);
+      const beats=[before];
+      for(let i=0;i<8;i++){await new Promise(requestAnimationFrame);beats.push(lastCursorBeat)}
+      return beats;
+    }''')
+    assert all(b>=a for a,b in zip(corrected,corrected[1:])),corrected
     # A lost transport connection must not leave an autonomous cursor running.
     page.evaluate("progress(3,[],[],0,64,.7,true,[],[],180,4,false,60,'BOTH',true,false,true,64,true,'#315f72',true,1)")
     page.wait_for_timeout(700)

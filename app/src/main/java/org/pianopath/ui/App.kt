@@ -5,8 +5,11 @@ import android.content.Intent
 import android.app.Activity
 import android.view.WindowManager
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
@@ -17,7 +20,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
@@ -67,6 +72,31 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val requestScan: ()->Unit={ if(vm.midi.hasPermissions())vm.midi.scan() else permission.launch(vm.midi.requiredPermissions()) }
     val drawer=rememberDrawerState(DrawerValue.Closed)
     val scope=rememberCoroutineScope()
+    var screenHistory by rememberSaveable { mutableStateOf(listOf(screen)) }
+    var backTarget by remember { mutableStateOf<String?>(null) }
+    // All entry points, including ViewModel-generated exercises, write to this flow.
+    // Observe those writes so Back returns to the screen the user actually came from.
+    LaunchedEffect(vm) {
+        vm.screen.collect { destination ->
+            if(destination==backTarget) {
+                backTarget=null
+            } else if(screenHistory.lastOrNull()!=destination) {
+                screenHistory=if(destination=="Home")listOf("Home") else screenHistory+destination
+            }
+        }
+    }
+    val drawerVisible=drawer.currentValue!=DrawerValue.Closed || drawer.targetValue!=DrawerValue.Closed
+    BackHandler(enabled=drawerVisible || screen!="Home") {
+        if(drawerVisible) scope.launch { drawer.close() }
+        else {
+            val visited=if(screenHistory.lastOrNull()==screen)screenHistory else screenHistory+screen
+            val remaining=visited.dropLast(1).ifEmpty { listOf("Home") }
+            val destination=remaining.last()
+            screenHistory=remaining
+            backTarget=destination
+            vm.screen.value=destination
+        }
+    }
     val destinations=listOf("Home" to Icons.Outlined.Home,"Practice hub" to Icons.Outlined.Piano,"Library" to Icons.Outlined.LibraryMusic,"Recorder" to Icons.Outlined.GraphicEq,"Progress" to Icons.Outlined.Insights,"Settings" to Icons.Outlined.Settings)
     val dark=settings.theme==ThemeMode.DARK || settings.theme==ThemeMode.SYSTEM && isSystemInDarkTheme()
     val accent=Color(settings.accent)
@@ -90,9 +120,21 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     topBar={ if(screen!="Practice") Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Piano,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(27.dp)); Spacer(Modifier.width(10.dp)); Text("PIANO PATH",fontWeight=FontWeight.Bold,letterSpacing=2.sp,fontSize=13.sp)
                         Spacer(Modifier.weight(1f))
-                        AssistChip(onClick={vm.screen.value="Connect"},label={Text(if(midi.connected)"Piano connected" else "Connect piano",fontSize=12.sp)},leadingIcon={Icon(Icons.Outlined.Bluetooth, null,Modifier.size(16.dp))})
+                        AssistChip(onClick={vm.screen.value="Connect"},label={Text(if(midi.connected)"Piano connected" else "Connect piano",fontSize=12.sp)},leadingIcon={ConnectionStatusIcon(midi.connected,settings.reduceMotion,Modifier.size(16.dp))})
                     } },bottomBar={ if(screen!="Practice") NavigationBar {
-                        destinations.forEach { (name,icon) -> NavigationBarItem(selected=navigationSection(screen)==name,onClick={vm.screen.value=name},icon={Icon(icon,name)},label={Text(navLabel(name),fontSize=11.sp,maxLines=1,softWrap=false,textAlign=androidx.compose.ui.text.style.TextAlign.Center)}) }
+                        destinations.forEach { (name,icon) -> NavigationBarItem(
+                            selected=navigationSection(screen)==name,
+                            onClick={vm.screen.value=name},
+                            icon={Icon(icon,name)},
+                            label={Text(navLabel(name),fontSize=11.sp,maxLines=1,softWrap=false,textAlign=androidx.compose.ui.text.style.TextAlign.Center)},
+                            colors=NavigationBarItemDefaults.colors(
+                                selectedIconColor=MaterialTheme.colorScheme.primary,
+                                selectedTextColor=MaterialTheme.colorScheme.primary,
+                                indicatorColor=Color.Transparent,
+                                unselectedIconColor=MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor=MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) }
                     } }) { padding ->
                     Box(Modifier.padding(padding).fillMaxSize()) { when(screen) {
                         "Home" -> Home(vm)
@@ -116,6 +158,32 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
     }
 }
+/** Connection feedback is local to the live status change, never an ongoing animation. */
+@Composable fun ConnectionStatusIcon(
+    connected: Boolean,
+    reduceMotion: Boolean,
+    modifier: Modifier=Modifier,
+    disconnectedIcon: ImageVector=Icons.Outlined.Bluetooth
+) {
+    val pulse=remember { Animatable(1f) }
+    var wasConnected by remember { mutableStateOf(connected) }
+    LaunchedEffect(connected,reduceMotion) {
+        val justConnected=connected && !wasConnected
+        wasConnected=connected
+        pulse.snapTo(1f)
+        if(justConnected && !reduceMotion) {
+            pulse.animateTo(1.25f,tween(180))
+            pulse.animateTo(1f,tween(240))
+        }
+    }
+    Icon(
+        if(connected)Icons.Outlined.CheckCircle else disconnectedIcon,
+        contentDescription=null,
+        modifier=modifier.scale(pulse.value),
+        tint=MaterialTheme.colorScheme.primary
+    )
+}
+
 @Composable fun PageTitle(title: String,modifier: Modifier=Modifier) {
     Text(title,fontFamily=FontFamily.Serif,fontSize=26.sp,lineHeight=32.sp,modifier=modifier)
 }
@@ -147,7 +215,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         item { Panel(Modifier.fillMaxWidth()) {
             Text("Pieces & free play",fontWeight=FontWeight.SemiBold)
             if(p.score!=null) Button(onClick={vm.screen.value="Practice"},modifier=Modifier.fillMaxWidth()){
-                Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Continue · ${p.score?.title ?: "Current score"}",maxLines=1)
+                Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Start")
             }
             OutlinedButton(onClick={vm.screen.value="Library"},modifier=Modifier.fillMaxWidth()){Text("Choose a piece from Library")}
             OutlinedButton(onClick={vm.openRecorder()},modifier=Modifier.fillMaxWidth()){Text("Studio · play, monitor & record")}
@@ -161,9 +229,9 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val recent=recents.mapNotNull{key->imports.find{it.key==key}}
     LazyColumn(Modifier.fillMaxSize().testTag("home-feed"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item { PageTitle("Home") }
-        item { Surface(shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.primary,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}) {
+        item { Surface(modifier=Modifier.testTag("home-start-session"),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.primary,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}) {
             Row(Modifier.fillMaxWidth().padding(24.dp),verticalAlignment=Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("YOUR NEXT SESSION",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f),letterSpacing=2.sp,fontSize=11.sp);Spacer(Modifier.height(14.dp));Text(p.score?.title ?: "Start with a scale",color=MaterialTheme.colorScheme.onPrimary,fontFamily=FontFamily.Serif,fontSize=27.sp);Spacer(Modifier.height(8.dp));Text(if(p.score==null)"C major · both hands" else "Continue practice",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f));Spacer(Modifier.height(18.dp));Text("Open practice  →",color=MaterialTheme.colorScheme.onPrimary,fontWeight=FontWeight.Bold) }
+                Column(Modifier.weight(1f)) { Text("YOUR NEXT SESSION",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f),letterSpacing=2.sp,fontSize=11.sp);Spacer(Modifier.height(14.dp));Text(p.score?.title ?: "Start with a scale",color=MaterialTheme.colorScheme.onPrimary,fontFamily=FontFamily.Serif,fontSize=27.sp);Spacer(Modifier.height(8.dp));Text(if(p.score==null)"C major · both hands" else "Continue practice",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f));Spacer(Modifier.height(18.dp));Text("Start",color=MaterialTheme.colorScheme.onPrimary,fontWeight=FontWeight.Bold) }
                 Icon(Icons.Outlined.Piano,null,Modifier.size(72.dp).padding(start=12.dp),tint=MaterialTheme.colorScheme.onPrimary.copy(alpha=.7f))
             }
         } }
@@ -219,10 +287,11 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     }
 }
 @Composable private fun Connection(vm: PianoViewModel,midi: MidiStatus,scan: ()->Unit,bluetoothSettings: ()->Unit) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { PageTitle("Connect piano") }
         item { Text("Connect a compatible instrument by Bluetooth LE MIDI or USB MIDI. No microphone is used.",style=MaterialTheme.typography.bodyMedium) }
-        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(if(midi.connected)Icons.Outlined.CheckCircle else Icons.Outlined.Bluetooth,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(12.dp));Text(midi.status,fontWeight=FontWeight.Medium) };if(midi.scanning)LinearProgressIndicator(Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick=scan,enabled=!midi.scanning){Text("Find piano")};if(midi.connected)OutlinedButton(onClick={vm.midi.disconnect()}){Text("Disconnect")}} } }
+        item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { ConnectionStatusIcon(midi.connected,settings.reduceMotion);Spacer(Modifier.width(12.dp));Text(midi.status,fontWeight=FontWeight.Medium) };if(midi.scanning)LinearProgressIndicator(Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick=scan,enabled=!midi.scanning){Text("Find piano")};if(midi.connected)OutlinedButton(onClick={vm.midi.disconnect()}){Text("Disconnect")}} } }
         item { Panel(Modifier.fillMaxWidth()) {
             Text("USB MIDI",fontFamily=FontFamily.Serif,fontSize=24.sp)
             Text("Connect the piano’s USB-to-host port to your phone using a data cable and USB-C host/OTG adapter. Switch the piano to standard/class-compliant MIDI mode if available. Bluetooth permission is not needed.")
@@ -280,8 +349,6 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     }
                     AccentPicker(s.accent){value->vm.setSettings{it.copy(accent=value)}}
                     Toggle("Reduce motion",s.reduceMotion,{v->vm.setSettings{it.copy(reduceMotion=v)}})
-                    Text("Score frame · artwork stays outside the notes",style=MaterialTheme.typography.bodySmall)
-                    Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {SheetDecoration.entries.forEach{style->FilterChip(s.sheetDecoration==style,{vm.setSettings{it.copy(sheetDecoration=style)}},label={Text(if(style==SheetDecoration.NONE)"Plain" else style.name.lowercase().replaceFirstChar{it.uppercase()})})}}
                     Toggle("Glow on falling notes",s.fallingGlow,{v->vm.setSettings{it.copy(fallingGlow=v)}})
                     HorizontalDivider()
                     Text("Piano sound",fontWeight=FontWeight.SemiBold)

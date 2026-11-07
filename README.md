@@ -6,13 +6,13 @@
 
 The `latest-debug` download is automatically updated **only after all tests, lint and phone/tablet emulators pass on a merge to `main`**. It is a debug-signed APK for personal testing; it is **not** the privately signed Play Store release. If the link is not yet live after the first merge, find the newest successful `main` build under Actions → Build and test Android → Artifacts → `piano-path-debug-apk` (unzip `app-debug.apk`).
 
-**This release: 0.6.0-dev.3 (build 13).** Settings → About shows the installed version, build code and source revision.
+**This release: 0.6.0-dev.4 (build 14).** Settings → About shows the installed version, build code and source revision.
 
 > **Updating:** build 8 and later use the same pinned signing identity and update in place. Uninstall an older dev.2/dev.3 app once, then install the APK above. The owner has authorised resetting the old local data. Future builds use the pinned key and can update this installation; CI stops if that key is missing or changed. The private key must also be backed up securely—Actions cache alone is not permanent storage.
 
 An offline, open-source Android piano practice app for compatible Bluetooth LE MIDI and class-compliant USB MIDI instruments. **An installable, debug-signed APK is supplied with this delivery.** Android 8.0 (API 26) or later is required.
 
-The source is version 0.6.0-dev.3: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
+The source is version 0.6.0-dev.4: a working initial implementation with automated music-engine tests, rather than a hardware-certified piano tutor. **The user reports Pixel / Roland FP-10 testing. Other pianos, USB and physical tablets still require acceptance testing.** See [validation and limitations](docs/VALIDATION.md).
 
 ## Install and try it
 
@@ -23,11 +23,11 @@ The source is version 0.6.0-dev.3: a working initial implementation with automat
 5. In the reader, drag the gold A/B handles on the score to select a loop. The range is highlighted on the sheet and marked on falling bars. The tune icon contains mode, hand, tempo and other passage controls.
 6. Tap **Practice**. Complete a repetition or tap **Finish** for separate pitch/rhythm results and note-level timing details. Open History for saved repetitions.
 
-**Without a piano:** tap **Home → Play without a piano**. The full on-screen 88-key piano is always touch-enabled and uses the selected sound. For evaluated touch practice, choose Wait/Follow/Rhythm in Practice controls and tap Practice; Free Play lets you play without scoring. Touch/test sessions are marked in history.
+**Without a piano:** tap **Home → Play without a piano**. The full on-screen 88-key piano is always touch-enabled and uses the selected sound. For evaluated touch practice, choose Wait/Follow/Rhythm in Practice controls and tap Start; Free Play lets you play without scoring. Touch/test sessions are marked in history.
 
 **Listen to music:** open any score and tap **Listen**. The selected passage plays aloud at the chosen BPM, with separate left/right/both-hand filtering and the passage loop setting. **Stop music** stops playback. Listening never feeds generated notes into assessment and never awards a practice accuracy result. Turn up Android's media volume. Touch keys use a fixed velocity; MIDI diagnostics still report the instrument’s actual velocity. Sound uses Alexander Holm’s Salamander Grand Piano samples (CC BY 3.0), with 128 voices, sustain and velocity-controlled amplitude. The compact bank has one dynamic layer, rather than a full multi-layer piano instrument; no download is required.
 
-**Falling bars:** choose **Falling** beside **Sheet** in the reader (falling notes is the default). Each note falls onto its matching key; bar length represents notated duration. Blue = left staff, green = right staff; played/missed notes change colour during assessment. Listen animates the bars automatically; Practice uses the selected practice mode. In Wait mode bars wait for the correct pitches. In Follow mode they follow the performance. Free Play has no enforced score transport, so use Listen to watch a demonstration.
+**Falling bars:** choose **Falling** beside **Sheet** in the reader (Sheet is the default). Each note falls onto its matching key; bar length represents notated duration. Blue = left staff, green = right staff; played/missed notes change colour during assessment. Listen animates the bars automatically; Practice uses the selected practice mode. In Wait mode bars wait for the correct pitches. In Follow mode they follow the performance. Free Play has no enforced score transport, so use Listen to watch a demonstration.
 
 **Whole keyboard:** all **88 keys, A0–C8**, remain visible and touch-enabled in the reader. Keyboard zoom/pan controls have been removed as requested; a narrow phone necessarily makes each key small.
 
@@ -43,7 +43,7 @@ The source is version 0.6.0-dev.3: a working initial implementation with automat
 
 **Ear training game:** choose a specific starting octave (C1–C7), span 1–3 octaves and simultaneous note count 1–3. The 88-key keyboard dims notes outside the selected range; points, attempts, accuracy and streak are saved locally and summarised in History.
 
-**Visual review:** choose Sheet, then Practice. Rhythm mode (the default) starts the cursor after count-in; Follow starts on the first expected pitch, and Wait advances on chord completion. Green markers show matched input, amber early/late input, red extras and dashed rings missed notes. Hold traces show physical key-down duration; they are not pedal sustain. After Finish select Review on score, scrub the score, or reopen a take in History. This is a diagnostic overlay, not a quantised MusicXML transcription/export. Wrong pitches use a conventional sharp spelling; MIDI does not carry enharmonic spelling or physical-hand identity.
+**Visual review:** choose Sheet, then Start. Rhythm mode (the default) starts the cursor after count-in; Follow starts on the first expected pitch, and Wait advances on chord completion. Green markers show matched input, amber early/late input, red extras and dashed rings missed notes. Hold traces show physical key-down duration; they are not pedal sustain. After Finish select Review on score, scrub the score, or reopen a take in History. This is a diagnostic overlay, not a quantised MusicXML transcription/export. Wrong pitches use a conventional sharp spelling; MIDI does not carry enharmonic spelling or physical-hand identity.
 
 **Played notes:** the monitor is integrated above Sheet, Falling or Both, at full width. It follows the newest notes; near-simultaneous attacks group visually, with ledger lines and octave marks for extreme pitches. Tap the compact note icon in the score toolbar or open Settings → MIDI → Played notes. The staff shows the last five key presses in sequence by default, with approximate note durations after release and pause markers for long gaps. Settings → Practice adjusts note count (up to 32) and gap threshold. Diagnostics has raw MIDI events.
 
@@ -126,3 +126,5 @@ Ear training adds full A0–C8 range, longer octave spans and major/minor triads
 **Build 12:** [release checklist](docs/RELEASE_12_CHECKLIST.md). Frame-driven cursor movement through empty measures/rests is independent of note-event arrival. Studio uses Bravura music glyphs. Loop controls, fixed four-second countdown, category progress charts/new on-time metrics, and the attempt-by-attempt listening game are included. [Transparent sheet decoration prompt](docs/SHEET_DECORATION_PROMPT.md) is provided for the requested image artwork; no generated image has been bundled.
 
 **Build 13:** [performance investigation and validation](docs/RELEASE_13_CHECKLIST.md). WAIT matching and live rendering stay bounded after mistakes; stopped transports cannot accumulate cursor commands. Practice/listening replace each other, Stop clears markings and Finish preserves review. Preview uses the central countdown, and sight reading has a next exercise action with the same settings. Live notation, listening answer colours and page headings are refined.
+
+**Build 14:** [release notes and validation](docs/RELEASE_14_CHECKLIST.md). Follow advances through missed notes/rests and stops at the selected end; played-note/cursor/metronome use one clock. Compact practice pages keep Start fixed, Back returns to the previous screen, native staves keep clefs fixed, listening attempts fit the screen, expected keys have stronger contrast, navigation uses accent-only selection and sheet decorations are removed.

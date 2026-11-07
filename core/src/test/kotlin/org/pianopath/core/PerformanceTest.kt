@@ -128,12 +128,90 @@ class PerformanceTest {
     @Test fun sustainDoesNotReplacePhysicalReleaseTiming() {
         val e=engine(score(ScoreNote(0,60,0.0,1.0,1)));e.accept(MidiEvent.On(60,80,base));e.accept(MidiEvent.Control(64,127,at(100)));e.accept(MidiEvent.Off(60,0,at(500)));e.accept(MidiEvent.Control(64,0,at(2000)));assertEquals(0.0,e.finish(at(2100)).meanDurationMs!!,.01)
     }
-    @Test fun expressivePauseDoesNotSkipUnplayedMeasures() {
-        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1),ScoreNote(2,64,2.0,1.0,1)),PracticeMode.FOLLOW)
-        e.accept(MidiEvent.On(60,80,base));e.tick(at(20_000));assertEquals(1.0,e.currentBeat,.01);assertEquals(0,e.summary().missing)
-        e.accept(MidiEvent.On(62,80,at(20_000)));assertEquals(2,e.summary().correct);assertEquals(2.0,e.currentBeat,.01)
+    @Test fun anchoredFollowExpiresMissingNotesAndFinishesWithoutAFinalAttack() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1),ScoreNote(2,64,3.75,.25,1)),PracticeMode.FOLLOW)
+        e.accept(MidiEvent.On(60,80,base))
+        e.tick(at(951))
+        assertEquals(setOf(1),e.missedIds)
+        assertEquals(3.75,e.currentBeat,.001)
+        e.tick(at(2000))
+        assertEquals(4.0,e.clockBeat(at(2000)),.001)
+        // The selected end is authoritative even if the last note is inside its grace window.
+        val result=e.finish(at(2000))
+        assertEquals(2,result.missing)
+        assertEquals(setOf(1,2),e.missedIds)
+        assertEquals(1,result.correct)
     }
-    @Test fun followInfersMissingNotesOnlyFromAdjacentMusicalEvidence() {
+    @Test fun timedPassageEndRejectsNewAttacksButAcceptsFinalReleases() {
+        for(mode in listOf(PracticeMode.RHYTHM,PracticeMode.FOLLOW)) {
+            val e=engine(score(ScoreNote(0,60,0.0,1.0,1)),mode,end=1.0)
+            e.accept(MidiEvent.On(60,80,base))
+            e.tick(at(500))
+            e.accept(MidiEvent.On(61,80,at(500)))
+            e.accept(MidiEvent.On(62,80,at(550)))
+            e.accept(MidiEvent.On(60,0,at(500))) // velocity-zero attack is still a release
+            val result=e.finish(at(550))
+            assertEquals(0,result.extra)
+            assertEquals(1,result.take.size)
+            assertEquals(0.0,result.details.single().durationErrorMs!!,.001)
+            assertEquals(1.0,result.take.single().duration!!,.001)
+        }
+    }
+    @Test fun followRunsAcrossRestsWithoutStartingFarFutureNotesEarly() {
+        val s=score(ScoreNote(0,60,0.0,.5,1),ScoreNote(1,64,6.0,1.0,2)).copy(measures=listOf(Measure(1,0.0,4.0),Measure(2,4.0,4.0)))
+        val e=engine(s,PracticeMode.FOLLOW,end=8.0)
+        e.accept(MidiEvent.On(60,80,base))
+        e.tick(at(1500))
+        assertEquals(3.0,e.clockBeat(at(1500)),.001)
+        assertEquals(0,e.summary().missing)
+        e.accept(MidiEvent.On(64,80,at(1500)))
+        assertEquals(1,e.summary().extra)
+        e.accept(MidiEvent.On(64,80,at(3000)))
+        assertEquals(2,e.summary().correct)
+        assertTrue(e.finished)
+    }
+    @Test fun explicitFollowPauseDoesNotExpireOrSkipUnplayedMeasures() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1),ScoreNote(2,64,2.0,1.0,1)),PracticeMode.FOLLOW)
+        e.accept(MidiEvent.On(60,80,base))
+        e.pause(at(100))
+        e.tick(at(20_100))
+        e.resume(at(20_100))
+        e.accept(MidiEvent.On(62,80,at(20_500)))
+        assertEquals(2,e.summary().correct)
+        assertEquals(0,e.summary().missing)
+        assertEquals(2.0,e.currentBeat,.001)
+    }
+    @Test fun followPhaseCorrectedPlayedOnsetsShareTheCursorClock() {
+        val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1),ScoreNote(2,64,2.0,1.0,1)),PracticeMode.FOLLOW)
+        e.accept(MidiEvent.On(60,80,base))
+        e.accept(MidiEvent.On(61,80,at(400)))
+        assertEquals(e.clockBeat(at(400)),e.take.last().beat,.001)
+        e.accept(MidiEvent.On(62,80,at(700)))
+        assertEquals(200.0,e.summary().details[1].onsetMs!!,.001)
+        assertEquals(e.clockBeat(at(700)),e.take.last().beat,.001)
+        assertEquals(1.26,e.take.last().beat,.001)
+        e.accept(MidiEvent.On(64,80,at(1200)))
+        assertEquals(e.clockBeat(at(1200)),e.take.last().beat,.001)
+        assertTrue(e.clockBeat(at(1200))>=2.0)
+    }
+    @Test fun followOverlappingRepeatedPitchesKeepDistinctMatchesAndKeyDurations() {
+        val e=engine(score(ScoreNote(0,60,0.0,2.0,1),ScoreNote(1,60,1.0,1.0,1),ScoreNote(2,64,1.0,1.0,1),ScoreNote(3,67,2.0,1.0,1)),PracticeMode.FOLLOW)
+        e.accept(MidiEvent.On(60,80,base))
+        e.accept(MidiEvent.On(60,75,at(500)))
+        e.accept(MidiEvent.On(64,85,at(550)))
+        e.accept(MidiEvent.Off(60,0,at(1000)))
+        e.accept(MidiEvent.On(67,85,at(1000)))
+        e.accept(MidiEvent.Off(60,0,at(1100)))
+        e.accept(MidiEvent.Off(64,0,at(1100)))
+        val result=e.finish(at(2000))
+        assertEquals(4,result.correct)
+        assertEquals(0,result.extra)
+        assertEquals(listOf(0,1,2,3),result.take.map {it.expectedId})
+        assertEquals(2.0,result.take[0].duration!!,.001)
+        assertEquals(1.2,result.take[1].duration!!,.001)
+        assertEquals(1,result.completeChords)
+    }
+    @Test fun followMatchesAdjacentNoteAfterMissingGroupExpires() {
         val e=engine(score(ScoreNote(0,60,0.0,1.0,1),ScoreNote(1,62,1.0,1.0,1),ScoreNote(2,64,2.0,1.0,1)),PracticeMode.FOLLOW)
         e.accept(MidiEvent.On(60,80,base));e.accept(MidiEvent.On(64,80,at(1000)));assertEquals(1,e.summary().missing);assertEquals(2,e.summary().correct)
     }

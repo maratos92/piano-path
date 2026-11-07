@@ -77,12 +77,12 @@ import org.pianopath.core.PlayedAttack
             if(ear.target.isNotEmpty()) {
                 Text("Attempt ${if(ear.revealed)ear.questionAttempts else (ear.questionAttempts+1).coerceAtMost(settings.earAttempts)} / ${settings.earAttempts} · answers check automatically")
                 if(!ear.revealed)Text("Answer hidden · listen and play your answer")
-                PlayedStaff(columns,bpm=80.0,followKey=ear.questionAttempts to ear.guesses,naming=settings.noteNaming)
+                PlayedStaff(columns,bpm=80.0,followKey=ear.questionAttempts to ear.guesses,naming=settings.noteNaming,fitColumns=true)
                 if(ear.revealed)Text("Answer: ${ear.target.sorted().joinToString{displayNoteName(it,settings.noteNaming)}}")
             }
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(ear.target.isNotEmpty())OutlinedButton(onClick=vm::earReplay,enabled=!playing){Text("Replay")}
-                Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing){Text(if(ear.target.isEmpty())"Start game" else "Next question")}
+                Button(onClick={vm.earQuestion(start,span,voices,full,triads)},enabled=canStart && !playing){Text(if(ear.target.isEmpty())"Start" else "Next question")}
             }
         }
         if(ear.target.isNotEmpty()) {
