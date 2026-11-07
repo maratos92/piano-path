@@ -16,8 +16,10 @@ data class SessionResult(val expected: Int, val correct: Int, val missing: Int, 
     val leftPitch: Double?, val rightPitch: Double?, val tempoConsistency: Double?, val details: List<NoteResult>, val take: List<PlayedNote> = emptyList())
 
 /** Bounded, polyphonic onset matcher. One note-on consumes at most one score note.
- * FOLLOW adjusts its phase only after finishing the current onset group. It never searches beyond
- * the next group; pauses cannot skip unplayed measures. RHYTHM stays on the metronome clock. WAIT uses pitch completion, without rhythm marks.
+ * FOLLOW starts on the first expected pitch, then runs through rests and missing notes at the chosen
+ * tempo. It adjusts phase by at most 120 ms after each completed onset group and only searches the
+ * current/next group. Explicit pause freezes time; use WAIT for unlimited pitch-driven waiting.
+ * RHYTHM stays on the metronome clock. WAIT uses pitch completion, without rhythm marks.
  */
 class PerformanceEngine(val score: Score, val config: PracticeConfig) {
     val results = score.selected(config.startBeat, config.endBeat,config.hand).sortedWith(compareBy({ it.beat },{ it.midi })).map { NoteResult(it) }
@@ -99,6 +101,10 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
             is MidiEvent.Off -> incoming.copy(timestamp=min(incoming.timestamp,paused))
             is MidiEvent.Control -> incoming.copy(timestamp=min(incoming.timestamp,paused))
         } } ?: incoming
+        // Keep a short release-only transport grace outside the engine. New attacks at/after
+        // the passage end cannot add extras or recorded notes, while releases still close keys.
+        if(e is MidiEvent.On && anchored && config.mode != PracticeMode.WAIT &&
+            clockBeat(e.timestamp)>=min(score.endBeat,config.endBeat)) return
         acceptedMatch=null
         val clockBefore=if(config.mode==PracticeMode.WAIT || !anchored)currentBeat else clockBeat(e.timestamp)
         val releaseIsExtra=e is MidiEvent.Off && recordingActive[e.channel to e.pitch]?.peekFirst()?.first?.let{recorded[it].expectedId==null}==true
@@ -106,7 +112,10 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         when(e) {
             is MidiEvent.On -> if(recorded.size<20000) {
                 val match=acceptedMatch
-                val beat=match?.let {it.note.beat + if(config.mode==PracticeMode.WAIT)0.0 else (it.onsetMs ?: 0.0)*config.bpm/60000.0} ?: clockBefore
+                // FOLLOW may have corrected phase while accepting this onset. Record on the same
+                // timeline that the live cursor now uses; retain original deviation for scoring.
+                val beat=if(config.mode==PracticeMode.WAIT) match?.note?.beat ?: clockBefore
+                    else if(anchored)clockBeat(e.timestamp) else clockBefore
                 val index=recorded.size
                 recorded.add(PlayedNote(index,e.pitch,e.velocity,e.channel,beat,expectedId=match?.note?.id,onsetMs=if(config.mode==PracticeMode.WAIT)null else match?.onsetMs)); takeRevision++
                 recordingActive.getOrPut(e.channel to e.pitch){java.util.ArrayDeque()}.add(index to e.timestamp)
@@ -171,8 +180,6 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         }
         match.onsetMs = deviation; match.channel = e.channel
         matched.add(match.note.id); acceptedMatch = match
-        // Re-anchor after a long expressive pause. Never advance unseen measures on a timer.
-        if(config.mode == PracticeMode.FOLLOW && abs(deviation) > window) phaseMs += deviation
         active.getOrPut(e.channel to e.pitch) { java.util.ArrayDeque() }.add(match to e.timestamp)
         lastFeedback = when {
             config.mode == PracticeMode.WAIT -> "Correct ${noteName(e.pitch)}"
@@ -186,13 +193,18 @@ class PerformanceEngine(val score: Score, val config: PracticeConfig) {
         while(group < groups.size && groups[group].all { it.onsetMs != null || it.missing }) {
             if(config.mode == PracticeMode.FOLLOW) {
                 val played = groups[group].mapNotNull { it.onsetMs }.filter { abs(it) <= max(450.0,config.toleranceMs + config.chordSpreadMs) }.sorted()
-                if(played.isNotEmpty()) phaseMs += (played[played.size/2] * 0.35).coerceIn(-120.0,120.0)
+                if(played.isNotEmpty()) {
+                    val correction=(played[played.size/2] * 0.35).coerceIn(-120.0,120.0)
+                    // A late chord must not pull the cursor behind the onset we just resolved.
+                    val available=elapsedMs(lastNanos)-expectedMs(groups[group].first().note)
+                    phaseMs += if(correction>0) min(correction,available.coerceAtLeast(0.0)) else correction
+                }
             }
             group++
         }
     }
     fun tick(now: Long) {
-        if(!started || pausedAt != null || !anchored || config.mode in listOf(PracticeMode.WAIT,PracticeMode.FREE,PracticeMode.FOLLOW)) return
+        if(!started || pausedAt != null || !anchored || config.mode in listOf(PracticeMode.WAIT,PracticeMode.FREE)) return
         val expiry = max(450.0,config.toleranceMs + config.chordSpreadMs)
         while(group < groups.size) {
             val g = groups[group]

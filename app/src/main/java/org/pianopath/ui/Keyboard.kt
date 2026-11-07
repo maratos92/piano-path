@@ -86,7 +86,8 @@ fun displayNoteText(text: String,style: String="LETTERS"): String {
             focusRange!=null && pitch !in focusRange -> if(black)Color(0xff243633) else Color(0xff83918b)
             else -> when(pitch) {
             in playback->if(paused)lerp(Color(0xff78bfe8),Color.White,.12f) else Color(0xff78bfe8)
-            in expected->if(black)lerp(Color.Black,accent,.65f) else lerp(Color.White,accent,.1f)
+            // Expected notes stay filled while played notes retain their outline treatment.
+            in expected->if(black)lerp(Color.White,accent,.70f) else lerp(Color.White,accent,.55f)
             else->if(black)Color(0xff182b29) else Color(0xfffaf7ef)
         }
         }

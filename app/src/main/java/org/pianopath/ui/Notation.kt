@@ -80,6 +80,7 @@ private class NotationBridge(private val view: WebView) {
     private var lastMissed: Set<Int>?=null
     private var lastTake: List<org.pianopath.core.PlayedNote>?=null
     private var lastReview=false
+    private var lastLoops: List<org.pianopath.core.SessionResult>?=null
     private var matched="[]"
     private var missed="[]"
     private var take="[]"
@@ -90,6 +91,8 @@ private class NotationBridge(private val view: WebView) {
         val packet=pending ?: return
         pending=null
         val p=packet.p;val score=p.score ?: return
+        val loopChanged=lastLoops!==p.loops
+        lastLoops=p.loops
         var changed=false
         var matchedCode="performanceData.matched";var missedCode="performanceData.missed";var takeCode="performanceData.take";var expectedCode="performanceData.expected"
         if(lastScore!==score){
@@ -109,7 +112,7 @@ private class NotationBridge(private val view: WebView) {
         val start=score.measures[p.startMeasure-1].start+p.startOffset
         val end=score.measures[p.endMeasure-1].start+p.endOffset
         val beat=p.cursorPreview ?: if(p.review && !p.running)p.reviewBeat else if(p.listening || p.running)p.transportBeat else p.beat
-        val moving=!p.paused && !p.hidden && p.counting==0 && !p.feedback.startsWith("Preview ·") && !p.feedback.startsWith("Rest ·") && p.cursorPreview==null && (p.running || p.listening)
+        val moving=!p.paused && !p.hidden && p.counting==0 && !p.feedback.startsWith("Preview ·") && !p.feedback.startsWith("Rest ·") && p.cursorPreview==null && (p.listening || p.running && (p.mode!=org.pianopath.core.PracticeMode.FOLLOW || p.followAnchored))
         val rate=when {
             !moving->0.0
             p.listening->score.tempoAt(beat)*p.bpm/score.tempo/60
@@ -119,8 +122,8 @@ private class NotationBridge(private val view: WebView) {
         val follow=p.cursorPreview==null && !p.paused && (p.running || p.listening || p.review)
         val data=if(changed)"setPerformanceData($matchedCode,$missedCode,$takeCode,$expectedCode);" else ""
         // Cancel autonomous motion before any overlay work on stop/pause/countdown.
-        val halt=if(!moving)"stopCursorMotion();" else ""
-        val script=halt+data+"progress($beat,performanceData.matched,performanceData.missed,$start,$end,${p.zoom},${p.horizontal},performanceData.take,performanceData.expected,${p.visualTolerance},${p.sheetMargin},${packet.dark},${p.bpm},'${p.hand.name}',true,${p.selectingLoop},${!p.running && !p.listening},${score.endBeat},$follow,'${packet.accent}',${packet.animate},$rate)"
+        val halt=if(!moving || loopChanged)"stopCursorMotion();" else ""
+        val script=halt+data+"progress($beat,performanceData.matched,performanceData.missed,$start,$end,${p.zoom},${p.horizontal},performanceData.take,performanceData.expected,${p.visualTolerance},${p.sheetMargin},${packet.dark},${p.bpm},'${p.hand.name}',true,${p.selectingLoop},${!p.running && !p.listening},${score.endBeat},$follow,'${packet.accent}',${packet.animate},$rate,${p.running && p.mode==org.pianopath.core.PracticeMode.FOLLOW})"
         busy=true
         view.evaluateJavascript(script){
             if(!closed){busy=false;drain()}

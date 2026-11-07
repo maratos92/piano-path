@@ -37,7 +37,7 @@ class AppSmokeTest {
         assertEquals(29,MusicXml.parse(Exercises.scale(octaves=2,hand=Hand.RIGHT).xml).notes.count{!it.rest})
     }
     @Test fun practiceRendersNotationInAndroidWebView() {
-        compose.onNodeWithText("Open practice  →").performClick()
+        compose.onNodeWithTag("home-start-session").performClick()
         compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Sheet").performClick()
         compose.waitForIdle()
@@ -138,7 +138,7 @@ class AppSmokeTest {
         assertEquals("Forward playback must not scroll backwards: $diagnostic",0,state.getInt("backwards"))
     }
     @Test fun fullKeyboardAndFallingNotesAreDiscoverable() {
-        compose.onNodeWithText("Open practice  →").performClick()
+        compose.onNodeWithTag("home-start-session").performClick()
         // The practice toolbar uses the short "Falling" label on narrow devices.
         // Wait for the score to load, then verify the view controls separately.
         compose.waitUntil(20_000){compose.onAllNodesWithText("Both").fetchSemanticsNodes().isNotEmpty()}

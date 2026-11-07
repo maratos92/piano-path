@@ -4,6 +4,7 @@ package org.pianopath.ui
 import androidx.compose.foundation.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -22,6 +23,11 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontFamily
@@ -66,7 +72,7 @@ import kotlin.math.*
                 Text(score.title,fontFamily=FontFamily.Serif,fontSize=if(landscape)18.sp else 22.sp,maxLines=1)
                 Text("${p.bpm.toInt()} BPM · ${handName(p.hand)} · m. ${p.startMeasure}–${p.endMeasure}",fontSize=11.sp,maxLines=1)
             }
-            IconButton(onClick={vm.screen.value="Connect"}) {Icon(Icons.Outlined.Piano,if(midi.connected)"MIDI piano connected" else "MIDI piano disconnected",Modifier.size(16.dp),tint=if(midi.connected)Color(0xff2a9a6a) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.38f))}
+            IconButton(onClick={vm.screen.value="Connect"}) {ConnectionStatusIcon(midi.connected,settings.reduceMotion,Modifier.size(22.dp),Icons.Outlined.Piano)}
             if(p.view!=ScoreView.FALLING) {
                 IconButton(onClick={vm.zoom(-.15)}){Icon(Icons.Outlined.ZoomOut,"Zoom out sheet")}
                 IconButton(onClick={vm.zoom(.15)}){Icon(Icons.Outlined.ZoomIn,"Zoom in sheet")}
@@ -97,7 +103,7 @@ import kotlin.math.*
             Slider(scoreFraction,{scoreFraction=it},Modifier.weight(1f).padding(horizontal=10.dp),valueRange=.25f..0.75f)
         }
         if(p.review && !p.running && !p.listening) {
-            Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 FilterChip(!p.performedRoll,{replaying=false;vm.showPerformedRoll(false)},label={Text("Score",fontSize=11.sp)})
                 FilterChip(p.performedRoll,{replaying=false;vm.showPerformedRoll(true)},label={Text("Recorded",fontSize=11.sp)})
                 if(p.performedRoll)IconButton(onClick={
@@ -121,20 +127,19 @@ import kotlin.math.*
         Column(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
                 when(p.view) {
-                    ScoreView.SHEET -> ScoreFrame(settings.sheetDecoration,Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}
+                    ScoreView.SHEET -> Box(Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}
                     ScoreView.FALLING -> if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow,animate=!settings.reduceMotion)
                     ScoreView.COMBINED -> Column(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {ScoreFrame(settings.sheetDecoration,Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}}
+                        Box(Modifier.fillMaxWidth().weight(scoreFraction)) {Box(Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}}
                         HorizontalDivider()
                         Box(Modifier.fillMaxWidth().weight(1f-scoreFraction)) {if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow,animate=!settings.reduceMotion)}
                     }
                 }
-                if(p.hidden)Box(Modifier.matchParentSize().background(Color(0xfffffefb))) {
-                    Text("Score hidden · press Practice to begin",Modifier.align(Alignment.Center),color=Ink)
+                if(p.hidden)Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.background)) {
+                    Text("Score hidden · press Start to begin",Modifier.align(Alignment.Center),color=Ink)
                 }
                 if(p.counting>0)Box(Modifier.align(Alignment.Center)) {
-                    if(settings.reduceMotion)CountdownNumber(p.counting)
-                    else AnimatedContent(targetState=p.counting,transitionSpec={ (fadeIn(tween(150))+scaleIn(tween(300),initialScale=.65f)) togetherWith (fadeOut(tween(300))+scaleOut(tween(300),targetScale=1.5f)) },label="Practice countdown"){number->CountdownNumber(number)}
+                    CountdownNumber(p.counting,!settings.reduceMotion)
                 }
             }
             KeyboardCanvas(midi.held.keys,midi.sounding,if(p.hidden)emptyList() else if(p.cursorPreview!=null || !p.running)expectedAt(score,p.cursorPreview ?: if(p.review)p.reviewBeat else p.transportBeat,p.hand) else p.expected,true,vm::key,
@@ -151,9 +156,9 @@ import kotlin.math.*
             }
             if(p.running)IconButton(onClick={replaying=false;vm.stop()}){Icon(Icons.Outlined.Stop,"Stop and clear sheet")}
             if(p.running || p.listening)IconButton(onClick={vm.togglePause()}) {Icon(if(p.paused)Icons.Outlined.PlayArrow else Icons.Outlined.Pause,if(p.paused)"Resume" else "Pause")}
-            Button(onClick={if(p.running)vm.stop("Practice finished",saveResult=true) else vm.start()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
+            Button(onClick={if(p.running)vm.stop("Practice finished",saveResult=true) else vm.start()},modifier=Modifier.testTag("start-practice"),contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
                 Icon(if(p.running)Icons.Outlined.Stop else Icons.Outlined.PlayArrow,null,Modifier.size(18.dp))
-                Text(if(p.running)"Finish" else if(p.listening)"Practice instead" else "Practice",fontSize=12.sp)
+                Text(if(p.running)"Finish" else "Start",fontSize=12.sp)
             }
         }
         if(!p.review)Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -181,76 +186,123 @@ import kotlin.math.*
 }
 fun modeName(m: PracticeMode)=when(m){PracticeMode.FREE->"Free play";PracticeMode.FOLLOW->"Follow score";PracticeMode.WAIT->"Wait mode";PracticeMode.RHYTHM->"Rhythm"}
 fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Hand.BOTH->"Both hands"}
+/** Compact pages keep the primary action fixed; dropdowns replace scrolling chip rows. */
 @Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,readerControls: @Composable ()->Unit = {},close: ()->Unit) {
     val score=p.score ?: return
-    val naming=LocalNoteNaming.current
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    var page by remember{mutableIntStateOf(0)}
+    var loopPage by remember{mutableIntStateOf(0)}
     var sectionName by remember{mutableStateOf("")}
-    var advanced by remember{mutableStateOf(false)}
-    ModalBottomSheet(onDismissRequest=close) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(bottom=32.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text("Shape your practice",fontFamily=FontFamily.Serif,fontSize=26.sp)
-            readerControls()
-            if(p.category=="Scales" || p.category=="Sight reading")OutlinedButton(onClick={
-                close();vm.stop();vm.screen.value=if(p.category=="Scales")"Scales" else "Sight reading"
-            }){Icon(Icons.Outlined.ArrowBack,null);Spacer(Modifier.width(8.dp));Text("Exercise settings")}
-            if(p.category=="Sight reading")OutlinedButton(onClick={close();vm.nextSight()}){Text("Next exercise · same settings")}
-
-            if(p.running || p.listening)Text("Stop playback or finish practice to change these settings.",color=MaterialTheme.colorScheme.primary)
-            Text("Mode",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { PracticeMode.entries.forEach { mode-> FilterChip(p.mode==mode,{vm.edit{it.copy(mode=mode)}},enabled=!(p.running || p.listening),label={Text(modeName(mode))}) } }
-            Text(when(p.mode){PracticeMode.FREE->"No scoring";PracticeMode.FOLLOW->"Follows your playing";PracticeMode.WAIT->"Waits for each chord";PracticeMode.RHYTHM->"Scores timing and pitch"},fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            HorizontalDivider()
-            Text("Hands",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { Hand.entries.forEach { h-> FilterChip(p.hand==h,{vm.edit{it.copy(hand=h)}},enabled=!(p.running || p.listening),label={Text(handName(h))}) } }
-            HorizontalDivider()
-            Text("Tempo · ${p.bpm.toInt()} BPM",fontWeight=FontWeight.SemiBold)
-            Slider(p.bpm.toFloat(),{v->vm.edit{it.copy(bpm=v.toDouble())}},valueRange=20f..240f,steps=219,enabled=!(p.running || p.listening))
-            if(score.tempoMarks.isNotEmpty())Text("Score tempo markings: "+score.tempoMarks.take(6).joinToString { mark ->
-                "m.${score.measures.lastOrNull {it.start<=mark.beat+.0001}?.number ?: 1} · ${mark.bpm.toInt()} BPM"
-            }+if(score.tempoMarks.size>6)" …" else "",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            if(score.expressiveTempo)Text("Expressive tempo text (e.g. accelerando or ritardando) detected; words alone do not define an exact BPM curve.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows explicit BPM changes; scored Practice uses your selected fixed tempo.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            HorizontalDivider()
-            Text("Loop · drag the edge handles",fontWeight=FontWeight.SemiBold)
-            val from=score.measures[p.startMeasure-1].start+p.startOffset
-            val to=score.measures[p.endMeasure-1].start+p.endOffset
-            if(p.selectingLoop)RangeSlider(value=from.toFloat()..to.toFloat(),onValueChange={vm.setPassage(it.start.toDouble(),it.endInclusive.toDouble())},
-                valueRange=0f..score.endBeat.toFloat().coerceAtLeast(.25f),enabled=!(p.running || p.listening))
-            if(p.selectingLoop)Text("${"%.1f".format(from)}  →  ${"%.1f".format(to)}",fontSize=12.sp)
-            TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide fine adjustments" else "Fine adjustments")}
-            if(advanced) {
-            MeasureStepper("From measure",p.startMeasure,score.measures.size,!(p.running || p.listening)) { n -> vm.edit { val end=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=end,startOffset=0.0,endOffset=score.measures[end-1].length) } }
-            MeasureStepper("Through measure",p.endMeasure,score.measures.size,!(p.running || p.listening)) { n -> vm.edit { val start=min(n,it.startMeasure);it.copy(startMeasure=start,endMeasure=n,startOffset=0.0,endOffset=score.measures[n-1].length) } }
-            Text("Start offset · ${"%.2f".format(p.startOffset)} quarter beats",fontSize=12.sp)
-            Slider(p.startOffset.toFloat(),{v->vm.edit{it.copy(startOffset=v.toDouble())}},valueRange=0f..(score.measures[p.startMeasure-1].length-.25).coerceAtLeast(.25).toFloat(),enabled=!(p.running || p.listening))
-            Text("End offset · ${"%.2f".format(p.endOffset)} quarter beats",fontSize=12.sp)
-            Slider(p.endOffset.toFloat(),{v->vm.edit{it.copy(endOffset=v.toDouble())}},valueRange=.25f..score.measures[p.endMeasure-1].length.toFloat().coerceAtLeast(.26f),enabled=!(p.running || p.listening))
+    val editable=!(p.running || p.listening)
+    Dialog(onDismissRequest=close,properties=DialogProperties(usePlatformDefaultWidth=false)) {
+        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=12.dp,vertical=4.dp)) {
+                Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Text("Practice settings",Modifier.weight(1f),fontSize=20.sp,fontFamily=FontFamily.Serif)
+                    if(p.category=="Scales" || p.category=="Sight reading")TextButton(onClick={
+                        close();vm.stop();vm.screen.value=if(p.category=="Scales")"Scales" else "Sight reading"
+                    }){Text("Exercise settings",fontSize=12.sp)}
+                    IconButton(onClick=close){Icon(Icons.Outlined.Close,"Back to score")}
+                }
+                PrimaryTabRow(selectedTabIndex=page) {
+                    listOf("Practice","Loop","Score").forEachIndexed{i,label->Tab(page==i,{page=i},text={Text(label)})}
+                }
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(vertical=6.dp)) {
+                    val wide=maxWidth>=600.dp || maxHeight<330.dp
+                    @Composable fun Columns(left: @Composable ColumnScope.()->Unit,right: @Composable ColumnScope.()->Unit) {
+                        if(wide)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp),content=left)
+                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp),content=right)
+                        } else Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(6.dp)) {left();right()}
+                    }
+                    when(page) {
+                        0->Columns(left={
+                            CompactChoice("Mode",modeName(p.mode),PracticeMode.entries.map{modeName(it) to {vm.edit{p->p.copy(mode=it)}}},editable)
+                            CompactChoice("Hands",handName(p.hand),Hand.entries.map{handName(it) to {vm.edit{p->p.copy(hand=it)}}},editable)
+                            CompactNumber("Tempo (BPM)",p.bpm,20.0,240.0,editable){v->vm.edit{it.copy(bpm=v)}}
+                        },right={
+                            CompactSwitch("Count-in · 4 seconds",p.countIn,editable){v->vm.edit{it.copy(countIn=v)}}
+                            CompactSwitch("Metronome",p.metronome,editable){v->vm.edit{it.copy(metronome=v)}}
+                            Text(when(p.mode){PracticeMode.FREE->"Free play · no scoring";PracticeMode.WAIT->"Waits for correct notes; no rhythm score";PracticeMode.FOLLOW->"Starts with your first note, follows tempo, marks missed notes";PracticeMode.RHYTHM->"Pitch and timing against the metronome"},fontSize=12.sp)
+                        })
+                        1->Column {
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                                listOf("Range","Repeat","Saved").forEachIndexed{i,label->TextButton(onClick={loopPage=i},modifier=Modifier.weight(1f)){Text(label,color=if(loopPage==i)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}}
+                            }
+                            when(loopPage) {
+                                0->Columns(left={
+                                    CompactSwitch("Select loop on score",p.selectingLoop,editable){vm.toggleLoopSelection()}
+                                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                        Box(Modifier.weight(1f)){CompactNumber("From measure",p.startMeasure.toDouble(),1.0,score.measures.size.toDouble(),editable){v->vm.edit{val n=v.toInt();val e=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=e,startOffset=0.0,endOffset=score.measures[e-1].length)}}}
+                                        Box(Modifier.weight(1f)){CompactNumber("Through measure",p.endMeasure.toDouble(),1.0,score.measures.size.toDouble(),editable){v->vm.edit{val n=v.toInt();val a=min(n,it.startMeasure);it.copy(startMeasure=a,endMeasure=n,startOffset=0.0,endOffset=score.measures[n-1].length)}}}
+                                    }
+                                },right={
+                                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                        Box(Modifier.weight(1f)){CompactNumber("Start beat offset",p.startOffset,0.0,(score.measures[p.startMeasure-1].length-.25).coerceAtLeast(0.0),editable){v->vm.edit{it.copy(startOffset=v)}}}
+                                        Box(Modifier.weight(1f)){CompactNumber("End beat offset",p.endOffset,.25,score.measures[p.endMeasure-1].length,editable){v->vm.edit{it.copy(endOffset=v)}}}
+                                    }
+                                    Text("Drag loop edges on the score for quick selection.",fontSize=12.sp)
+                                })
+                                1->Columns(left={
+                                    CompactSwitch("Repeat selected loop",p.loop,editable){v->vm.edit{it.copy(loop=v)}}
+                                    CompactSwitch("Adaptive tempo (+4 BPM)",p.autoTempo,editable&&p.loop){v->vm.edit{it.copy(autoTempo=v)}}
+                                },right={
+                                    CompactChoice("Rest between loops","${settings.loopBreakSeconds} seconds",(0..5).map{n->"$n seconds" to {vm.setSettings{it.copy(loopBreakSeconds=n)}}})
+                                    Text("Adaptive tempo increases after a repetition scores at least 90%.",fontSize=12.sp)
+                                })
+                                else->Columns(left={
+                                    OutlinedTextField(sectionName,{sectionName=it},label={Text("Loop name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=editable)
+                                    OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=editable){Text("Save loop")}
+                                },right={
+                                    CompactChoice("Saved loops","Choose a saved loop",p.sections.map{s->s.name to {vm.useSection(s)}},editable&&p.sections.isNotEmpty())
+                                })
+                            }
+                        }
+                        else->Columns(left={
+                            CompactSwitch("Horizontal score layout",p.horizontal,editable){v->vm.edit{it.copy(horizontal=v)}}
+                            Row(verticalAlignment=Alignment.CenterVertically) {
+                                Text("Score zoom",Modifier.weight(1f))
+                                IconButton(onClick={vm.zoom(-.15)}){Icon(Icons.Outlined.ZoomOut,"Zoom out sheet")}
+                                Text("${(p.zoom*100).toInt()}%",fontSize=12.sp)
+                                IconButton(onClick={vm.zoom(.15)}){Icon(Icons.Outlined.ZoomIn,"Zoom in sheet")}
+                            }
+                        },right={
+                            OutlinedButton(onClick={close();vm.screen.value="Connect"}){Text("Piano MIDI connection")}
+                            readerControls()
+                            if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows score tempo marks; Start uses the selected practice tempo.",fontSize=12.sp)
+                        })
+                    }
+                }
+                HorizontalDivider()
+                Row(Modifier.fillMaxWidth().height(56.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick=close,modifier=Modifier.weight(1f)){Text("Back to score")}
+                    Button(onClick={close();vm.start()},enabled=editable,modifier=Modifier.weight(1f).testTag("start-practice")){Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Start")}
+                }
             }
-            Toggle("Repeat selected passage",p.loop,{v->vm.edit{it.copy(loop=v)}},!(p.running || p.listening))
-            Toggle("Count-in before each repetition",p.countIn,{v->vm.edit{it.copy(countIn=v)}},!(p.running || p.listening))
-            Text("Count-in gives four seconds of preparation. Rest between loops is separate; both are optional.",fontSize=12.sp)
-            Toggle("Metronome",p.metronome,{v->vm.edit{it.copy(metronome=v)}},!(p.running || p.listening))
-            if(p.loop)Toggle("Adaptive tempo · +4 BPM after ≥90% score",p.autoTempo,{v->vm.edit{it.copy(autoTempo=v)}},!(p.running || p.listening))
-            if(p.loop)Text("Adaptive tempo is optional: increase speed only after a successful repetition. Leave off for a fixed tempo.",fontSize=12.sp)
-            Text("Rest before next count-in · ${settingsLoopBreak(vm)}s",fontSize=12.sp)
-            Slider(settingsLoopBreak(vm).toFloat(),{v->vm.setSettings{it.copy(loopBreakSeconds=v.toInt())}},valueRange=0f..5f,steps=4)
-            OutlinedButton(onClick={close();vm.screen.value="Connect"}){Text("Piano MIDI connection")}
-            Toggle("Horizontal score layout",p.horizontal,{v->vm.edit{it.copy(horizontal=v)}},!(p.running || p.listening))
-            OutlinedTextField(sectionName,{sectionName=it},label={Text("Loop name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!(p.running || p.listening))
-            OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkAdd,null);Spacer(Modifier.width(8.dp));Text("Save loop")}
-            p.sections.forEach { s->TextButton(onClick={vm.useSection(s)},enabled=!(p.running || p.listening)){Icon(Icons.Outlined.BookmarkBorder,null);Spacer(Modifier.width(8.dp));Text("${s.name} · ${s.bpm.toInt()} BPM")} }
-            Button(onClick=close,modifier=Modifier.fillMaxWidth()){Text("Back to score")}
         }
     }
 }
-@Composable private fun MeasureStepper(label: String,value: Int,max: Int,enabled: Boolean,onChange: (Int)->Unit) {
-    var typed by remember(value){mutableStateOf(value.toString())}
-    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-        Text(label,Modifier.weight(1f),fontSize=14.sp)
-        IconButton(onClick={onChange((value-1).coerceAtLeast(1))},enabled=enabled&&value>1){Icon(Icons.Outlined.Remove,"Previous measure")}
-        OutlinedTextField(typed,{s->typed=s.filter{it.isDigit()};typed.toIntOrNull()?.takeIf{it in 1..max}?.let(onChange)},Modifier.width(80.dp),singleLine=true,enabled=enabled)
-        IconButton(onClick={onChange((value+1).coerceAtMost(max))},enabled=enabled&&value<max){Icon(Icons.Outlined.Add,"Next measure")}
-        Text("/ $max",fontSize=12.sp)
+@Composable private fun CompactChoice(label: String,value: String,options: List<Pair<String,()->Unit>>,enabled: Boolean=true) {
+    var expanded by remember{mutableStateOf(false)}
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick={expanded=true},enabled=enabled,modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(8.dp),contentPadding=PaddingValues(horizontal=12.dp)) {
+            Column(Modifier.weight(1f)){Text(label,fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant);Text(value,fontSize=13.sp,maxLines=1)}
+            Icon(Icons.Outlined.ArrowDropDown,null)
+        }
+        DropdownMenu(expanded,onDismissRequest={expanded=false}) {options.forEach{(title,action)->DropdownMenuItem(text={Text(title)},onClick={expanded=false;action()})}}
+    }
+}
+@Composable private fun CompactNumber(label: String,value: Double,minimum: Double,maximum: Double,enabled: Boolean,onChange: (Double)->Unit) {
+    val display=if(value%1.0==0.0)value.toInt().toString() else "%.2f".format(java.util.Locale.US,value)
+    var text by remember(value){mutableStateOf(display)}
+    OutlinedTextField(text,{raw->text=raw.filter{it.isDigit()||it=='.'}.take(7);text.toDoubleOrNull()?.takeIf{it in minimum..maximum}?.let(onChange)},
+        modifier=Modifier.fillMaxWidth(),enabled=enabled,label={Text(label,fontSize=11.sp)},singleLine=true,
+        keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),textStyle=androidx.compose.ui.text.TextStyle(fontSize=14.sp))
+}
+@Composable private fun CompactSwitch(label: String,checked: Boolean,enabled: Boolean,onChange: (Boolean)->Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min=44.dp),verticalAlignment=Alignment.CenterVertically) {
+        Text(label,Modifier.weight(1f),fontSize=13.sp,maxLines=2)
+        Switch(checked,onChange,enabled=enabled)
     }
 }
 @Composable fun ResultDialog(r: SessionResult,simulated: Boolean,mode: PracticeMode=PracticeMode.RHYTHM,tolerance: Double=180.0,close: ()->Unit) {
@@ -274,11 +326,15 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     })
 }
 
-@Composable private fun settingsLoopBreak(vm: PianoViewModel): Int = vm.settings.collectAsStateWithLifecycle().value.loopBreakSeconds
 
-@Composable private fun CountdownNumber(number: Int) {
+@Composable private fun CountdownNumber(number: Int,animate: Boolean) {
+    val pulse=remember{Animatable(0f)}
+    LaunchedEffect(number,animate) {
+        pulse.snapTo(0f)
+        if(animate)pulse.animateTo(1f,tween(850))
+    }
     val fill=MaterialTheme.colorScheme.primary
-    Canvas(Modifier.size(150.dp).semantics{contentDescription="Countdown $number"}) {
+    Canvas(Modifier.size(150.dp).graphicsLayer{val t=if(animate)pulse.value else 0f;scaleX=1f+.3f*t;scaleY=scaleX;alpha=1f-.65f*t}.semantics{contentDescription="Countdown $number"}) {
         val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             textSize=84.sp.toPx();typeface=android.graphics.Typeface.DEFAULT_BOLD;textAlign=android.graphics.Paint.Align.CENTER
             strokeWidth=5.dp.toPx();strokeJoin=android.graphics.Paint.Join.ROUND

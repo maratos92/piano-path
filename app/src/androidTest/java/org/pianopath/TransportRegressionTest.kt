@@ -106,6 +106,33 @@ class TransportRegressionTest {
         } finally { compose.runOnUiThread { vm.stop() } }
     }
 
+    @Test fun followFinishesWhenLastNotesAreMissed() {
+        val vm = scale()
+        try {
+            compose.runOnUiThread {
+                vm.edit { it.copy(mode=PracticeMode.FOLLOW, countIn=false, metronome=true,
+                    loop=false, bpm=240.0, endMeasure=1, endOffset=2.0) }
+                vm.start()
+            }
+            compose.waitUntil(5_000) { vm.ui.value.running && vm.ui.value.expected.isNotEmpty() }
+            val first = vm.ui.value.expected.first()
+            compose.runOnUiThread {
+                val now=System.nanoTime()
+                vm.midi.simulate(MidiEvent.On(first,80,now))
+                vm.midi.simulate(MidiEvent.Off(first,0,now+10_000_000))
+            }
+            compose.waitUntil(5_000) { vm.ui.value.matched.isNotEmpty() }
+            compose.waitUntil(8_000) { !vm.ui.value.running && vm.ui.value.result != null }
+            val finished=vm.ui.value
+            assertTrue("Unplayed final notes must be counted as missing", finished.result!!.missing > 0)
+            assertFalse(finished.listening)
+            assertFalse(finished.paused)
+            Thread.sleep(400)
+            assertFalse("Practice and its metronome must stay stopped", vm.ui.value.running)
+            assertEquals(finished.transportBeat,vm.ui.value.transportBeat,0.001)
+        } finally { compose.runOnUiThread { vm.stop() } }
+    }
+
     @Test fun sightPreviewReplacesCountInAndNextExerciseKeepsSettings() {
         lateinit var vm: PianoViewModel
         compose.runOnUiThread {
