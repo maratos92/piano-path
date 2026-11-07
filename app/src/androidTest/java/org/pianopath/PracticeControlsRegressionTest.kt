@@ -51,7 +51,12 @@ class PracticeControlsRegressionTest {
         for(tab in listOf("Practice", "Loop", "Score")) {
             compose.onNode(hasText(tab) and hasAnyAncestor(isDialog())).performClick()
             // Deliberately do not scroll: the action must stay visible on every page.
-            compose.onNode(hasTestTag("start-practice") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+            val start=compose.onNode(hasTestTag("start-practice") and hasAnyAncestor(isDialog()))
+            if(!start.isDisplayed()) {
+                val bounds=start.fetchSemanticsNode().boundsInWindow
+                throw AssertionError("Start footer hidden on tab=$tab, orientation=$configuration, boundsInWindow=$bounds")
+            }
+            start.assertIsDisplayed()
         }
     }
 
