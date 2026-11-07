@@ -3,6 +3,8 @@ package org.pianopath.ui
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -17,7 +19,8 @@ import org.pianopath.core.*
 @Composable fun ScaleSetup(vm: PianoViewModel) {
     val naming=LocalNoteNaming.current
     var root by rememberSaveable {mutableIntStateOf(0)};var kind by rememberSaveable{mutableStateOf(ScaleKind.MAJOR)};var octaves by rememberSaveable{mutableIntStateOf(1)};var hand by rememberSaveable{mutableStateOf(Hand.BOTH)};var descending by rememberSaveable{mutableStateOf(true)}
-    Column(Modifier.fillMaxHeight().fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal=16.dp,vertical=8.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         PageTitle("Scales & technique")
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Choose a tonic",fontWeight=FontWeight.SemiBold)
@@ -40,34 +43,43 @@ import org.pianopath.core.*
             HorizontalDivider()
             Toggle("Ascend and descend",descending,{descending=it})
         }
+        }
         Button(onClick={vm.scale(root,kind,octaves,hand,descending)},modifier=Modifier.fillMaxWidth().testTag("start-scale")){Text("Start")}
         TextButton(onClick={vm.screen.value="History"}){Text("History")}
     }
 }
 @Composable fun SightSetup(vm: PianoViewModel) {
-    var level by rememberSaveable{mutableIntStateOf(0)};var fifths by rememberSaveable{mutableIntStateOf(0)};var beats by rememberSaveable{mutableIntStateOf(4)};var hand by rememberSaveable{mutableStateOf(Hand.BOTH)};var preview by rememberSaveable{mutableIntStateOf(10)};var tempo by rememberSaveable{mutableFloatStateOf(80f)}
-    Column(Modifier.fillMaxHeight().fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    var level by rememberSaveable{mutableIntStateOf(0)};var fifths by rememberSaveable{mutableIntStateOf(0)};var beats by rememberSaveable{mutableIntStateOf(4)};var hand by rememberSaveable{mutableStateOf(Hand.BOTH)};var preview by rememberSaveable{mutableIntStateOf(10)};var tempo by rememberSaveable{mutableFloatStateOf(80f)};var keyMenu by remember{mutableStateOf(false)}
+    Column(Modifier.fillMaxSize().padding(horizontal=16.dp,vertical=8.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         PageTitle("Sight reading")
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Difficulty",fontWeight=FontWeight.SemiBold)
             listOf("Beginner","Elementary","Intermediate","Advanced").chunked(2).forEachIndexed{row,names->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){names.forEachIndexed{col,name->val n=row*2+col;FilterChip(level==n,{level=n},modifier=Modifier.weight(1f),label={Text(name)})}}}
             HorizontalDivider()
             Text("Key signature",fontWeight=FontWeight.SemiBold)
-            (-4..4).chunked(3).forEach { row->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                row.forEach{n->FilterChip(fifths==n,{fifths=n},modifier=Modifier.weight(1f),label={Text(mapOf(-4 to "A♭",-3 to "E♭",-2 to "B♭",-1 to "F",0 to "C",1 to "G",2 to "D",3 to "A",4 to "E")[n]!!)})}
-            } }
+            Box {
+                OutlinedButton(onClick={keyMenu=true},modifier=Modifier.fillMaxWidth().height(48.dp)){
+                    Text(mapOf(-4 to "A♭",-3 to "E♭",-2 to "B♭",-1 to "F",0 to "C",1 to "G",2 to "D",3 to "A",4 to "E").getValue(fifths))
+                    Spacer(Modifier.weight(1f));Icon(Icons.Outlined.ArrowDropDown,null)
+                }
+                DropdownMenu(expanded=keyMenu,onDismissRequest={keyMenu=false}){
+                    (-4..4).forEach { n -> DropdownMenuItem(text={Text(mapOf(-4 to "A♭",-3 to "E♭",-2 to "B♭",-1 to "F",0 to "C",1 to "G",2 to "D",3 to "A",4 to "E").getValue(n))},onClick={fifths=n;keyMenu=false}) }
+                }
+            }
             HorizontalDivider()
             Text("Time signature",fontWeight=FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(3,4,6).forEach{n->FilterChip(beats==n,{beats=n},modifier=Modifier.weight(1f),label={Text(if(n==6)"6/8" else "$n/4")})}}
             HorizontalDivider()
             Text("Tempo · ${tempo.toInt()} BPM",fontWeight=FontWeight.SemiBold)
-            Slider(tempo,{tempo=it},valueRange=20f..200f,steps=179)
+            Slider(tempo,{tempo=it.toInt().toFloat()},valueRange=20f..200f,steps=179)
             HorizontalDivider()
             Text("Hands",fontWeight=FontWeight.SemiBold)
             HandChoice(hand){hand=it}
             HorizontalDivider()
             Text("Preview",fontWeight=FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf(0,5,10,20).forEach{n->FilterChip(preview==n,{preview=n},modifier=Modifier.weight(1f),label={Text(if(n==0)"None" else "$n sec")})}}
+        }
         }
         Button(onClick={vm.sight(level,fifths,beats,hand,preview,tempo.toDouble())},modifier=Modifier.fillMaxWidth().testTag("start-sight-reading")){Text("Start")}
         TextButton(onClick={vm.screen.value="History"}){Text("History")}
