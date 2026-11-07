@@ -5,6 +5,26 @@ import org.junit.Test
 
 class PlaybackTest {
     private fun score(vararg notes: ScoreNote)=Score("Test","Piano Path",notes.toList(),listOf(Measure(1,0.0,4.0)))
+    @Test fun graceNotesPlayWithoutBecomingAssessedNotes() {
+        val score=Score("Ornaments","Test",listOf(ScoreNote(0,64,1.0,1.0,1)),
+            listOf(Measure(1,0.0,4.0)),graceNotes=listOf(
+                GraceNote(62,1.0,1),GraceNote(63,1.0,1)))
+        assertEquals(1,score.selected(0.0,4.0,Hand.BOTH).size)
+        val events=PlaybackPlan.create(score,0.0,4.0)
+        assertEquals(6,events.size)
+        assertTrue(events.any{it.down && it.pitch==62 && it.beat<1.0})
+        assertTrue(events.any{it.down && it.pitch==63 && it.beat<1.0})
+        assertTrue(events.any{it.down && it.pitch==64 && it.beat==1.0})
+    }
+    @Test fun ornamentsExpandOnlyForListening() {
+        val score=Score("Trill","Test",listOf(ScoreNote(0,64,0.0,2.0,1)),
+            listOf(Measure(1,0.0,4.0)),ornaments=listOf(OrnamentMark(0,OrnamentKind.TRILL)))
+        assertEquals(1,score.selected(0.0,4.0,Hand.BOTH).size)
+        val events=PlaybackPlan.create(score,0.0,4.0)
+        assertTrue(events.size>=8)
+        assertTrue(events.any{it.pitch>64})
+        assertTrue(events.last().beat<=2.0)
+    }
     @Test fun fullKeyboardHas88Keys52WhiteAnd36Black() {
         assertEquals(88,PianoLayout.keys.size);assertEquals(52,PianoLayout.whiteKeys.size);assertEquals(36,PianoLayout.blackKeys.size)
         assertEquals(21,PianoLayout.keys.first().pitch);assertEquals(108,PianoLayout.keys.last().pitch)
