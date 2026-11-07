@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
@@ -81,13 +82,14 @@ fun displayNoteText(text: String,style: String="LETTERS"): String {
         val w=size.width/geometry.whiteSpan.toFloat()*zoom
         val offset=pan.coerceIn(0f,1f)*(zoom-1)*size.width
         val gap=.7.dp.toPx().coerceAtMost(w*.12f)
+        val expectedTint=if(accent.luminance()>.35f)lerp(accent,Color.Black,.45f) else accent
         fun color(pitch: Int,black: Boolean): Color = keyFills[pitch] ?: when {
             filledInput && (pitch in held || pitch in sounding)->Color(0xfff5b942)
             focusRange!=null && pitch !in focusRange -> if(black)Color(0xff243633) else Color(0xff83918b)
             else -> when(pitch) {
             in playback->if(paused)lerp(Color(0xff78bfe8),Color.White,.12f) else Color(0xff78bfe8)
             // Expected notes stay filled while played notes retain their outline treatment.
-            in expected->if(black)lerp(Color.White,accent,.70f) else lerp(Color.White,accent,.55f)
+            in expected->if(black)lerp(Color.White,accent,.70f) else lerp(Color.White,expectedTint,.65f)
             else->if(black)Color(0xff182b29) else Color(0xfffaf7ef)
         }
         }
