@@ -198,7 +198,14 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
     // window inset policy, then apply safeDrawing padding once to the content.
     // A floating/decor-fitting dialog could measure its footer beneath the system bar.
     Dialog(onDismissRequest=close,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
-        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
+        // Compose Dialog windows are WRAP_CONTENT vertically by default. A weighted
+        // Column inside fillMaxSize() does not force a bounded viewport in that case,
+        // allowing the fixed Start footer to be measured below the visible window.
+        // Give the dialog an explicit screen-height bound in both orientations.
+        Surface(
+            Modifier.fillMaxWidth().height(LocalConfiguration.current.screenHeightDp.dp),
+            color=MaterialTheme.colorScheme.background
+        ) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=12.dp,vertical=4.dp)) {
                 Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("Practice settings",Modifier.weight(1f),fontSize=20.sp,fontFamily=FontFamily.Serif)
