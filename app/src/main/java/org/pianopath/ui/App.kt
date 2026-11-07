@@ -24,6 +24,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -227,7 +231,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val history by vm.history.collectAsStateWithLifecycle(); val p by vm.ui.collectAsStateWithLifecycle()
     val imports by vm.imports.collectAsStateWithLifecycle();val recents by vm.recentKeys.collectAsStateWithLifecycle()
     val recent=recents.mapNotNull{key->imports.find{it.key==key}}
-    LazyColumn(Modifier.fillMaxSize().testTag("home-feed"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("home-feed"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Home") }
         item { Surface(modifier=Modifier.testTag("home-start-session"),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.primary,onClick={if(p.score!=null)vm.screen.value="Practice" else vm.scale(0,ScaleKind.MAJOR,1,Hand.BOTH,true)}) {
             Row(Modifier.fillMaxWidth().padding(24.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -259,7 +263,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     val favourites by vm.favourites.collectAsStateWithLifecycle()
     var onlyFavourites by remember{mutableStateOf(false)}
     val visible=imports.filter {(it.title+it.composer).contains(query,true) && (!onlyFavourites || it.key in favourites)}.sortedByDescending{it.key in favourites}
-    LazyColumn(Modifier.fillMaxSize().testTag("library-feed"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("library-feed"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { PageTitle("Library") }
         item { Button(onClick=onImport,modifier=Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.FileOpen,null);Spacer(Modifier.width(8.dp));Text("Import MusicXML / MXL")
@@ -288,7 +292,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 @Composable private fun Connection(vm: PianoViewModel,midi: MidiStatus,scan: ()->Unit,bluetoothSettings: ()->Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { PageTitle("Connect piano") }
         item { Text("Connect a compatible instrument by Bluetooth LE MIDI or USB MIDI. No microphone is used.",style=MaterialTheme.typography.bodyMedium) }
         item { Panel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { ConnectionStatusIcon(midi.connected,settings.reduceMotion);Spacer(Modifier.width(12.dp));Text(midi.status,fontWeight=FontWeight.Medium) };if(midi.scanning)LinearProgressIndicator(Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick=scan,enabled=!midi.scanning){Text("Find piano")};if(midi.connected)OutlinedButton(onClick={vm.midi.disconnect()}){Text("Disconnect")}} } }
@@ -309,6 +313,10 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     var notices by remember{mutableStateOf(false)}
     var support by remember{mutableStateOf(false)}
     val context=LocalContext.current
+    var soundMenu by remember{mutableStateOf(false)}
+    val soundImporter=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
+        if(uri!=null)vm.importSoundPack(uri)
+    }
     if(support)AlertDialog(onDismissRequest={support=false},title={Text("Support Piano Path")},text={
         Text("If Piano Path helps your practice, you can leave a voluntary tip. Every app feature stays free. No subscription or digital reward is required. Ko-fi opens in your browser and handles payment under its own privacy terms.")
     },confirmButton={TextButton(onClick={
@@ -327,7 +335,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         }
     })
     var section by remember {mutableStateOf("General")}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         PageTitle("Settings")
         PrimaryTabRow(selectedTabIndex=listOf("General","Practice","About").indexOf(section)) {
             listOf("General","Practice","About").forEach { tab ->
@@ -337,6 +345,28 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         when(section) {
             "General" -> {
                 Panel(Modifier.fillMaxWidth()) {
+                    Text("Piano sound",fontWeight=FontWeight.SemiBold)
+                    Box {
+                        OutlinedButton(onClick={soundMenu=true},modifier=Modifier.fillMaxWidth()) {
+                            Text(s.sound.label,Modifier.weight(1f));Icon(Icons.Outlined.ArrowDropDown,null)
+                        }
+                        DropdownMenu(expanded=soundMenu,onDismissRequest={soundMenu=false}) {
+                            PianoSound.entries.forEach {sound->
+                                DropdownMenuItem(text={Text(sound.label)},onClick={
+                                    soundMenu=false
+                                    if(sound==PianoSound.CUSTOM && !vm.hasImportedSoundPack())
+                                        vm.message.value="Import a WAV sound pack first"
+                                    else vm.setSettings{it.copy(sound=sound)}
+                                })
+                            }
+                        }
+                    }
+                    OutlinedButton(onClick={soundImporter.launch(arrayOf("*/*"))},modifier=Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.FileUpload,null);Spacer(Modifier.width(8.dp));Text("Import sound pack")
+                    }
+                    if(vm.hasImportedSoundPack())TextButton(onClick={vm.removeSoundPack()}){Text("Remove imported sound")}
+                    Text("Mellow, Bright, Warm and Electric are open-source synthesised instruments. For an imported bank, choose a ZIP of numbered mono PCM16 WAVs (e.g. 60.wav, 64.wav). SF2/SF3/SFZ need a different synthesiser and are not accepted.",fontSize=11.sp)
+                    HorizontalDivider()
                     Toggle("Keep device awake",s.keepAwake,{v->vm.setSettings{it.copy(keepAwake=v)}})
                     Text("Note names",fontWeight=FontWeight.SemiBold)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(s.noteNaming=="LETTERS",{vm.setSettings{it.copy(noteNaming="LETTERS")}},label={Text("C D E")});FilterChip(s.noteNaming=="SOLFEGE",{vm.setSettings{it.copy(noteNaming="SOLFEGE")}},label={Text("Do Re Mi")})}
@@ -351,13 +381,6 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Toggle("Reduce motion",s.reduceMotion,{v->vm.setSettings{it.copy(reduceMotion=v)}})
                     Toggle("Glow on falling notes",s.fallingGlow,{v->vm.setSettings{it.copy(fallingGlow=v)}})
                     HorizontalDivider()
-                    Text("Piano sound",fontWeight=FontWeight.SemiBold)
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                        PianoSound.entries.forEach {sound ->
-                            FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)})
-                        }
-                    }
-                    HorizontalDivider()
                     Text("Score padding · ${s.sheetMargin} px",fontWeight=FontWeight.SemiBold)
                     Slider(s.sheetMargin.toFloat(),{v->vm.setSettings{it.copy(sheetMargin=v.toInt())}},valueRange=0f..32f)
                 }
@@ -371,8 +394,8 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Text("Rest before next loop count-in · ${s.loopBreakSeconds}s",fontWeight=FontWeight.SemiBold)
                     Slider(s.loopBreakSeconds.toFloat(),{v->vm.setSettings{it.copy(loopBreakSeconds=v.toInt())}},valueRange=0f..5f,steps=4)
                     Text("Applies to Practice and Listen. Pausing also pauses this rest.",fontSize=12.sp)
-                    Text("Timing tolerance · ${s.tolerance.toInt()} ms",fontWeight=FontWeight.SemiBold)
-                    Slider(s.tolerance.toFloat(),{v->vm.setSettings{it.copy(tolerance=v.toDouble())}},valueRange=60f..350f,steps=28)
+                    Text("Timing tolerance · ${((s.tolerance/10.0).roundToInt()*10)} ms",fontWeight=FontWeight.SemiBold)
+                    Slider(((s.tolerance/10.0).roundToInt()*10).toFloat().coerceIn(60f,350f),{v->vm.setSettings{it.copy(tolerance=(v/10f).roundToInt()*10.0)}},valueRange=60f..350f,steps=28)
                     HorizontalDivider()
                     Text("Input delay · ${s.latency.toInt()} ms",fontWeight=FontWeight.SemiBold)
                     Slider(s.latency.toFloat(),{v->vm.setSettings{it.copy(latency=v.toDouble())}},valueRange=-300f..300f,steps=119)
@@ -397,7 +420,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                     Text("Open source · offline · no account",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(onClick={notices=true}){Text("Open-source notices and licences")}
                 }
-                if(BuildConfig.SUPPORT_URL.isNotBlank())OutlinedButton(onClick={support=true}) {
+                if(BuildConfig.SUPPORT_URL.isNotBlank())OutlinedButton(onClick={support=true},modifier=Modifier.fillMaxWidth()) {
                     Icon(Icons.Outlined.FavoriteBorder,null);Spacer(Modifier.width(8.dp));Text("Support Piano Path")
                 }
             }
@@ -419,13 +442,35 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
 }
 
 @Composable private fun AccentPicker(selected: Int,onChange: (Int)->Unit) {
-    var custom by remember(selected){mutableStateOf("#%06X".format(selected and 0xffffff))}
+    val colours=listOf("Green" to 0xff1b554b,"Blue" to 0xff3d6489,"Red" to 0xff884754,
+        "Orange" to 0xffad693b,"Gray" to 0xff667078,"Mustard" to 0xff948035)
+    var customOpen by remember {mutableStateOf(false)}
     Text("Accent colour",fontWeight=FontWeight.SemiBold)
-    val colours=listOf("Green" to 0xff1b554b,"Blue" to 0xff3d6489,"Red" to 0xff884754,"Orange" to 0xffad693b,"Gray" to 0xff667078,"Mustard" to 0xff948035)
-    colours.chunked(3).forEach{row->Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){row.forEach{(name,value)->FilterChip(selected==value.toInt(),{onChange(value.toInt())},label={Text(name)})}}}
-    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(custom,{custom=it.take(7)},label={Text("Custom #RRGGBB")},modifier=Modifier.weight(1f),singleLine=true)
-        TextButton(onClick={onChange((0xff000000L or custom.removePrefix("#").toLong(16)).toInt())},enabled=custom.matches(Regex("#[0-9a-fA-F]{6}"))){Text("Apply")}
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+        colours.forEach { (name,value) ->
+            Surface(onClick={onChange(value.toInt())},shape=CircleShape,
+                border=BorderStroke(if(selected==value.toInt())3.dp else 1.dp,if(selected==value.toInt())MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline),
+                modifier=Modifier.size(32.dp).semantics { contentDescription="Accent $name" },color=Color(value.toInt())) {}
+        }
+        IconButton(onClick={customOpen=true},modifier=Modifier.size(36.dp)){Icon(Icons.Outlined.Palette,"Pick a custom colour")}
+    }
+    if(customOpen) {
+        val hsv=remember(selected) { FloatArray(3).also {android.graphics.Color.colorToHSV(selected,it)} }
+        var hue by remember(selected){mutableFloatStateOf(hsv[0])}
+        var saturation by remember(selected){mutableFloatStateOf(hsv[1])}
+        var brightness by remember(selected){mutableFloatStateOf(hsv[2])}
+        var hex by remember(selected){mutableStateOf("")}
+        val live=android.graphics.Color.HSVToColor(floatArrayOf(hue,saturation,brightness))
+        AlertDialog(onDismissRequest={customOpen=false},title={Text("Custom accent colour")},
+            text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+                Surface(Modifier.fillMaxWidth().height(44.dp),color=Color(live),shape=RoundedCornerShape(10.dp)) {}
+                Text("Hue");Slider(hue,{hue=it},valueRange=0f..360f)
+                Text("Saturation");Slider(saturation,{saturation=it},valueRange=0f..1f)
+                Text("Brightness");Slider(brightness,{brightness=it},valueRange=0f..1f)
+                OutlinedTextField(hex,{hex=it.take(7)},label={Text("HEX override (optional)")},placeholder={Text("#%06X".format(selected and 0xffffff))},singleLine=true)
+            }},
+            confirmButton={TextButton(onClick={onChange(if(hex.matches(Regex("#[0-9a-fA-F]{6}"))) (0xff000000L or hex.drop(1).toLong(16)).toInt() else live);customOpen=false}){Text("Use colour")}},
+            dismissButton={TextButton(onClick={customOpen=false}){Text("Cancel")}})
     }
 }
 

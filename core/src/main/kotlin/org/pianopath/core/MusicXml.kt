@@ -67,6 +67,8 @@ object MusicXml {
         val title = root.one("work")?.txt("work-title")?.ifBlank { null } ?: root.txt("movement-title", "Untitled score")
         val composer = root.one("identification")?.children("creator")?.firstOrNull { it.getAttribute("type") == "composer" }?.textContent ?: "Unknown composer"
         val all = mutableListOf<ScoreNote>()
+        val graceNotes = mutableListOf<GraceNote>()
+        val ornaments = mutableListOf<OrnamentMark>()
         val measures = mutableListOf<Measure>()
         var tempo = 80.0; var fifths = 0; var initialBeats = 4; var initialType = 4
         val tempoMarks=mutableListOf<TempoMark>()
@@ -101,7 +103,22 @@ object MusicXml {
                 "backup" -> {val amount=number(e.txt("duration","0"),"backup duration")/divisions;require(amount<=pos+.0001){"Backup precedes measure"};pos=(pos-amount).coerceAtLeast(0.0)}
                 "forward" -> { pos += number(e.txt("duration","0"),"forward duration") / divisions;require(pos<=1_000_000){"Measure is too long"}; extent = max(extent,pos) }
                 "note" -> {
-                    if(e.one("grace") != null) continue // ornaments render but are not assessed
+                    val grace=e.one("grace")
+                    if(grace!=null) {
+                        // Grace notes have no <duration> in MusicXML. Keep their written
+                        // pitch/order and voice separately from assessed score notes.
+                        val pitch=e.one("pitch")
+                        if(pitch!=null) {
+                            val step=requireNotNull(mapOf("C" to 0,"D" to 2,"E" to 4,"F" to 5,"G" to 7,"A" to 9,"B" to 11)[pitch.txt("step")])
+                            val alteration=number(pitch.txt("alter","0"),"grace accidental",-12.0,12.0)
+                            require(alteration==alteration.toInt().toDouble()){"Microtonal grace notes unsupported"}
+                            val midi=(integer(pitch.txt("octave","4"),"grace octave",-1,10)+1)*12+step+alteration.toInt()+transpose
+                            require(midi in 0..127){"Grace note outside MIDI range"}
+                            graceNotes.add(GraceNote(midi,start+pos,index+1,
+                                integer(e.txt("staff","1"),"grace staff",1,16),e.txt("voice","1"),grace.getAttribute("slash")=="yes"))
+                        }
+                        continue
+                    }
                     val duration = number(e.txt("duration","0"),"note duration")/divisions
                     require(duration in 0.0..1_000_000.0){"Note is too long"}
                     val chord = e.one("chord") != null
@@ -125,6 +142,14 @@ object MusicXml {
                     val id: Int
                     if(previous != null) { id = previous; all[id] = all[id].copy(duration = max(all[id].duration,beat + duration - all[id].beat)) }
                     else { require(all.size<100_000){"Score contains too many notes"};id = all.size; all.add(ScoreNote(id,midi,beat,duration,index+1,staff,voice,e.one("notations")?.one("technical")?.txt("fingering") ?: "",rest)) }
+                    if(!rest) e.one("notations")?.one("ornaments")?.children()?.forEach { mark ->
+                        val kind=when(mark.tagName) {
+                            "trill-mark" -> OrnamentKind.TRILL
+                            "inverted-mordent" -> OrnamentKind.INVERTED_MORDENT
+                            else -> null
+                        }
+                        if(kind!=null)ornaments.add(OrnamentMark(id,kind))
+                    }
                     if("start" in types) ties[key] = id else ties.remove(key)
                     if(!chord) pos += duration
                     extent = max(extent, if(chord) chordStart + duration else pos)
@@ -139,6 +164,6 @@ object MusicXml {
         require(all.all{it.beat.isFinite() && it.beat>=0 && it.duration.isFinite() && it.duration>=0 && (it.beat+it.duration)<=start+.001}){"Invalid score timing"}
         require(all.any { !it.rest }) { "The score has no pitched notes" }
         require(all.size <= 100_000) { "Score contains too many notes" }
-        return Score(title,composer,all,measures,tempo.coerceIn(20.0,300.0),fifths,initialBeats,initialType,tempoMarks.sortedBy {it.beat},expressiveTempo)
+        return Score(title,composer,all,measures,tempo.coerceIn(20.0,300.0),fifths,initialBeats,initialType,tempoMarks.sortedBy {it.beat},expressiveTempo,graceNotes,ornaments.distinct())
     }
 }

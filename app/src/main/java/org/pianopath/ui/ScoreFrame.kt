@@ -15,9 +15,9 @@ import androidx.compose.ui.unit.dp
     var low by remember(first){mutableStateOf(first.toString())}
     var high by remember(last){mutableStateOf(last.toString())}
     Text("Keyboard range",style=MaterialTheme.typography.titleMedium)
-    Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
         listOf(49 to (36..84),61 to (36..96),76 to (28..103),88 to (21..108)).forEach{(count,range)->
-            FilterChip(first==range.first && last==range.last,{onChange(range.first,range.last)},label={Text("$count keys")})
+            FilterChip(first==range.first && last==range.last,{onChange(range.first,range.last)},modifier=Modifier.weight(1f),label={Text("$count",maxLines=1)})
         }
     }
     Text("${last-first+1} keys · ${displayNoteName(first,naming)}–${displayNoteName(last,naming)}. MIDI pitch stays unchanged.",style=MaterialTheme.typography.bodySmall)

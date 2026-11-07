@@ -128,7 +128,7 @@ import kotlin.math.*
         }
         if(p.view==ScoreView.SHEET && (p.running || p.review))Text(if(landscape)"Green correct · amber timing · red extra · ○ missing" else "● correct   ● early/late   ● extra   ○ missing · traces show key holds",fontSize=10.sp,modifier=Modifier.padding(horizontal=12.dp))
         Column(Modifier.weight(1f).fillMaxWidth()) {
-            Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xfffffefb))) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.background)) {
                 when(p.view) {
                     ScoreView.SHEET -> Box(Modifier.fillMaxSize()){Notation(p,Modifier.fillMaxSize(),dark=MaterialTheme.colorScheme.background==Color(0xff142421),onSeek=vm::seek,onLoop=vm::setPassage,onPreview=vm::previewCursor,animate=!settings.reduceMotion){vm.message.value="Notation: $it"}}
                     ScoreView.FALLING -> if(p.review && p.performedRoll)PerformedRoll(p,Modifier.fillMaxSize()) else FallingNotes(p,1f,0f,Modifier.fillMaxSize(),onSeek=vm::seek,onPreview=vm::previewCursor,glow=settings.fallingGlow,animate=!settings.reduceMotion)
@@ -151,6 +151,8 @@ import kotlin.math.*
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(if(p.focusRemainingMs>0)"${(p.focusRemainingMs/1000)}s focus · ${p.feedback}" else displayNoteText(p.feedback,settings.noteNaming),fontSize=12.sp,maxLines=1)
+                Text(if(midi.sustain)"Sustain pedal ↓" else "Sustain pedal ↑",fontSize=10.sp,
+                    color=if(midi.sustain)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
 
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {
@@ -193,96 +195,69 @@ fun handName(h: Hand)=when(h){Hand.LEFT->"Left hand";Hand.RIGHT->"Right hand";Ha
 @Composable private fun PracticeControls(vm: PianoViewModel,p: PracticeUi,readerControls: @Composable ()->Unit = {},close: ()->Unit) {
     val score=p.score ?: return
     val settings by vm.settings.collectAsStateWithLifecycle()
-    var page by remember{mutableIntStateOf(0)}
-    var loopPage by remember{mutableIntStateOf(0)}
-    var sectionName by remember{mutableStateOf("")}
+    var sectionName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val editable=!(p.running || p.listening)
-    // Full-screen inside Practice, not a separate Android Dialog Window.
-    // PianoApp's root already provides safeDrawing padding, including navigation.
-    // Keep the settings pane at a finite height, with a fixed action footer.
+    // A single scroll surface avoids destroying the Loop name field when IME changes screen height.
     Surface(Modifier.fillMaxSize().testTag("practice-settings-overlay"),color=MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=4.dp)) {
-                Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Text("Practice settings",Modifier.weight(1f),fontSize=20.sp,fontFamily=FontFamily.Serif)
-                    if(p.category=="Scales" || p.category=="Sight reading")TextButton(onClick={
-                        close();vm.stop();vm.screen.value=if(p.category=="Scales")"Scales" else "Sight reading"
-                    }){Text("Exercise settings",fontSize=12.sp)}
-                    IconButton(onClick=close){Icon(Icons.Outlined.Close,"Back to score")}
-                }
-                PrimaryTabRow(selectedTabIndex=page) {
-                    listOf("Practice","Loop","Score").forEachIndexed{i,label->Tab(page==i,{page=i},text={Text(label)})}
-                }
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(vertical=6.dp)) {
-                    val wide=maxWidth>=600.dp || maxHeight<330.dp
-                    @Composable fun Columns(left: @Composable ColumnScope.()->Unit,right: @Composable ColumnScope.()->Unit) {
-                        if(wide)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp),content=left)
-                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp),content=right)
-                        } else Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(6.dp)) {left();right()}
-                    }
-                    when(page) {
-                        0->Columns(left={
-                            CompactChoice("Mode",modeName(p.mode),PracticeMode.entries.map{modeName(it) to {vm.edit{p->p.copy(mode=it)}}},editable)
-                            CompactChoice("Hands",handName(p.hand),Hand.entries.map{handName(it) to {vm.edit{p->p.copy(hand=it)}}},editable)
-                            CompactNumber("Tempo (BPM)",p.bpm,20.0,240.0,editable){v->vm.edit{it.copy(bpm=v)}}
-                        },right={
-                            CompactSwitch("Count-in · 4 seconds",p.countIn,editable){v->vm.edit{it.copy(countIn=v)}}
-                            CompactSwitch("Metronome",p.metronome,editable){v->vm.edit{it.copy(metronome=v)}}
-                            Text(when(p.mode){PracticeMode.FREE->"Free play · no scoring";PracticeMode.WAIT->"Waits for correct notes; no rhythm score";PracticeMode.FOLLOW->"Starts with your first note, follows tempo, marks missed notes";PracticeMode.RHYTHM->"Pitch and timing against the metronome"},fontSize=12.sp)
-                        })
-                        1->Column {
-                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                                listOf("Range","Repeat","Saved").forEachIndexed{i,label->TextButton(onClick={loopPage=i},modifier=Modifier.weight(1f)){Text(label,color=if(loopPage==i)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}}
-                            }
-                            when(loopPage) {
-                                0->Columns(left={
-                                    CompactSwitch("Select loop on score",p.selectingLoop,editable){vm.toggleLoopSelection()}
-                                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                        Box(Modifier.weight(1f)){CompactNumber("From measure",p.startMeasure.toDouble(),1.0,score.measures.size.toDouble(),editable){v->vm.edit{val n=v.toInt();val e=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=e,startOffset=0.0,endOffset=score.measures[e-1].length)}}}
-                                        Box(Modifier.weight(1f)){CompactNumber("Through measure",p.endMeasure.toDouble(),1.0,score.measures.size.toDouble(),editable){v->vm.edit{val n=v.toInt();val a=min(n,it.startMeasure);it.copy(startMeasure=a,endMeasure=n,startOffset=0.0,endOffset=score.measures[n-1].length)}}}
-                                    }
-                                },right={
-                                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                        Box(Modifier.weight(1f)){CompactNumber("Start beat offset",p.startOffset,0.0,(score.measures[p.startMeasure-1].length-.25).coerceAtLeast(0.0),editable){v->vm.edit{it.copy(startOffset=v)}}}
-                                        Box(Modifier.weight(1f)){CompactNumber("End beat offset",p.endOffset,.25,score.measures[p.endMeasure-1].length,editable){v->vm.edit{it.copy(endOffset=v)}}}
-                                    }
-                                    Text("Drag loop edges on the score for quick selection.",fontSize=12.sp)
-                                })
-                                1->Columns(left={
-                                    CompactSwitch("Repeat selected loop",p.loop,editable){v->vm.edit{it.copy(loop=v)}}
-                                    CompactSwitch("Adaptive tempo (+4 BPM)",p.autoTempo,editable&&p.loop){v->vm.edit{it.copy(autoTempo=v)}}
-                                },right={
-                                    CompactChoice("Rest between loops","${settings.loopBreakSeconds} seconds",(0..5).map{n->"$n seconds" to {vm.setSettings{it.copy(loopBreakSeconds=n)}}})
-                                    Text("Adaptive tempo increases after a repetition scores at least 90%.",fontSize=12.sp)
-                                })
-                                else->Columns(left={
-                                    OutlinedTextField(sectionName,{sectionName=it},label={Text("Loop name")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=editable)
-                                    OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=editable){Text("Save loop")}
-                                },right={
-                                    CompactChoice("Saved loops","Choose a saved loop",p.sections.map{s->s.name to {vm.useSection(s)}},editable&&p.sections.isNotEmpty())
-                                })
-                            }
-                        }
-                        else->Columns(left={
-                            CompactSwitch("Horizontal score layout",p.horizontal,editable){v->vm.edit{it.copy(horizontal=v)}}
-                            Row(verticalAlignment=Alignment.CenterVertically) {
-                                Text("Score zoom",Modifier.weight(1f))
-                                IconButton(onClick={vm.zoom(-.15)}){Icon(Icons.Outlined.ZoomOut,"Zoom out sheet")}
-                                Text("${(p.zoom*100).toInt()}%",fontSize=12.sp)
-                                IconButton(onClick={vm.zoom(.15)}){Icon(Icons.Outlined.ZoomIn,"Zoom in sheet")}
-                            }
-                        },right={
-                            OutlinedButton(onClick={close();vm.screen.value="Connect"}){Text("Piano MIDI connection")}
-                            readerControls()
-                            if(score.tempoMarks.size>1 || score.expressiveTempo)Text("Listen follows score tempo marks; Start uses the selected practice tempo.",fontSize=12.sp)
-                        })
-                    }
-                }
+        Column(Modifier.fillMaxSize().imePadding().padding(horizontal=16.dp,vertical=4.dp)) {
+            Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
+                Text("Practice settings",Modifier.weight(1f),fontSize=20.sp,fontFamily=FontFamily.Serif)
+                if(p.category=="Scales" || p.category=="Sight reading") TextButton(onClick={
+                    close();vm.stop();vm.screen.value=if(p.category=="Scales")"Scales" else "Sight reading"
+                }){Text("Exercise settings",fontSize=12.sp)}
+                IconButton(onClick=close){Icon(Icons.Outlined.Close,"Back to score")}
+            }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Text("Practice",style=MaterialTheme.typography.titleMedium)
+                CompactChoice("Mode",modeName(p.mode),PracticeMode.entries.map{modeName(it) to {vm.edit{current->current.copy(mode=it)}}},editable)
+                CompactChoice("Hands",handName(p.hand),Hand.entries.map{handName(it) to {vm.edit{current->current.copy(hand=it)}}},editable)
+                Text("Tempo · ${p.bpm.roundToInt()} BPM",fontSize=14.sp)
+                Slider(p.bpm.toFloat().coerceIn(20f,240f),{v->vm.edit{it.copy(bpm=v.roundToInt().toDouble())}},
+                    valueRange=20f..240f,steps=219,enabled=editable,modifier=Modifier.fillMaxWidth().testTag("practice-bpm-slider"))
+                CompactSwitch("Count-in · 4 seconds",p.countIn,editable){v->vm.edit{it.copy(countIn=v)}}
+                CompactSwitch("Metronome",p.metronome,editable){v->vm.edit{it.copy(metronome=v)}}
+                Text(when(p.mode){PracticeMode.FREE->"Free play · no scoring";PracticeMode.WAIT->"Waits for correct notes; no rhythm score";PracticeMode.FOLLOW->"Starts with your first note, follows tempo, marks missed notes";PracticeMode.RHYTHM->"Pitch and timing against the metronome"},fontSize=12.sp)
                 HorizontalDivider()
-                Row(Modifier.fillMaxWidth().height(56.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick=close,modifier=Modifier.weight(1f)){Text("Back to score")}
-                    Button(onClick={close();vm.start()},enabled=editable,modifier=Modifier.weight(1f).testTag("start-practice")){Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Start")}
+                Text("Loop",style=MaterialTheme.typography.titleMedium)
+                CompactSwitch("Select loop on score",p.selectingLoop,editable){vm.toggleLoopSelection()}
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)){CompactNumber("From measure",p.startMeasure.toDouble(),1.0,score.measures.size.toDouble(),editable){v->vm.edit{val n=v.toInt();val e=max(n,it.endMeasure);it.copy(startMeasure=n,endMeasure=e,startOffset=0.0,endOffset=score.measures[e-1].length)}}}
+                    Box(Modifier.weight(1f)){CompactNumber("Through measure",p.endMeasure.toDouble(),1.0,score.measures.size.toDouble(),editable){v->vm.edit{val n=v.toInt();val a=min(n,it.startMeasure);it.copy(startMeasure=a,endMeasure=n,startOffset=0.0,endOffset=score.measures[n-1].length)}}}
                 }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f)){CompactNumber("Start beat offset",p.startOffset,0.0,(score.measures[p.startMeasure-1].length-.25).coerceAtLeast(0.0),editable){v->vm.edit{it.copy(startOffset=v)}}}
+                    Box(Modifier.weight(1f)){CompactNumber("End beat offset",p.endOffset,.25,score.measures[p.endMeasure-1].length,editable){v->vm.edit{it.copy(endOffset=v)}}}
+                }
+                Text("Drag the A/B handles on the score for quick passage selection.",fontSize=12.sp)
+                CompactSwitch("Repeat selected loop",p.loop,editable){v->vm.edit{it.copy(loop=v)}}
+                CompactSwitch("Adaptive tempo (+4 BPM)",p.autoTempo,editable&&p.loop){v->vm.edit{it.copy(autoTempo=v)}}
+                Text("Rest between loops · ${settings.loopBreakSeconds} s",fontSize=14.sp)
+                Slider(settings.loopBreakSeconds.toFloat(),{v->vm.setSettings{it.copy(loopBreakSeconds=v.roundToInt())}},
+                    valueRange=0f..5f,steps=4,modifier=Modifier.fillMaxWidth().testTag("loop-rest-slider"),enabled=editable)
+                OutlinedTextField(sectionName,{sectionName=it},label={Text("Loop name")},singleLine=true,
+                    modifier=Modifier.fillMaxWidth().testTag("loop-name"),enabled=editable)
+                OutlinedButton(onClick={vm.saveSection(sectionName)},enabled=editable){Text("Save named loop")}
+                CompactChoice("Saved loops","Choose a saved loop",p.sections.map{saved->saved.name to {vm.useSection(saved)}},editable&&p.sections.isNotEmpty())
+                HorizontalDivider()
+                Text("Score",style=MaterialTheme.typography.titleMedium)
+                CompactSwitch("Horizontal score layout",p.horizontal,editable){v->vm.edit{it.copy(horizontal=v)}}
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    Text("Score zoom",Modifier.weight(1f))
+                    IconButton(onClick={vm.zoom(-.15)}){Icon(Icons.Outlined.ZoomOut,"Zoom out sheet")}
+                    Text("${(p.zoom*100).roundToInt()}%",fontSize=12.sp)
+                    IconButton(onClick={vm.zoom(.15)}){Icon(Icons.Outlined.ZoomIn,"Zoom in sheet")}
+                }
+                readerControls()
+                if(score.tempoMarks.size>1 || score.expressiveTempo) Text("Listen follows score tempo marks; Start uses the selected practice tempo.",fontSize=12.sp)
+                Spacer(Modifier.height(12.dp))
+            }
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth().height(56.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick=close,modifier=Modifier.weight(1f)){Text("Back to score")}
+                Button(onClick={close();vm.start()},enabled=editable,modifier=Modifier.weight(1f).testTag("start-practice")){
+                    Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text("Start")
+                }
+            }
         }
     }
 }

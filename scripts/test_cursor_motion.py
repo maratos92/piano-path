@@ -17,6 +17,14 @@ def run(browser):
         left=page.evaluate('b=>atBeatPosition(b+.15).x',beat)
         right=page.evaluate('b=>atBeatPosition(b+3.5).x',beat)
         assert right>left+5,(beat,left,right)
+    continuity=page.evaluate('''() => {
+      const rows=beatIndex.get(1), pair=rows.find((m,i)=>i<rows.length-1 && rows[i+1].e.system===m.e.system && Math.abs(rows[i+1].start-m.end)<.001);
+      if(!pair)return null;
+      const xs=[.24,.18,.12,.06,.001].map(d=>locateBeat(pair.end-d,1).x),after=locateBeat(pair.end,1).x;
+      return {xs,after};
+    }''')
+    assert continuity and all(a<=b+1 for a,b in zip(continuity['xs'],continuity['xs'][1:])), continuity
+    assert abs(continuity['after']-continuity['xs'][-1])<8, continuity
     samples=page.evaluate('''async() => {
       const samples=[];
       for(let i=0;i<22;i++){

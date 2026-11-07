@@ -8,6 +8,16 @@ import java.util.zip.*
 class MusicXmlTest {
     private fun wrap(notes: String,attributes: String="")="""<score-partwise><work><work-title>Fixture</work-title></work><identification><creator type="composer">Tester</creator></identification><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>4</divisions><key><fifths>-2</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time>$attributes</attributes>$notes</measure></part></score-partwise>"""
     private val c="<pitch><step>C</step><octave>4</octave></pitch>"
+    @Test fun parsesWrittenGraceAndTrillWithoutChangingAssessmentNotes() {
+        val xml=wrap("""<note><grace slash="yes"/><pitch><step>D</step><octave>4</octave></pitch><voice>1</voice><staff>1</staff></note><note>$c<duration>4</duration><voice>1</voice><staff>1</staff><notations><ornaments><trill-mark/></ornaments></notations></note>""")
+        val score=MusicXml.parse(xml)
+        assertEquals(1,score.graceNotes.size)
+        assertEquals(62,score.graceNotes.single().midi)
+        assertEquals(1,score.notes.size)
+        assertEquals(OrnamentKind.TRILL,score.ornaments.single().kind)
+        assertEquals(1,score.selected(0.0,score.endBeat,Hand.BOTH).size)
+        assertTrue(PlaybackPlan.create(score,0.0,score.endBeat).size>2)
+    }
     @Test fun chordBackupMultipleVoicesAndFingering() {
         val xml=wrap("""<direction><sound tempo="96"/></direction><note>$c<duration>6</duration><voice>1</voice><type>quarter</type><dot/><staff>1</staff><notations><technical><fingering>1</fingering></technical></notations></note><note><chord/><pitch><step>E</step><alter>-1</alter><octave>4</octave></pitch><duration>6</duration><voice>1</voice><staff>1</staff></note><note><rest/><duration>6</duration><voice>1</voice></note><backup><duration>12</duration></backup><note><pitch><step>C</step><octave>3</octave></pitch><duration>12</duration><voice>2</voice><staff>2</staff></note>""")
         val score=MusicXml.parse(xml);assertEquals(4,score.notes.size);assertEquals(0.0,score.notes[1].beat,.01);assertEquals(63,score.notes[1].midi);assertEquals(1.5,score.notes[0].duration,.01);assertEquals("1",score.notes[0].finger);assertEquals(Hand.LEFT,score.notes.last().hand);assertEquals(96.0,score.tempo,.01);assertEquals(-2,score.fifths)

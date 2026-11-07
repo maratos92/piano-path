@@ -91,6 +91,7 @@ def run_wrapped(browser):
                 assert state["x"] >= previous["x"] - 1, ("Same-system horizontal reversal", previous, state)
             else:
                 assert state["y"] >= previous["y"] - 1, ("Forward system transition scrolled upward", previous, state)
+                assert state["top"] < state["viewportHeight"] * .6, ("New system should be near the top", state)
             assert_cursor_visible(state)
             visited.add(state["system"])
             previous = state

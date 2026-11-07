@@ -34,7 +34,7 @@ class PracticeControlsRegressionTest {
         compose.onNode(hasText("Exercise settings") and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performClick()
         compose.waitUntil(5_000) { vm.screen.value == "Scales" }
         compose.onNodeWithText("Scales & technique").assertIsDisplayed()
-        compose.onNodeWithTag("start-scale").assertExists()
+        compose.onNodeWithTag("start-scale").assertIsDisplayed()
     }
 
     @Test fun exerciseSettingsReturnToSightReadingSetup() {
@@ -42,23 +42,33 @@ class PracticeControlsRegressionTest {
         compose.onNode(hasText("Exercise settings") and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performClick()
         compose.waitUntil(5_000) { vm.screen.value == "Sight reading" }
         compose.onNodeWithText("Difficulty").assertIsDisplayed()
-        compose.onNodeWithTag("start-sight-reading").assertExists()
+        compose.onNodeWithTag("start-sight-reading").assertIsDisplayed()
     }
 
     private fun startRemainsVisible(orientation: Int, configuration: Int) {
         compose.runOnUiThread { compose.activity.requestedOrientation=orientation }
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == configuration }
         openPractice()
-        for(tab in listOf("Practice", "Loop", "Score")) {
-            compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performClick()
-            // Deliberately do not scroll: the action must stay visible on every page.
+        for(section in listOf("Practice", "Loop", "Score")) {
+            compose.onNode(hasText(section) and hasAnyAncestor(hasTestTag("practice-settings-overlay"))).performScrollTo()
+            // The Start action must stay pinned even after scrolling the whole settings page.
             val start=compose.onNode(hasTestTag("start-practice") and hasAnyAncestor(hasTestTag("practice-settings-overlay")))
             if(!start.isDisplayed()) {
                 val bounds=start.fetchSemanticsNode().boundsInWindow
-                throw AssertionError("Start footer hidden on tab=$tab, orientation=$configuration, boundsInWindow=$bounds")
+                throw AssertionError("Start footer hidden while scrolling section=$section, orientation=$configuration, boundsInWindow=$bounds")
             }
             start.assertIsDisplayed()
         }
+    }
+
+    @Test fun loopNameRemainsEditableWithSoftKeyboard() {
+        openPractice()
+        val name=compose.onNodeWithTag("loop-name")
+        name.performScrollTo()
+        name.performClick()
+        name.performTextInput("Chorus A")
+        name.assertTextContains("Chorus A")
+        compose.onNodeWithTag("start-practice").assertExists()
     }
 
     @Test fun practiceSettingsStartIsVisibleInPortrait() =
@@ -73,7 +83,7 @@ class PracticeControlsRegressionTest {
             vm=ViewModelProvider(compose.activity)[PianoViewModel::class.java]
             vm.screen.value=screen
         }
-        compose.onNodeWithTag(startTag).performScrollTo().performClick()
+        compose.onNodeWithTag(startTag).assertIsDisplayed().performClick()
         compose.waitUntil(15_000) { vm.screen.value == "Practice" && vm.ui.value.score != null }
         compose.waitForIdle()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }

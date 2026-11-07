@@ -9,12 +9,18 @@ data class ScoreNote(val id: Int, val midi: Int, val beat: Double, val duration:
     val rest: Boolean = false) {
     val hand get() = if (staff > 1) Hand.LEFT else Hand.RIGHT
 }
+/** Written grace notes have no ordinary beat duration; playback decides how much time they steal. */
+data class GraceNote(val midi: Int,val beat: Double,val measure: Int,val staff: Int=1,
+    val voice: String="1",val slashed: Boolean=true)
+enum class OrnamentKind { TRILL, INVERTED_MORDENT }
+data class OrnamentMark(val noteId: Int,val kind: OrnamentKind)
 data class Measure(val number: Int, val start: Double, val length: Double, val label: String = number.toString())
 data class TempoMark(val beat: Double, val bpm: Double)
 
 data class Score(val title: String, val composer: String, val notes: List<ScoreNote>, val measures: List<Measure>,
     val tempo: Double = 80.0, val fifths: Int = 0, val beats: Int = 4, val beatType: Int = 4,
-    val tempoMarks: List<TempoMark> = emptyList(), val expressiveTempo: Boolean = false) {
+    val tempoMarks: List<TempoMark> = emptyList(), val expressiveTempo: Boolean = false,
+    val graceNotes: List<GraceNote> = emptyList(), val ornaments: List<OrnamentMark> = emptyList()) {
     val endBeat get() = measures.lastOrNull()?.let { it.start + it.length } ?: 0.0
     fun tempoAt(beat: Double): Double = tempoMarks.lastOrNull { it.beat <= beat + 0.00001 }?.bpm ?: tempo
     /** Integrates explicit BPM changes between two score positions (quarter-note beats). */

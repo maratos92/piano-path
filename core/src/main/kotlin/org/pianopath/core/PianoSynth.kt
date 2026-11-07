@@ -5,7 +5,7 @@ import kotlin.math.*
 /** Offline, velocity-sensitive additive piano-like synthesis. No samples, SoundFont, or network.
  * This is intentionally a compact synthesized tone, not a sampled acoustic grand piano.
  */
-enum class SynthTone { MELLOW, BRIGHT }
+enum class SynthTone { MELLOW, BRIGHT, WARM, ELECTRIC }
 
 class PianoSynth(val sampleRate: Int=44100,private val maxVoices: Int=64,private val tone: SynthTone=SynthTone.MELLOW) {
     init {require(sampleRate in 8000..192000 && maxVoices>0)}
@@ -18,6 +18,8 @@ class PianoSynth(val sampleRate: Int=44100,private val maxVoices: Int=64,private
     private val weights=when(tone) {
         SynthTone.MELLOW -> doubleArrayOf(1.0,.24,.09,.035,.015)
         SynthTone.BRIGHT -> doubleArrayOf(.85,.65,.35,.18,.09)
+        SynthTone.WARM -> doubleArrayOf(1.0,.30,.11,.04,.01)
+        SynthTone.ELECTRIC -> doubleArrayOf(.72,.51,.34,.16,.07)
     }
     private val releaseCoefficient=exp(-1.0/(sampleRate*.045))
     val activeVoiceCount: Int @Synchronized get()=voices.size
