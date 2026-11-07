@@ -1,6 +1,7 @@
 package org.pianopath.audio
 
 import android.content.Context
+import android.net.Uri
 import android.media.*
 import android.os.Handler
 import android.os.Looper
@@ -8,7 +9,8 @@ import org.pianopath.core.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 enum class PianoSound(val label: String) {
-    GRAND("Sampled grand"), MELLOW("Mellow synth"), BRIGHT("Bright synth")
+    GRAND("Sampled grand"), MELLOW("Mellow synth"), BRIGHT("Bright synth"),
+    WARM("Warm keys"), ELECTRIC("Electric keys"), CUSTOM("Imported WAV pack")
 }
 
 /** PCM output is independent from assessment. Listening never feeds generated notes into the scorer. */
@@ -19,17 +21,47 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
     private val grand by lazy { SampledPiano(samples) }
     private val mellow by lazy { PianoSynth(tone=SynthTone.MELLOW) }
     private val bright by lazy { PianoSynth(tone=SynthTone.BRIGHT) }
+    private val warm by lazy { PianoSynth(tone=SynthTone.WARM) }
+    private val electric by lazy { PianoSynth(tone=SynthTone.ELECTRIC) }
     private val recordingGrand by lazy { SampledPiano(samples) }
     private val recordingMellow by lazy { PianoSynth(tone=SynthTone.MELLOW) }
     private val recordingBright by lazy { PianoSynth(tone=SynthTone.BRIGHT) }
+    private val recordingWarm by lazy { PianoSynth(tone=SynthTone.WARM) }
+    private val recordingElectric by lazy { PianoSynth(tone=SynthTone.ELECTRIC) }
+    private val soundPacks=SoundPackStore(context.applicationContext)
+    @Volatile private var customBanks: Pair<SampledPiano,SampledPiano>?=null
     @Volatile private var sound=PianoSound.GRAND
     @Volatile private var recordingPlayback=false
     fun selectSound(next: PianoSound) {if(sound!=next){silence();sound=next}}
+    fun hasCustomPack()=soundPacks.exists()
+    /** Call from a background coroutine: decoding may take time on large packs. */
+    fun installCustomPack(uri: Uri): String {
+        val loaded=soundPacks.install(uri)
+        val pair=SampledPiano(loaded.samples) to SampledPiano(loaded.samples)
+        if(sound==PianoSound.CUSTOM)silence()
+        customBanks=pair
+        return loaded.label
+    }
+    fun loadStoredPack(): Boolean {
+        val loaded=soundPacks.load() ?: return false
+        customBanks=SampledPiano(loaded.samples) to SampledPiano(loaded.samples)
+        return true
+    }
+    fun removeCustomPack() {
+        if(sound==PianoSound.CUSTOM)selectSound(PianoSound.GRAND)
+        customBanks=null
+        soundPacks.delete()
+    }
     private fun render(buffer: FloatArray,recordingBuffer: FloatArray) {
         when(sound) {
             PianoSound.GRAND->{grand.render(buffer);recordingGrand.render(recordingBuffer)}
             PianoSound.MELLOW->{mellow.render(buffer);recordingMellow.render(recordingBuffer)}
             PianoSound.BRIGHT->{bright.render(buffer);recordingBright.render(recordingBuffer)}
+            PianoSound.WARM->{warm.render(buffer);recordingWarm.render(recordingBuffer)}
+            PianoSound.ELECTRIC->{electric.render(buffer);recordingElectric.render(recordingBuffer)}
+            PianoSound.CUSTOM->{val bank=customBanks
+                if(bank!=null){bank.first.render(buffer);bank.second.render(recordingBuffer)}
+                else{grand.render(buffer);recordingGrand.render(recordingBuffer)}}
         }
         for(i in buffer.indices)buffer[i]=(buffer[i]+recordingBuffer[i]).coerceIn(-1f,1f)
         clicker.mix(buffer)
@@ -39,6 +71,10 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
         PianoSound.GRAND->grand.activeVoiceCount+recordingGrand.activeVoiceCount
         PianoSound.MELLOW->mellow.activeVoiceCount+recordingMellow.activeVoiceCount
         PianoSound.BRIGHT->bright.activeVoiceCount+recordingBright.activeVoiceCount
+        PianoSound.WARM->warm.activeVoiceCount+recordingWarm.activeVoiceCount
+        PianoSound.ELECTRIC->electric.activeVoiceCount+recordingElectric.activeVoiceCount
+        PianoSound.CUSTOM->customBanks?.let{it.first.activeVoiceCount+it.second.activeVoiceCount}
+            ?: (grand.activeVoiceCount+recordingGrand.activeVoiceCount)
     }
     private val clicker=MetronomeClick()
     fun setMetronomeVolume(value: Float){clicker.volume=value.coerceIn(0f,1f)}
@@ -100,6 +136,9 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
         PianoSound.GRAND->grand.accept(event)
         PianoSound.MELLOW->mellow.accept(event)
         PianoSound.BRIGHT->bright.accept(event)
+        PianoSound.WARM->warm.accept(event)
+        PianoSound.ELECTRIC->electric.accept(event)
+        PianoSound.CUSTOM->(customBanks?.first ?: grand).accept(event)
     }}
     /** Replay never enters the live input/scoring path, even on MIDI channel zero. */
     fun acceptRecording(event: MidiEvent) {
@@ -109,21 +148,33 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
         PianoSound.GRAND->recordingGrand.accept(event)
         PianoSound.MELLOW->recordingMellow.accept(event)
         PianoSound.BRIGHT->recordingBright.accept(event)
+        PianoSound.WARM->recordingWarm.accept(event)
+        PianoSound.ELECTRIC->recordingElectric.accept(event)
+        PianoSound.CUSTOM->(customBanks?.second ?: recordingGrand).accept(event)
     }}
     fun silenceRecording() {recordingPlayback=false;when(sound) {
         PianoSound.GRAND->recordingGrand.silence()
         PianoSound.MELLOW->recordingMellow.silence()
         PianoSound.BRIGHT->recordingBright.silence()
+        PianoSound.WARM->recordingWarm.silence()
+        PianoSound.ELECTRIC->recordingElectric.silence()
+        PianoSound.CUSTOM->(customBanks?.second ?: recordingGrand).silence()
     }}
     fun releaseTouch()=when(sound) {
         PianoSound.GRAND->grand.releaseChannel(0)
         PianoSound.MELLOW->mellow.releaseChannel(0)
         PianoSound.BRIGHT->bright.releaseChannel(0)
+        PianoSound.WARM->warm.releaseChannel(0)
+        PianoSound.ELECTRIC->electric.releaseChannel(0)
+        PianoSound.CUSTOM->(customBanks?.first ?: grand).releaseChannel(0)
     }
     fun releasePlayback() {(1..15).forEach { channel -> when(sound) {
         PianoSound.GRAND->grand.releaseChannel(channel)
         PianoSound.MELLOW->mellow.releaseChannel(channel)
         PianoSound.BRIGHT->bright.releaseChannel(channel)
+        PianoSound.WARM->warm.releaseChannel(channel)
+        PianoSound.ELECTRIC->electric.releaseChannel(channel)
+        PianoSound.CUSTOM->(customBanks?.first ?: grand).releaseChannel(channel)
     } }}
     fun silence() {
         clicker.silence()
@@ -132,6 +183,9 @@ class PianoAudio(context: Context,private val interrupted: (String)->Unit) {
             PianoSound.GRAND->grand.silence()
             PianoSound.MELLOW->mellow.silence()
             PianoSound.BRIGHT->bright.silence()
+            PianoSound.WARM->warm.silence()
+            PianoSound.ELECTRIC->electric.silence()
+            PianoSound.CUSTOM->(customBanks?.first ?: grand).silence()
         }
     }
     fun stop() {

@@ -151,6 +151,8 @@ import kotlin.math.*
         Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(if(p.focusRemainingMs>0)"${(p.focusRemainingMs/1000)}s focus · ${p.feedback}" else displayNoteText(p.feedback,settings.noteNaming),fontSize=12.sp,maxLines=1)
+                Text(if(midi.sustain)"Sustain pedal ↓" else "Sustain pedal ↑",fontSize=10.sp,
+                    color=if(midi.sustain)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
 
             }
             OutlinedButton(onClick={vm.listen()},contentPadding=PaddingValues(horizontal=10.dp,vertical=6.dp)) {

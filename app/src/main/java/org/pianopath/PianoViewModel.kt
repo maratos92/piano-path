@@ -181,6 +181,10 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
         }
         audio.selectSound(settings.value.sound)
         audio.setMetronomeVolume(settings.value.metronomeVolume)
+        if(settings.value.sound==PianoSound.CUSTOM) viewModelScope.launch {
+            val loaded=runCatching {withContext(Dispatchers.IO){audio.loadStoredPack()}}.getOrDefault(false)
+            if(!loaded){setSettings{it.copy(sound=PianoSound.GRAND)};message.value="Imported sound unavailable; using sampled grand"}
+        }
         midi.onEvent = input@{ event ->
             if(earReferencePlaying.value)return@input
             captureKey(event)
@@ -329,6 +333,22 @@ class PianoViewModel(application: Application): AndroidViewModel(application) {
             .putInt("playedNoteCount",s.playedNoteCount.coerceIn(1,32)).putInt("noteGapMs",s.noteGapMs.coerceIn(500,10000)).putInt("sheetMargin",s.sheetMargin).putInt("loopBreakSeconds",s.loopBreakSeconds.coerceIn(0,5)).putInt("accent",s.accent).putBoolean("fallingGlow",s.fallingGlow).putInt("keyboardFirst",s.keyboardFirst).putInt("keyboardLast",s.keyboardLast).remove("sheetDecoration").putBoolean("reduceMotion",s.reduceMotion)
             .putBoolean("keepAwake",s.keepAwake).putFloat("metronomeVolume",s.metronomeVolume).putString("noteNaming",s.noteNaming).putInt("earAttemptLimit",s.earAttempts).apply()
     }
+    fun importSoundPack(uri: Uri) = viewModelScope.launch {
+        message.value="Importing sound pack…"
+        runCatching {withContext(Dispatchers.IO){audio.installCustomPack(uri)}}.onSuccess {name->
+            setSettings{it.copy(sound=PianoSound.CUSTOM)}
+            message.value="Ready: "+name
+        }.onFailure {error->
+            message.value="Could not import sound pack: "+(error.message ?: "unsupported or unsafe archive")
+        }
+    }
+    fun removeSoundPack() = viewModelScope.launch {
+        setSettings{it.copy(sound=PianoSound.GRAND)}
+        runCatching{withContext(Dispatchers.IO){audio.removeCustomPack()}}
+            .onSuccess{message.value="Imported sound removed"}
+            .onFailure{message.value="Could not remove imported sound"}
+    }
+    fun hasImportedSoundPack()=audio.hasCustomPack()
     fun zoom(delta: Double) { ui.value=ui.value.copy(zoom=(ui.value.zoom+delta).coerceIn(.4,2.5)) }
     fun edit(change: (PracticeUi)->PracticeUi) { if(!ui.value.running && !ui.value.listening) ui.value = change(ui.value) }
     fun review() { ui.value=ui.value.copy(review=true,view=ScoreView.SHEET,reviewBeat=ui.value.beat) }
