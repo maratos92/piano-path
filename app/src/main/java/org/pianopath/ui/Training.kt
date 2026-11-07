@@ -19,7 +19,7 @@ import org.pianopath.core.*
 @Composable fun ScaleSetup(vm: PianoViewModel) {
     val naming=LocalNoteNaming.current
     var root by rememberSaveable {mutableIntStateOf(0)};var kind by rememberSaveable{mutableStateOf(ScaleKind.MAJOR)};var octaves by rememberSaveable{mutableIntStateOf(1)};var hand by rememberSaveable{mutableStateOf(Hand.BOTH)};var descending by rememberSaveable{mutableStateOf(true)}
-    Column(Modifier.fillMaxSize().padding(horizontal=16.dp,vertical=8.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal=20.dp,vertical=8.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         PageTitle("Scales & technique")
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp)) {

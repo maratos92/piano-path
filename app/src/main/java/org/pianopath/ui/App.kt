@@ -313,6 +313,10 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
     var notices by remember{mutableStateOf(false)}
     var support by remember{mutableStateOf(false)}
     val context=LocalContext.current
+    var soundMenu by remember{mutableStateOf(false)}
+    val soundImporter=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
+        if(uri!=null)vm.importSoundPack(uri)
+    }
     if(support)AlertDialog(onDismissRequest={support=false},title={Text("Support Piano Path")},text={
         Text("If Piano Path helps your practice, you can leave a voluntary tip. Every app feature stays free. No subscription or digital reward is required. Ko-fi opens in your browser and handles payment under its own privacy terms.")
     },confirmButton={TextButton(onClick={
@@ -341,17 +345,32 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         when(section) {
             "General" -> {
                 Panel(Modifier.fillMaxWidth()) {
+                    Text("Piano sound",fontWeight=FontWeight.SemiBold)
+                    Box {
+                        OutlinedButton(onClick={soundMenu=true},modifier=Modifier.fillMaxWidth()) {
+                            Text(s.sound.label,Modifier.weight(1f));Icon(Icons.Outlined.ArrowDropDown,null)
+                        }
+                        DropdownMenu(expanded=soundMenu,onDismissRequest={soundMenu=false}) {
+                            PianoSound.entries.forEach {sound->
+                                DropdownMenuItem(text={Text(sound.label)},onClick={
+                                    soundMenu=false
+                                    if(sound==PianoSound.CUSTOM && !vm.hasImportedSoundPack())
+                                        vm.message.value="Import a WAV sound pack first"
+                                    else vm.setSettings{it.copy(sound=sound)}
+                                })
+                            }
+                        }
+                    }
+                    OutlinedButton(onClick={soundImporter.launch(arrayOf("*/*"))},modifier=Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.FileUpload,null);Spacer(Modifier.width(8.dp));Text("Import sound pack")
+                    }
+                    if(vm.hasImportedSoundPack())TextButton(onClick={vm.removeSoundPack()}){Text("Remove imported sound")}
+                    Text("Mellow, Bright, Warm and Electric are open-source synthesised instruments. For an imported bank, choose a ZIP of numbered mono PCM16 WAVs (e.g. 60.wav, 64.wav). SF2/SF3/SFZ need a different synthesiser and are not accepted.",fontSize=11.sp)
+                    HorizontalDivider()
                     Toggle("Keep device awake",s.keepAwake,{v->vm.setSettings{it.copy(keepAwake=v)}})
                     Text("Note names",fontWeight=FontWeight.SemiBold)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(s.noteNaming=="LETTERS",{vm.setSettings{it.copy(noteNaming="LETTERS")}},label={Text("C D E")});FilterChip(s.noteNaming=="SOLFEGE",{vm.setSettings{it.copy(noteNaming="SOLFEGE")}},label={Text("Do Re Mi")})}
                     KeyboardRangeSettings(s.keyboardFirst,s.keyboardLast){a,b->vm.setSettings{it.copy(keyboardFirst=a,keyboardLast=b)}}
-                    Text("Piano sound",fontWeight=FontWeight.SemiBold)
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                        PianoSound.entries.forEach {sound ->
-                            FilterChip(s.sound==sound,{vm.setSettings{it.copy(sound=sound)}},modifier=Modifier.weight(1f),label={Text(sound.label,fontSize=11.sp,maxLines=2)})
-                        }
-                    }
-                    HorizontalDivider()
                     Text("Appearance",fontWeight=FontWeight.SemiBold)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         ThemeMode.entries.forEach {mode ->
@@ -440,7 +459,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
         var hue by remember(selected){mutableFloatStateOf(hsv[0])}
         var saturation by remember(selected){mutableFloatStateOf(hsv[1])}
         var brightness by remember(selected){mutableFloatStateOf(hsv[2])}
-        var hex by remember(selected){mutableStateOf("#%06X".format(selected and 0xffffff))}
+        var hex by remember(selected){mutableStateOf("")}
         val live=android.graphics.Color.HSVToColor(floatArrayOf(hue,saturation,brightness))
         AlertDialog(onDismissRequest={customOpen=false},title={Text("Custom accent colour")},
             text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
@@ -448,7 +467,7 @@ private val Dark=darkColorScheme(primary=Color(0xff9cd6c0),background=Color(0xff
                 Text("Hue");Slider(hue,{hue=it},valueRange=0f..360f)
                 Text("Saturation");Slider(saturation,{saturation=it},valueRange=0f..1f)
                 Text("Brightness");Slider(brightness,{brightness=it},valueRange=0f..1f)
-                OutlinedTextField(hex,{hex=it.take(7)},label={Text("HEX #RRGGBB")},singleLine=true)
+                OutlinedTextField(hex,{hex=it.take(7)},label={Text("HEX override (optional)")},placeholder={Text("#%06X".format(selected and 0xffffff))},singleLine=true)
             }},
             confirmButton={TextButton(onClick={onChange(if(hex.matches(Regex("#[0-9a-fA-F]{6}"))) (0xff000000L or hex.drop(1).toLong(16)).toInt() else live);customOpen=false}){Text("Use colour")}},
             dismissButton={TextButton(onClick={customOpen=false}){Text("Cancel")}})
